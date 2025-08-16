@@ -76,70 +76,106 @@ const mockJobs = [
   }
 ];
 
-const JobCard = ({ job, onSave }) => (
-  <Card className="group cursor-pointer hover:shadow-lg transition-all duration-300 border-l-4 border-l-teal-500 hover:border-l-teal-600">
-    <CardContent className="p-6">
-      <div className="flex items-start justify-between">
-        <div className="flex items-start space-x-4 flex-1">
-          <div className="w-16 h-16 rounded-lg overflow-hidden bg-gray-100 flex-shrink-0">
-            <img 
-              src={job.logo} 
-              alt={`${job.company} logo`}
-              className="w-full h-full object-cover"
-            />
-          </div>
-          <div className="flex-1 min-w-0">
-            <h3 className="text-xl font-semibold text-gray-900 mb-2 group-hover:text-teal-700 transition-colors">
-              {job.title}
-            </h3>
-            <div className="flex items-center space-x-4 text-sm text-gray-600 mb-3">
-              <div className="flex items-center space-x-1">
-                <Building2 className="w-4 h-4" />
-                <span>{job.company}</span>
-              </div>
-              <div className="flex items-center space-x-1">
-                <MapPin className="w-4 h-4" />
-                <span>{job.location}</span>
-              </div>
+const JobCard = ({ job, onSave }) => {
+  const formatPostedDate = (dateString) => {
+    const date = new Date(dateString);
+    const now = new Date();
+    const diffTime = Math.abs(now - date);
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    
+    if (diffDays === 1) return '1 day ago';
+    if (diffDays < 7) return `${diffDays} days ago`;
+    if (diffDays < 14) return '1 week ago';
+    return `${Math.ceil(diffDays / 7)} weeks ago`;
+  };
+
+  const formatSalary = (salaryMin, salaryMax, currency = 'ZAR') => {
+    if (!salaryMin && !salaryMax) return null;
+    if (salaryMin && salaryMax) {
+      return `${currency} ${salaryMin.toLocaleString()} - ${salaryMax.toLocaleString()}`;
+    }
+    if (salaryMin) return `${currency} ${salaryMin.toLocaleString()}+`;
+    return `Up to ${currency} ${salaryMax.toLocaleString()}`;
+  };
+
+  return (
+    <Card className="group cursor-pointer hover:shadow-lg transition-all duration-300 border-l-4 border-l-teal-500 hover:border-l-teal-600">
+      <CardContent className="p-6">
+        <div className="flex items-start justify-between">
+          <div className="flex items-start space-x-4 flex-1">
+            <div className="w-16 h-16 rounded-lg overflow-hidden bg-gray-100 flex-shrink-0">
+              <img 
+                src={job.logo_url} 
+                alt={`${job.company_name} logo`}
+                className="w-full h-full object-cover"
+                onError={(e) => {
+                  e.target.src = 'https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NTY2NzF8MHwxfHNlYXJjaHwyfHxvZmZpY2UlMjBidWlsZGluZ3N8ZW58MHx8fHwxNzU1MzUzMDk5fDA&ixlib=rb-4.1.0&q=85&w=64&h=64';
+                }}
+              />
             </div>
-            {job.salary && (
-              <div className="text-sm font-medium text-red-600 mb-2">
-                {job.salary}
+            <div className="flex-1 min-w-0">
+              <h3 className="text-xl font-semibold text-gray-900 mb-2 group-hover:text-teal-700 transition-colors">
+                {job.title}
+              </h3>
+              <div className="flex items-center space-x-4 text-sm text-gray-600 mb-3">
+                <div className="flex items-center space-x-1">
+                  <Building2 className="w-4 h-4" />
+                  <span>{job.company_name}</span>
+                </div>
+                <div className="flex items-center space-x-1">
+                  <MapPin className="w-4 h-4" />
+                  <span>{job.location}</span>
+                </div>
               </div>
-            )}
-            <p className="text-gray-700 text-sm mb-3 line-clamp-2">
-              {job.description}
-            </p>
-            <div className="flex items-center justify-between">
-              <div className="flex items-center space-x-2">
-                <Badge variant="secondary" className="text-xs">
-                  {job.type}
-                </Badge>
-                {job.remote && (
-                  <Badge variant="outline" className="text-xs">
-                    Remote
+              {formatSalary(job.salary_min, job.salary_max, job.salary_currency) && (
+                <div className="text-sm font-medium text-red-600 mb-2">
+                  {formatSalary(job.salary_min, job.salary_max, job.salary_currency)}
+                </div>
+              )}
+              <p className="text-gray-700 text-sm mb-3 line-clamp-2">
+                {job.description}
+              </p>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center space-x-2">
+                  <Badge variant="secondary" className="text-xs">
+                    {job.job_type}
                   </Badge>
-                )}
+                  {job.is_remote && (
+                    <Badge variant="outline" className="text-xs">
+                      Remote
+                    </Badge>
+                  )}
+                  {job.is_hybrid && (
+                    <Badge variant="outline" className="text-xs">
+                      Hybrid
+                    </Badge>
+                  )}
+                  {job.featured && (
+                    <Badge className="text-xs bg-teal-100 text-teal-800 border-teal-200">
+                      Featured
+                    </Badge>
+                  )}
+                </div>
+                <span className="text-xs text-gray-500">{formatPostedDate(job.posted_date)}</span>
               </div>
-              <span className="text-xs text-gray-500">{job.postedDate}</span>
             </div>
           </div>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={(e) => {
+              e.stopPropagation();
+              onSave(job.id);
+            }}
+            className="ml-4 hover:bg-red-50 hover:text-red-600"
+          >
+            <Heart className={`w-5 h-5 ${job.saved ? 'fill-red-500 text-red-500' : ''}`} />
+          </Button>
         </div>
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={(e) => {
-            e.stopPropagation();
-            onSave(job.id);
-          }}
-          className="ml-4 hover:bg-red-50 hover:text-red-600"
-        >
-          <Heart className={`w-5 h-5 ${job.saved ? 'fill-red-500 text-red-500' : ''}`} />
-        </Button>
-      </div>
-    </CardContent>
-  </Card>
-);
+      </CardContent>
+    </Card>
+  );
+};
 
 const FilterSection = ({ title, children, defaultExpanded = true }) => {
   const [expanded, setExpanded] = useState(defaultExpanded);
