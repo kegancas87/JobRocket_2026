@@ -174,7 +174,8 @@ const FilterOption = ({ label, count, selected, onChange }) => (
 );
 
 const JobListingPage = () => {
-  const [jobs, setJobs] = useState(mockJobs);
+  const [jobs, setJobs] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
   const [location, setLocation] = useState("");
   const [filters, setFilters] = useState({
@@ -190,6 +191,34 @@ const JobListingPage = () => {
       banking: false
     }
   });
+
+  // Fetch jobs from API
+  const fetchJobs = async () => {
+    try {
+      setLoading(true);
+      const params = new URLSearchParams();
+      if (searchTerm) params.append('search', searchTerm);
+      if (location) params.append('location', location);
+      
+      const response = await axios.get(`${API}/jobs?${params.toString()}`);
+      setJobs(response.data);
+    } catch (error) {
+      console.error('Error fetching jobs:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchJobs();
+  }, []);
+
+  useEffect(() => {
+    const timeoutId = setTimeout(() => {
+      fetchJobs();
+    }, 500);
+    return () => clearTimeout(timeoutId);
+  }, [searchTerm, location]);
 
   const handleSaveJob = (jobId) => {
     setJobs(jobs.map(job => 
