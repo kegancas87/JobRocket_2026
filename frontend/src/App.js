@@ -17,64 +17,17 @@ import {
   Home,
   Briefcase,
   Building2,
-  Filter
+  Filter,
+  Rocket,
+  Star,
+  Clock,
+  DollarSign,
+  Users,
+  Zap
 } from "lucide-react";
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
-
-// Mock data for job listings
-const mockJobs = [
-  {
-    id: "1",
-    title: "R & D Manager / Workshop",
-    company: "ESG Recruitment",
-    location: "JHB - Eastern Suburbs",
-    description: "Experience as a R & D Manager / Workshop * 5 - 8 years experience in R & D Management / workshop more",
-    postedDate: "1 day ago",
-    logo: "https://images.unsplash.com/photo-1496200186974-4293800e2c20?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NDk1ODF8MHwxfHNlYXJjaHwxfHxjb21wYW55JTIwbG9nb3N8ZW58MHx8fHwxNzU1MzUzMDk0fDA&ixlib=rb-4.1.0&q=85",
-    type: "Full-time",
-    remote: false,
-    saved: false
-  },
-  {
-    id: "2",
-    title: "Senior Site Manager (Construction)",
-    company: "R & D Contracting",
-    location: "Johannesburg / Durban",
-    salary: "R18000 + R3000 KPA On Success 3 Month Probation",
-    description: "R & D Contracting",
-    postedDate: "5 days ago",
-    logo: "https://images.unsplash.com/photo-1621831337128-35676ca30868?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NTY2NzF8MHwxfHNlYXJjaHw0fHxvZmZpY2UlMjBidWlsZGluZ3N8ZW58MHx8fHwxNzU1MzUzMDk5fDA&ixlib=rb-4.1.0&q=85",
-    type: "Full-time",
-    remote: false,
-    saved: false
-  },
-  {
-    id: "3",
-    title: "Principal Development Engineer (Software)",
-    company: "E and D Recruiters",
-    location: "Somerset West",
-    description: "E and D Recruiters",
-    postedDate: "1 day ago",
-    logo: "https://images.unsplash.com/photo-1712159018726-4564d92f3ec2?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NDQ2NDF8MHwxfHNlYXJjaHw0fHx0ZWNoJTIwY29tcGFuaWVzfGVufDB8fHx8MTc1NTM1MzEwNHww&ixlib=rb-4.1.0&q=85",
-    type: "Full-time",
-    remote: true,
-    saved: false
-  },
-  {
-    id: "4",
-    title: "Electrical Engineer: Renewable Energy PrEng",
-    company: "Green Energy Solutions",
-    location: "Cape Town",
-    description: "Leading renewable energy company seeking experienced Electrical Engineer",
-    postedDate: "3 days ago",
-    logo: "https://images.unsplash.com/photo-1608145390633-195fd7d33de2?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NDQ2NDF8MHwxfHNlYXJjaHwzfHx0ZWNoJTIwY29tcGFuaWVzfGVufDB8fHx8MTc1NTM1MzEwNHww&ixlib=rb-4.1.0&q=85",
-    type: "Full-time",
-    remote: false,
-    saved: false
-  }
-];
 
 const JobCard = ({ job, onSave }) => {
   const formatPostedDate = (dateString) => {
@@ -99,77 +52,100 @@ const JobCard = ({ job, onSave }) => {
   };
 
   return (
-    <Card className="group cursor-pointer hover:shadow-lg transition-all duration-300 border-l-4 border-l-teal-500 hover:border-l-teal-600">
-      <CardContent className="p-6">
+    <Card className="group cursor-pointer hover:shadow-2xl transition-all duration-500 bg-white/80 backdrop-blur-sm border-0 hover:bg-white/90 relative overflow-hidden rocket-card">
+      {/* Subtle tech grid pattern overlay */}
+      <div className="absolute inset-0 opacity-5 tech-grid"></div>
+      
+      {/* Featured job glow effect */}
+      {job.featured && (
+        <div className="absolute inset-0 bg-gradient-to-r from-blue-500/10 via-transparent to-slate-500/10 pointer-events-none"></div>
+      )}
+      
+      <CardContent className="p-8 relative z-10">
         <div className="flex items-start justify-between">
-          <div className="flex items-start space-x-4 flex-1">
-            <div className="w-16 h-16 rounded-lg overflow-hidden bg-gray-100 flex-shrink-0">
+          <div className="flex items-start space-x-6 flex-1">
+            <div className="w-20 h-20 rounded-2xl overflow-hidden bg-gradient-to-br from-slate-100 to-slate-200 flex-shrink-0 shadow-lg ring-2 ring-slate-200/50">
               <img 
                 src={job.logo_url} 
                 alt={`${job.company_name} logo`}
                 className="w-full h-full object-cover"
                 onError={(e) => {
-                  e.target.src = 'https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NTY2NzF8MHwxfHNlYXJjaHwyfHxvZmZpY2UlMjBidWlsZGluZ3N8ZW58MHx8fHwxNzU1MzUzMDk5fDA&ixlib=rb-4.1.0&q=85&w=64&h=64';
+                  e.target.src = 'https://images.unsplash.com/photo-1606211105533-0439bfecce21?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NTY2NzZ8MHwxfHNlYXJjaHw0fHxtb2Rlcm4lMjB0ZWNobm9sb2d5fGVufDB8fHx8MTc1NTM1MzYzMXww&ixlib=rb-4.1.0&q=85&w=80&h=80';
                 }}
               />
             </div>
             <div className="flex-1 min-w-0">
-              <h3 className="text-xl font-semibold text-gray-900 mb-2 group-hover:text-teal-700 transition-colors">
-                {job.title}
-              </h3>
-              <div className="flex items-center space-x-4 text-sm text-gray-600 mb-3">
-                <div className="flex items-center space-x-1">
-                  <Building2 className="w-4 h-4" />
-                  <span>{job.company_name}</span>
+              <div className="flex items-start justify-between mb-3">
+                <h3 className="text-2xl font-bold text-slate-800 group-hover:text-blue-700 transition-colors leading-tight">
+                  {job.title}
+                </h3>
+                {job.featured && (
+                  <div className="flex items-center space-x-1 bg-gradient-to-r from-blue-600 to-slate-700 text-white px-3 py-1 rounded-full text-xs font-semibold">
+                    <Star className="w-3 h-3 fill-current" />
+                    <span>Featured</span>
+                  </div>
+                )}
+              </div>
+              
+              <div className="flex items-center space-x-6 text-slate-600 mb-4">
+                <div className="flex items-center space-x-2">
+                  <Building2 className="w-5 h-5 text-slate-500" />
+                  <span className="font-medium">{job.company_name}</span>
                 </div>
-                <div className="flex items-center space-x-1">
-                  <MapPin className="w-4 h-4" />
+                <div className="flex items-center space-x-2">
+                  <MapPin className="w-5 h-5 text-slate-500" />
                   <span>{job.location}</span>
                 </div>
+                <div className="flex items-center space-x-2">
+                  <Clock className="w-4 h-4 text-slate-500" />
+                  <span className="text-sm">{formatPostedDate(job.posted_date)}</span>
+                </div>
               </div>
+              
               {formatSalary(job.salary_min, job.salary_max, job.salary_currency) && (
-                <div className="text-sm font-medium text-red-600 mb-2">
-                  {formatSalary(job.salary_min, job.salary_max, job.salary_currency)}
+                <div className="flex items-center space-x-2 text-emerald-700 font-bold mb-4 bg-emerald-50 px-3 py-2 rounded-lg w-fit">
+                  <DollarSign className="w-4 h-4" />
+                  <span>{formatSalary(job.salary_min, job.salary_max, job.salary_currency)}</span>
                 </div>
               )}
-              <p className="text-gray-700 text-sm mb-3 line-clamp-2">
+              
+              <p className="text-slate-700 mb-6 leading-relaxed line-clamp-2">
                 {job.description}
               </p>
+              
               <div className="flex items-center justify-between">
-                <div className="flex items-center space-x-2">
-                  <Badge variant="secondary" className="text-xs">
+                <div className="flex items-center space-x-3">
+                  <Badge variant="secondary" className="bg-slate-100 text-slate-700 hover:bg-slate-200 px-3 py-1 font-medium">
                     {job.job_type}
                   </Badge>
                   {job.is_remote && (
-                    <Badge variant="outline" className="text-xs">
+                    <Badge className="bg-blue-100 text-blue-700 hover:bg-blue-200 px-3 py-1 font-medium border-0">
+                      <Zap className="w-3 h-3 mr-1" />
                       Remote
                     </Badge>
                   )}
                   {job.is_hybrid && (
-                    <Badge variant="outline" className="text-xs">
+                    <Badge className="bg-purple-100 text-purple-700 hover:bg-purple-200 px-3 py-1 font-medium border-0">
                       Hybrid
                     </Badge>
                   )}
-                  {job.featured && (
-                    <Badge className="text-xs bg-teal-100 text-teal-800 border-teal-200">
-                      Featured
-                    </Badge>
-                  )}
+                  <Badge variant="outline" className="border-slate-300 text-slate-600 px-3 py-1 font-medium">
+                    {job.experience_level}
+                  </Badge>
                 </div>
-                <span className="text-xs text-gray-500">{formatPostedDate(job.posted_date)}</span>
               </div>
             </div>
           </div>
           <Button
             variant="ghost"
-            size="sm"
+            size="lg"
             onClick={(e) => {
               e.stopPropagation();
               onSave(job.id);
             }}
-            className="ml-4 hover:bg-red-50 hover:text-red-600"
+            className="ml-6 hover:bg-red-50 hover:text-red-600 rounded-full p-3 transition-all duration-300"
           >
-            <Heart className={`w-5 h-5 ${job.saved ? 'fill-red-500 text-red-500' : ''}`} />
+            <Heart className={`w-6 h-6 ${job.saved ? 'fill-red-500 text-red-500' : 'text-slate-400'}`} />
           </Button>
         </div>
       </CardContent>
@@ -181,31 +157,35 @@ const FilterSection = ({ title, children, defaultExpanded = true }) => {
   const [expanded, setExpanded] = useState(defaultExpanded);
   
   return (
-    <div className="border-b pb-4 mb-6">
+    <div className="border-b border-slate-200 pb-6 mb-6">
       <button
         onClick={() => setExpanded(!expanded)}
-        className="flex items-center justify-between w-full text-left text-lg font-medium text-gray-900 mb-3"
+        className="flex items-center justify-between w-full text-left text-lg font-bold text-slate-800 mb-4 hover:text-blue-700 transition-colors"
       >
         {title}
-        <ChevronDown className={`w-5 h-5 transition-transform ${expanded ? 'rotate-180' : ''}`} />
+        <ChevronDown className={`w-5 h-5 transition-transform duration-300 ${expanded ? 'rotate-180' : ''}`} />
       </button>
-      {expanded && <div className="space-y-2">{children}</div>}
+      {expanded && <div className="space-y-3">{children}</div>}
     </div>
   );
 };
 
 const FilterOption = ({ label, count, selected, onChange }) => (
-  <label className="flex items-center justify-between cursor-pointer hover:bg-gray-50 p-2 rounded">
-    <div className="flex items-center space-x-2">
+  <label className="flex items-center justify-between cursor-pointer hover:bg-slate-50 p-3 rounded-xl transition-all duration-200">
+    <div className="flex items-center space-x-3">
       <input
         type="checkbox"
         checked={selected}
         onChange={onChange}
-        className="rounded border-gray-300 text-teal-600 focus:ring-teal-500"
+        className="w-5 h-5 rounded border-2 border-slate-300 text-blue-600 focus:ring-blue-500 focus:ring-2"
       />
-      <span className="text-sm text-gray-700">{label}</span>
+      <span className="font-medium text-slate-700">{label}</span>
     </div>
-    {count && <span className="text-xs text-gray-500 bg-gray-200 px-2 py-1 rounded">{count}</span>}
+    {count && (
+      <span className="text-xs text-slate-500 bg-slate-100 px-2 py-1 rounded-full font-semibold">
+        {count}
+      </span>
+    )}
   </label>
 );
 
@@ -271,40 +251,55 @@ const JobListingPage = () => {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-teal-600 mx-auto mb-4"></div>
-          <p className="text-gray-600">Loading amazing job opportunities...</p>
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-slate-100 flex items-center justify-center relative overflow-hidden">
+        {/* Background tech pattern */}
+        <div className="absolute inset-0 opacity-5 tech-grid"></div>
+        
+        <div className="text-center relative z-10">
+          <div className="relative mb-8">
+            <div className="animate-spin rounded-full h-24 w-24 border-4 border-slate-200 border-t-blue-600 mx-auto"></div>
+            <Rocket className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-8 h-8 text-blue-600" />
+          </div>
+          <h3 className="text-2xl font-bold text-slate-800 mb-2">Job Rocket Loading...</h3>
+          <p className="text-slate-600">Searching the galaxy for amazing opportunities</p>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-slate-100 relative">
+      {/* Background tech grid pattern */}
+      <div className="absolute inset-0 opacity-5 tech-grid"></div>
+      
       {/* Header */}
-      <header className="bg-white shadow-sm border-b">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center justify-between h-16">
+      <header className="bg-white/80 backdrop-blur-lg shadow-xl border-b border-slate-200/50 sticky top-0 z-50">
+        <div className="max-w-7xl mx-auto px-6 lg:px-8">
+          <div className="flex items-center justify-between h-20">
             <div className="flex items-center space-x-8">
-              <div className="flex items-center space-x-2">
-                <div className="bg-teal-600 text-white p-2 rounded-lg">
-                  <Briefcase className="w-6 h-6" />
+              <div className="flex items-center space-x-3">
+                <div className="bg-gradient-to-br from-blue-600 to-slate-700 text-white p-3 rounded-2xl shadow-lg">
+                  <Rocket className="w-8 h-8" />
                 </div>
-                <h1 className="text-2xl font-bold text-gray-900">Job Rocket</h1>
+                <div>
+                  <h1 className="text-3xl font-bold bg-gradient-to-r from-blue-600 to-slate-800 bg-clip-text text-transparent">
+                    Job Rocket
+                  </h1>
+                  <p className="text-xs text-slate-500 font-medium">LAUNCH YOUR CAREER</p>
+                </div>
               </div>
             </div>
             <div className="flex items-center space-x-6">
-              <Button variant="ghost" className="text-teal-600 hover:text-teal-700">
-                For recruiters
+              <Button variant="ghost" className="text-blue-700 hover:text-blue-800 hover:bg-blue-50 font-semibold px-6">
+                For Recruiters
               </Button>
-              <Button variant="ghost" className="flex items-center space-x-1">
-                <Heart className="w-4 h-4" />
-                <span>My jobs</span>
+              <Button variant="ghost" className="flex items-center space-x-2 hover:bg-slate-50 font-semibold px-6">
+                <Heart className="w-5 h-5" />
+                <span>My Jobs</span>
                 <ChevronDown className="w-4 h-4" />
               </Button>
-              <Button variant="ghost" className="flex items-center space-x-1">
-                <User className="w-4 h-4" />
+              <Button variant="ghost" className="flex items-center space-x-2 hover:bg-slate-50 font-semibold px-6">
+                <User className="w-5 h-5" />
                 <span>Kegan</span>
                 <ChevronDown className="w-4 h-4" />
               </Button>
@@ -315,67 +310,82 @@ const JobListingPage = () => {
 
       {/* Hero Search Section */}
       <div 
-        className="relative bg-gradient-to-r from-teal-50 to-blue-50 py-16"
+        className="relative py-24 overflow-hidden"
         style={{
-          backgroundImage: `linear-gradient(rgba(20, 184, 166, 0.1), rgba(59, 130, 246, 0.1)), url('https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NTY2NzF8MHwxfHNlYXJjaHwyfHxvZmZpY2UlMjBidWlsZGluZ3N8ZW58MHx8fHwxNzU1MzUzMDk5fDA&ixlib=rb-4.1.0&q=85')`,
+          backgroundImage: `linear-gradient(135deg, rgba(15, 23, 42, 0.8), rgba(30, 64, 175, 0.7)), url('https://images.unsplash.com/photo-1541185933-ef5d8ed016c2?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NTY2Nzd8MHwxfHNlYXJjaHwyfHxyb2NrZXQlMjBsYXVuY2h8ZW58MHx8fHwxNzU1MzUzNjI2fDA&ixlib=rb-4.1.0&q=85')`,
           backgroundSize: 'cover',
           backgroundPosition: 'center'
         }}
       >
-        <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
-          <h2 className="text-4xl font-bold text-gray-900 mb-8">
-            Find Your Dream Job
-          </h2>
-          <div className="flex flex-col sm:flex-row gap-4 max-w-3xl mx-auto">
+        {/* Animated particles/stars effect */}
+        <div className="absolute inset-0 overflow-hidden">
+          <div className="stars"></div>
+        </div>
+        
+        <div className="max-w-5xl mx-auto px-6 lg:px-8 text-center relative z-10">
+          <div className="mb-8">
+            <h2 className="text-6xl font-black text-white mb-4 tracking-tight">
+              Launch Your 
+              <span className="bg-gradient-to-r from-blue-400 to-cyan-300 bg-clip-text text-transparent block">
+                Dream Career
+              </span>
+            </h2>
+            <p className="text-xl text-slate-300 max-w-2xl mx-auto leading-relaxed">
+              Discover opportunities that propel your career to new heights with South Africa's most innovative job platform
+            </p>
+          </div>
+          
+          <div className="flex flex-col lg:flex-row gap-4 max-w-4xl mx-auto">
             <div className="relative flex-1">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
+              <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 text-slate-400 w-6 h-6" />
               <Input
                 type="text"
                 placeholder="Job title, keywords, or company"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-10 h-12 text-lg"
+                className="pl-12 h-16 text-lg font-medium bg-white/90 backdrop-blur-sm border-0 shadow-2xl rounded-2xl focus:ring-4 focus:ring-blue-500/30 focus:bg-white transition-all"
               />
             </div>
             <div className="relative flex-1">
-              <MapPin className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
+              <MapPin className="absolute left-4 top-1/2 transform -translate-y-1/2 text-slate-400 w-6 h-6" />
               <Input
                 type="text"
-                placeholder="City, district or province"
+                placeholder="City, province, or remote"
                 value={location}
                 onChange={(e) => setLocation(e.target.value)}
-                className="pl-10 h-12 text-lg"
+                className="pl-12 h-16 text-lg font-medium bg-white/90 backdrop-blur-sm border-0 shadow-2xl rounded-2xl focus:ring-4 focus:ring-blue-500/30 focus:bg-white transition-all"
               />
             </div>
-            <Button className="bg-teal-600 hover:bg-teal-700 h-12 px-8 text-lg font-medium">
-              Find Jobs
+            <Button className="bg-gradient-to-r from-blue-600 to-slate-700 hover:from-blue-700 hover:to-slate-800 h-16 px-12 text-lg font-bold shadow-2xl rounded-2xl hover:shadow-3xl transform hover:scale-105 transition-all duration-300">
+              <Rocket className="w-6 h-6 mr-3" />
+              Launch Search
             </Button>
           </div>
         </div>
       </div>
 
       {/* Main Content */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <div className="flex gap-8">
+      <div className="max-w-7xl mx-auto px-6 lg:px-8 py-12 relative z-10">
+        <div className="flex gap-12">
           {/* Filters Sidebar */}
-          <div className="w-80 flex-shrink-0">
-            <div className="bg-white rounded-lg shadow-sm p-6 sticky top-4">
-              <div className="flex items-center space-x-2 mb-6">
-                <Filter className="w-5 h-5 text-gray-600" />
-                <h3 className="text-lg font-semibold text-gray-900">Filters</h3>
+          <div className="w-96 flex-shrink-0">
+            <div className="bg-white/80 backdrop-blur-sm rounded-3xl shadow-xl p-8 sticky top-32 border border-slate-200/50">
+              <div className="flex items-center space-x-3 mb-8">
+                <Filter className="w-6 h-6 text-blue-600" />
+                <h3 className="text-2xl font-bold text-slate-800">Filters</h3>
               </div>
 
-              <FilterSection title="Date posted" defaultExpanded={true}>
+              <FilterSection title="Date Posted" defaultExpanded={true}>
                 <FilterOption label="New jobs" count="14" />
                 <FilterOption label="Last week" count="147" />
               </FilterSection>
 
-              <FilterSection title="Work from home options" defaultExpanded={true}>
+              <FilterSection title="Work From Home" defaultExpanded={true}>
                 <FilterOption label="Partially remote" count="17" />
                 <FilterOption label="Fully remote" count="4" />
               </FilterSection>
 
-              <FilterSection title="Application method" defaultExpanded={true}>
+              <FilterSection title="Application Method" defaultExpanded={true}>
                 <FilterOption label="On company website" count="220" />
                 <FilterOption label="Easy Apply" count="130" />
               </FilterSection>
@@ -386,36 +396,57 @@ const JobListingPage = () => {
                 <FilterOption label="IT & Telecommunications" count="47" />
                 <FilterOption label="Sales & Purchasing" count="36" />
                 <FilterOption label="Accounting, Auditing" count="33" />
-                <FilterOption label="Banking, Finance, Insurance, Stockbroking" count="26" />
+                <FilterOption label="Banking, Finance" count="26" />
               </FilterSection>
             </div>
           </div>
 
           {/* Job Listings */}
           <div className="flex-1">
-            <div className="mb-6 flex items-center justify-between">
-              <h2 className="text-2xl font-bold text-gray-900">
-                {filteredJobs.length} results for {searchTerm || "all jobs"}
-              </h2>
-              <div className="flex items-center space-x-2">
-                <span className="text-sm text-gray-600">Relevance</span>
-                <ChevronDown className="w-4 h-4 text-gray-600" />
+            <div className="mb-8 flex items-center justify-between">
+              <div>
+                <h2 className="text-4xl font-bold text-slate-800 mb-2">
+                  {filteredJobs.length} Opportunities Found
+                </h2>
+                <p className="text-slate-600 text-lg">
+                  {searchTerm || location ? `Results for ${searchTerm || 'all jobs'}${location ? ` in ${location}` : ''}` : 'All active positions'}
+                </p>
+              </div>
+              <div className="flex items-center space-x-3">
+                <span className="text-slate-600 font-medium">Sort by:</span>
+                <Button variant="outline" className="flex items-center space-x-2 border-slate-300 hover:bg-slate-50">
+                  <span>Relevance</span>
+                  <ChevronDown className="w-4 h-4" />
+                </Button>
               </div>
             </div>
 
-            <div className="space-y-4">
+            <div className="space-y-6">
               {filteredJobs.map((job) => (
                 <JobCard key={job.id} job={job} onSave={handleSaveJob} />
               ))}
             </div>
 
             {filteredJobs.length === 0 && (
-              <div className="text-center py-16">
-                <div className="text-gray-400 mb-4">
-                  <Search className="w-16 h-16 mx-auto" />
+              <div className="text-center py-24">
+                <div className="mb-8">
+                  <div className="w-32 h-32 bg-gradient-to-br from-slate-100 to-slate-200 rounded-full flex items-center justify-center mx-auto mb-6">
+                    <Search className="w-16 h-16 text-slate-400" />
+                  </div>
+                  <h3 className="text-3xl font-bold text-slate-800 mb-4">No Jobs Found</h3>
+                  <p className="text-xl text-slate-600 max-w-md mx-auto">
+                    Try adjusting your search criteria or explore different keywords
+                  </p>
                 </div>
-                <h3 className="text-xl font-medium text-gray-900 mb-2">No jobs found</h3>
-                <p className="text-gray-600">Try adjusting your search criteria or filters</p>
+                <Button 
+                  onClick={() => {
+                    setSearchTerm("");
+                    setLocation("");
+                  }}
+                  className="bg-gradient-to-r from-blue-600 to-slate-700 hover:from-blue-700 hover:to-slate-800 px-8 py-3 text-lg font-semibold"
+                >
+                  View All Jobs
+                </Button>
               </div>
             )}
           </div>
