@@ -526,6 +526,14 @@ const RecruiterDashboard = ({ user, onUpdateUser }) => {
                 </Card>
               </TabsContent>
 
+              {/* Company Structure Tab */}
+              <TabsContent value="structure" className="space-y-6 mt-6">
+                <CompanyStructure 
+                  user={profile} 
+                  onUpdateUser={fetchCurrentUser}
+                />
+              </TabsContent>
+
               {/* Jobs Tab */}
               <TabsContent value="jobs" className="space-y-6 mt-6">
                 <Card className="bg-white/80 backdrop-blur-sm border-0 shadow-xl">
