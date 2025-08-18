@@ -909,8 +909,13 @@ class JobPostingTestSuite:
             # Run all test suites
             self.test_get_accessible_companies()
             self.test_create_single_job()
+            self.test_automatic_job_expiry()
             self.test_bulk_job_upload()
             self.test_get_jobs_for_recruiter()
+            self.test_enhanced_recruiter_job_management()
+            self.test_public_jobs_api()
+            self.test_job_reposting_functionality()
+            self.test_job_model_enhancements()
             self.test_job_posting_with_company_access()
             self.test_recruiter_progress_tracking()
             self.test_authentication_and_authorization()
