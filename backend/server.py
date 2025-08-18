@@ -496,9 +496,18 @@ class Job(BaseModel):
     application_url: Optional[str] = None
     application_email: Optional[str] = None
     posted_date: datetime = Field(default_factory=datetime.utcnow)
+    expiry_date: datetime = Field(default_factory=lambda: datetime.utcnow() + timedelta(days=35))
     closing_date: Optional[datetime] = None
     is_active: bool = True
     featured: bool = False
+    
+    @property
+    def is_expired(self) -> bool:
+        return datetime.utcnow() > self.expiry_date
+    
+    @property
+    def days_since_posted(self) -> int:
+        return (datetime.utcnow() - self.posted_date).days
 
 class JobCreate(BaseModel):
     title: str
@@ -515,6 +524,7 @@ class JobCreate(BaseModel):
     application_email: Optional[str] = None
     closing_date: Optional[datetime] = None
     featured: bool = False
+    # expiry_date will be automatically set to 35 days from now
 
 class BulkJobCreate(BaseModel):
     jobs: List[JobCreate]
