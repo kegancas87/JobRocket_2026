@@ -1476,7 +1476,408 @@ class JobPostingTestSuite:
         for app_id in self.application_ids:
             print_info(f"Test application ID: {app_id}")
 
-    def run_all_tests(self):
+    def test_enhanced_easy_apply_with_profile_snapshot(self):
+        """Test Enhanced Easy Apply system with profile pre-population"""
+        print_test_header("Enhanced Easy Apply with Profile Snapshot")
+        
+        # First, update job seeker profile with comprehensive data
+        profile_update = {
+            "first_name": "Sarah",
+            "last_name": "Johnson",
+            "about_me": "Experienced full-stack developer with 5+ years in React and Node.js. Passionate about creating scalable web applications and working in agile environments.",
+            "phone": "+27-82-555-0123",
+            "location": "Cape Town, Western Cape",
+            "skills": ["React", "Node.js", "JavaScript", "TypeScript", "Python", "MongoDB", "PostgreSQL", "AWS"],
+            "profile_picture_url": "https://storage.example.com/profiles/sarah_johnson.jpg"
+        }
+        
+        response = self.make_request("PUT", "/profile", profile_update, auth_token=self.job_seeker_token)
+        if self.assert_response(response, 200, "Update Job Seeker Profile"):
+            print_success("Job seeker profile updated with comprehensive data")
+        
+        if not self.easy_apply_job_ids:
+            print_error("No Easy Apply jobs available for testing")
+            return
+        
+        easy_apply_job_id = self.easy_apply_job_ids[0]
+        
+        # Test 1: Enhanced Easy Apply with profile snapshot
+        application_data = {
+            "job_id": easy_apply_job_id,
+            "cover_letter": "I am excited to apply for this position. My experience with React and Node.js aligns perfectly with your requirements.",
+            "resume_url": "https://storage.example.com/resumes/sarah_johnson_resume_v2.pdf",
+            "additional_info": "Available for immediate start. Open to relocation if needed."
+        }
+        
+        response = self.make_request("POST", f"/jobs/{easy_apply_job_id}/apply", application_data, auth_token=self.job_seeker_token)
+        if self.assert_response(response, 200, "Enhanced Easy Apply with Profile Snapshot"):
+            result = response.json()
+            enhanced_application_id = result["id"]
+            self.application_ids.append(enhanced_application_id)
+            print_success(f"Created enhanced application with ID: {enhanced_application_id}")
+            
+            # Verify applicant_snapshot is included
+            if "applicant_snapshot" in result:
+                print_success("Application includes applicant_snapshot")
+                snapshot = result["applicant_snapshot"]
+                
+                # Verify snapshot contains expected profile data
+                expected_fields = ["first_name", "last_name", "email", "location", "phone", "skills", "resume_url", "profile_picture_url"]
+                for field in expected_fields:
+                    if field in snapshot and snapshot[field]:
+                        print_success(f"Snapshot contains {field}: {snapshot[field]}")
+                    else:
+                        print_warning(f"Snapshot missing or empty {field}")
+                
+                # Verify snapshot data matches current profile
+                if snapshot.get("first_name") == "Sarah":
+                    print_success("Snapshot first_name matches profile")
+                if snapshot.get("location") == "Cape Town, Western Cape":
+                    print_success("Snapshot location matches profile")
+                if "React" in snapshot.get("skills", []):
+                    print_success("Snapshot skills include React")
+                
+            else:
+                print_error("Application missing applicant_snapshot")
+        
+        # Test 2: Verify profile changes don't affect existing snapshot
+        print_info("Testing snapshot immutability...")
+        
+        # Update profile after application
+        profile_change = {
+            "location": "Johannesburg, Gauteng",
+            "skills": ["Vue.js", "Angular", "Django"]
+        }
+        
+        response = self.make_request("PUT", "/profile", profile_change, auth_token=self.job_seeker_token)
+        if self.assert_response(response, 200, "Update Profile After Application"):
+            print_success("Profile updated after application submission")
+        
+        # Get the application again and verify snapshot unchanged
+        response = self.make_request("GET", "/applications", auth_token=self.job_seeker_token)
+        if self.assert_response(response, 200, "Get Applications After Profile Change"):
+            applications = response.json()
+            
+            # Find our enhanced application
+            enhanced_app = None
+            for app in applications:
+                if app["application"]["id"] == enhanced_application_id:
+                    enhanced_app = app["application"]
+                    break
+            
+            if enhanced_app and "applicant_snapshot" in enhanced_app:
+                snapshot = enhanced_app["applicant_snapshot"]
+                
+                # Verify snapshot still has original data
+                if snapshot.get("location") == "Cape Town, Western Cape":
+                    print_success("Snapshot location unchanged after profile update")
+                else:
+                    print_error(f"Snapshot location changed: {snapshot.get('location')}")
+                
+                if "React" in snapshot.get("skills", []):
+                    print_success("Snapshot skills unchanged after profile update")
+                else:
+                    print_error("Snapshot skills changed after profile update")
+            else:
+                print_error("Could not find enhanced application or snapshot")
+
+    def test_application_data_enrichment(self):
+        """Test application data enrichment with profile snapshots"""
+        print_test_header("Application Data Enrichment")
+        
+        # Test 1: Job seeker applications include profile data
+        response = self.make_request("GET", "/applications", auth_token=self.job_seeker_token)
+        if self.assert_response(response, 200, "Get Enriched Job Seeker Applications"):
+            applications = response.json()
+            print_info(f"Found {len(applications)} applications with enrichment")
+            
+            if applications:
+                app = applications[0]
+                # Verify enriched structure
+                if "application" in app and "job" in app:
+                    print_success("Job seeker applications properly enriched with job details")
+                    
+                    application = app["application"]
+                    job = app["job"]
+                    
+                    # Check if application has snapshot
+                    if "applicant_snapshot" in application:
+                        print_success("Application includes applicant_snapshot in job seeker view")
+                        snapshot = application["applicant_snapshot"]
+                        
+                        # Verify snapshot completeness
+                        profile_fields = ["first_name", "last_name", "email", "skills"]
+                        for field in profile_fields:
+                            if field in snapshot:
+                                print_success(f"Snapshot includes {field}")
+                    else:
+                        print_warning("Application missing applicant_snapshot")
+                else:
+                    print_error("Job seeker applications not properly enriched")
+        
+        # Test 2: Recruiter job applications include full applicant profiles
+        if not self.easy_apply_job_ids:
+            print_error("No Easy Apply jobs for recruiter testing")
+            return
+        
+        job_id = self.easy_apply_job_ids[0]
+        response = self.make_request("GET", f"/jobs/{job_id}/applications", auth_token=self.recruiter_token)
+        if self.assert_response(response, 200, "Get Enriched Recruiter Job Applications"):
+            applications = response.json()
+            print_info(f"Found {len(applications)} applications for recruiter")
+            
+            if applications:
+                app = applications[0]
+                # Verify enriched structure for recruiters
+                if "application" in app and "applicant" in app and "job" in app:
+                    print_success("Recruiter applications properly enriched with applicant and job details")
+                    
+                    application = app["application"]
+                    applicant = app["applicant"]
+                    
+                    # Verify applicant profile data is included
+                    applicant_fields = ["id", "first_name", "last_name", "email", "skills", "location"]
+                    for field in applicant_fields:
+                        if field in applicant:
+                            print_success(f"Applicant profile includes {field}")
+                        else:
+                            print_warning(f"Applicant profile missing {field}")
+                    
+                    # Verify snapshot is also available
+                    if "applicant_snapshot" in application:
+                        print_success("Application includes applicant_snapshot for recruiter")
+                    else:
+                        print_warning("Application missing applicant_snapshot for recruiter")
+                else:
+                    print_error("Recruiter applications not properly enriched")
+        
+        # Test 3: Company applications include complete applicant information
+        response = self.make_request("GET", "/company/applications", auth_token=self.recruiter_token)
+        if self.assert_response(response, 200, "Get Enriched Company Applications"):
+            applications = response.json()
+            print_info(f"Found {len(applications)} company applications")
+            
+            if applications:
+                app = applications[0]
+                # Verify complete enrichment
+                if "application" in app and "applicant" in app and "job" in app:
+                    print_success("Company applications fully enriched")
+                    
+                    # Verify data privacy - sensitive fields should be excluded
+                    applicant = app["applicant"]
+                    sensitive_fields = ["password_hash", "about_me"]
+                    for field in sensitive_fields:
+                        if field not in applicant:
+                            print_success(f"Sensitive field {field} properly excluded")
+                        else:
+                            print_warning(f"Sensitive field {field} exposed in applicant data")
+                else:
+                    print_error("Company applications not properly enriched")
+
+    def test_profile_completeness_scenarios(self):
+        """Test applications with various profile completeness levels"""
+        print_test_header("Profile Completeness Scenarios")
+        
+        # Create a new job seeker with minimal profile
+        minimal_user_data = {
+            "email": "minimal.user@demo.com",
+            "password": "demo123",
+            "first_name": "Minimal",
+            "last_name": "User",
+            "role": "job_seeker"
+        }
+        
+        response = self.make_request("POST", "/auth/register", minimal_user_data)
+        if self.assert_response(response, 200, "Register Minimal Profile User"):
+            minimal_user = response.json()
+            minimal_token = minimal_user["access_token"]
+            print_success("Created user with minimal profile")
+            
+            # Test application with minimal profile
+            if self.easy_apply_job_ids:
+                minimal_application = {
+                    "job_id": self.easy_apply_job_ids[-1],  # Use last job to avoid duplicates
+                    "cover_letter": "Application from user with minimal profile"
+                }
+                
+                response = self.make_request("POST", f"/jobs/{self.easy_apply_job_ids[-1]}/apply", minimal_application, auth_token=minimal_token)
+                if self.assert_response(response, 200, "Apply with Minimal Profile"):
+                    result = response.json()
+                    
+                    # Verify snapshot handles minimal profile gracefully
+                    if "applicant_snapshot" in result:
+                        snapshot = result["applicant_snapshot"]
+                        print_success("Snapshot created for minimal profile")
+                        
+                        # Check what fields are available
+                        available_fields = [k for k, v in snapshot.items() if v is not None and v != ""]
+                        print_info(f"Available snapshot fields: {available_fields}")
+                        
+                        # Should at least have basic fields
+                        if snapshot.get("first_name") == "Minimal":
+                            print_success("Snapshot includes first_name from minimal profile")
+                        if snapshot.get("email") == "minimal.user@demo.com":
+                            print_success("Snapshot includes email from minimal profile")
+                    else:
+                        print_error("No snapshot created for minimal profile")
+        
+        # Test with partially complete profile
+        partial_user_data = {
+            "email": "partial.user@demo.com",
+            "password": "demo123",
+            "first_name": "Partial",
+            "last_name": "User",
+            "role": "job_seeker"
+        }
+        
+        response = self.make_request("POST", "/auth/register", partial_user_data)
+        if self.assert_response(response, 200, "Register Partial Profile User"):
+            partial_user = response.json()
+            partial_token = partial_user["access_token"]
+            
+            # Update with some profile data
+            partial_update = {
+                "location": "Durban, KwaZulu-Natal",
+                "skills": ["Python", "Django", "PostgreSQL"]
+            }
+            
+            response = self.make_request("PUT", "/profile", partial_update, auth_token=partial_token)
+            if self.assert_response(response, 200, "Update Partial Profile"):
+                print_success("Updated user with partial profile data")
+                
+                # Test application with partial profile
+                if len(self.easy_apply_job_ids) > 1:
+                    partial_application = {
+                        "job_id": self.easy_apply_job_ids[-2],  # Use second to last job
+                        "cover_letter": "Application from user with partial profile",
+                        "resume_url": "https://storage.example.com/resumes/partial_user.pdf"
+                    }
+                    
+                    response = self.make_request("POST", f"/jobs/{self.easy_apply_job_ids[-2]}/apply", partial_application, auth_token=partial_token)
+                    if self.assert_response(response, 200, "Apply with Partial Profile"):
+                        result = response.json()
+                        
+                        if "applicant_snapshot" in result:
+                            snapshot = result["applicant_snapshot"]
+                            print_success("Snapshot created for partial profile")
+                            
+                            # Verify partial data is captured
+                            if snapshot.get("location") == "Durban, KwaZulu-Natal":
+                                print_success("Snapshot includes location from partial profile")
+                            if "Python" in snapshot.get("skills", []):
+                                print_success("Snapshot includes skills from partial profile")
+                            if snapshot.get("resume_url") == "https://storage.example.com/resumes/partial_user.pdf":
+                                print_success("Snapshot includes resume_url from application")
+
+    def test_external_vs_easy_apply_differentiation(self):
+        """Test External vs Easy Apply job differentiation"""
+        print_test_header("External vs Easy Apply Differentiation")
+        
+        # Test 1: Verify Easy Apply jobs allow applications
+        if self.easy_apply_job_ids:
+            easy_job_id = self.easy_apply_job_ids[0]
+            
+            # Get job details to verify no application_url
+            response = self.make_request("GET", "/public/jobs")
+            if self.assert_response(response, 200, "Get Public Jobs for Verification"):
+                jobs = response.json()
+                easy_job = None
+                for job in jobs:
+                    if job["id"] == easy_job_id:
+                        easy_job = job
+                        break
+                
+                if easy_job:
+                    if not easy_job.get("application_url"):
+                        print_success("Easy Apply job has no application_url")
+                    else:
+                        print_error("Easy Apply job should not have application_url")
+        
+        # Test 2: Verify External Apply jobs block Easy Apply
+        if self.external_job_ids:
+            external_job_id = self.external_job_ids[0]
+            
+            # Get job details to verify has application_url
+            response = self.make_request("GET", "/public/jobs")
+            if self.assert_response(response, 200, "Get Public Jobs for External Verification"):
+                jobs = response.json()
+                external_job = None
+                for job in jobs:
+                    if job["id"] == external_job_id:
+                        external_job = job
+                        break
+                
+                if external_job:
+                    if external_job.get("application_url"):
+                        print_success(f"External job has application_url: {external_job['application_url']}")
+                    else:
+                        print_error("External job should have application_url")
+            
+            # Try to apply to external job (should fail)
+            external_application = {
+                "job_id": external_job_id,
+                "cover_letter": "Attempting to apply to external job via Easy Apply"
+            }
+            
+            response = self.make_request("POST", f"/jobs/{external_job_id}/apply", external_application, auth_token=self.job_seeker_token)
+            if self.assert_response(response, 400, "Block Easy Apply for External Job"):
+                print_success("External job properly blocks Easy Apply")
+                
+                # Verify error message mentions external application
+                if response.text and "external" in response.text.lower():
+                    print_success("Error message mentions external application")
+        
+        # Test 3: Create mixed job types and verify differentiation
+        mixed_jobs = [
+            {
+                "title": "Easy Apply Mixed Test Job",
+                "company_id": self.company_id,
+                "description": "Job without application_url for Easy Apply testing",
+                "location": "Port Elizabeth, Eastern Cape",
+                "salary": "R40,000 - R60,000 per month",
+                "job_type": "Permanent",
+                "work_type": "Remote",
+                "industry": "Technology"
+                # No application_url = Easy Apply
+            },
+            {
+                "title": "External Apply Mixed Test Job",
+                "company_id": self.company_id,
+                "description": "Job with application_url for external application testing",
+                "location": "Bloemfontein, Free State",
+                "salary": "R50,000 - R70,000 per month",
+                "job_type": "Contract",
+                "work_type": "Hybrid",
+                "industry": "Technology",
+                "application_url": "https://company.example.com/apply",
+                "application_email": "jobs@company.example.com"
+                # Has application_url = External Apply
+            }
+        ]
+        
+        created_mixed_jobs = []
+        for job_data in mixed_jobs:
+            response = self.make_request("POST", "/jobs", job_data, auth_token=self.recruiter_token)
+            if self.assert_response(response, 200, f"Create {job_data['title']}"):
+                result = response.json()
+                created_mixed_jobs.append(result)
+                self.job_ids.append(result["id"])
+        
+        # Test applications to mixed jobs
+        for i, job in enumerate(created_mixed_jobs):
+            application_data = {
+                "job_id": job["id"],
+                "cover_letter": f"Test application to {job['title']}"
+            }
+            
+            response = self.make_request("POST", f"/jobs/{job['id']}/apply", application_data, auth_token=self.job_seeker_token)
+            
+            if i == 0:  # Easy Apply job
+                if self.assert_response(response, 200, "Apply to Easy Apply Mixed Job"):
+                    print_success("Easy Apply job accepts applications")
+            else:  # External Apply job
+                if self.assert_response(response, 400, "Block Apply to External Mixed Job"):
+                    print_success("External Apply job blocks applications")
         """Run all job posting and application system tests"""
         print(f"{Colors.BOLD}{Colors.BLUE}🚀 Starting Job Rocket Complete System Tests{Colors.ENDC}")
         print(f"{Colors.BLUE}Testing against: {BASE_URL}{Colors.ENDC}")
