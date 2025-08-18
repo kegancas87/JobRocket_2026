@@ -29,7 +29,8 @@ import {
   Image,
   Link,
   Award,
-  FileText
+  FileText,
+  CreditCard
 } from "lucide-react";
 import axios from 'axios';
 
