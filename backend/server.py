@@ -1370,7 +1370,9 @@ async def create_jobs_bulk(
                 
                 # Get company name
                 if job_company_id == current_user.id:
-                    company_name = current_user.company_profile.company_name if current_user.company_profile else "Company Name Not Set"
+                    company_name = "Company Name Not Set"
+                    if current_user.company_profile and current_user.company_profile.company_name:
+                        company_name = current_user.company_profile.company_name
                 else:
                     company_owner = await db.users.find_one({"id": job_company_id})
                     company_name = company_owner.get("company_profile", {}).get("company_name", "Company Name Not Set") if company_owner else "Unknown Company"
