@@ -37,6 +37,7 @@ const JobPosting = ({ user, onUpdateUser }) => {
   const [jobs, setJobs] = useState([]);
   const [archivedJobs, setArchivedJobs] = useState([]);
   const [showJobsList, setShowJobsList] = useState(false);
+  const [userPackages, setUserPackages] = useState([]);
   
   // Single job form
   const [jobForm, setJobForm] = useState({
