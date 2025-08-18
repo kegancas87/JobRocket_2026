@@ -308,6 +308,53 @@ def calculate_profile_progress(user: User) -> ProfileProgress:
     progress.total_points = points
     return progress
 
+def calculate_recruiter_progress(user: User) -> RecruiterProgress:
+    """Calculate and update recruiter's company profile completion progress"""
+    progress = RecruiterProgress()
+    points = 0
+    
+    if not user.company_profile:
+        progress.total_points = 0
+        return progress
+    
+    company = user.company_profile
+    
+    # Company logo (15 points)
+    if company.company_logo_url:
+        progress.company_logo = True
+        points += 15
+    
+    # Cover image (10 points)
+    if company.company_cover_image_url:
+        progress.cover_image = True
+        points += 10
+    
+    # Company description - at least 100 characters (20 points)
+    if company.company_description and len(company.company_description.strip()) >= 100:
+        progress.company_description = True
+        points += 20
+    
+    # Company size (10 points)
+    if company.company_size:
+        progress.company_size = True
+        points += 10
+    
+    # Website link (15 points)
+    if company.company_website:
+        progress.website_link = True
+        points += 15
+    
+    # LinkedIn link (10 points)
+    if company.company_linkedin:
+        progress.linkedin_link = True
+        points += 10
+    
+    # First job posted (20 points) - we'll track this separately
+    # This will be set when recruiter posts their first job
+    
+    progress.total_points = points
+    return progress
+
 
 # Models
 class Company(BaseModel):
