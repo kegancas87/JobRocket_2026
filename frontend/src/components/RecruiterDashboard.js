@@ -537,42 +537,10 @@ const RecruiterDashboard = ({ user, onUpdateUser }) => {
 
               {/* Jobs Tab */}
               <TabsContent value="jobs" className="space-y-6 mt-6">
-                <Card className="bg-white/80 backdrop-blur-sm border-0 shadow-xl">
-                  <CardHeader>
-                    <CardTitle className="flex items-center space-x-2">
-                      <Briefcase className="w-5 h-5 text-blue-600" />
-                      <span>Job Postings</span>
-                      {!progress.first_job_posted && (
-                        <Badge className="bg-yellow-100 text-yellow-800 text-xs">
-                          +20 points (first job)
-                        </Badge>
-                      )}
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="text-center py-12">
-                      <Briefcase className="w-16 h-16 text-slate-300 mx-auto mb-4" />
-                      <h3 className="text-xl font-semibold text-slate-800 mb-2">
-                        Ready to post your first job?
-                      </h3>
-                      <p className="text-slate-600 mb-6">
-                        Complete your company profile to unlock job posting features
-                      </p>
-                      <Button 
-                        disabled={progress.total_points < 50}
-                        className="bg-gradient-to-r from-blue-600 to-slate-700 hover:from-blue-700 hover:to-slate-800"
-                      >
-                        <Plus className="w-4 h-4 mr-2" />
-                        Create Job Posting
-                      </Button>
-                      {progress.total_points < 50 && (
-                        <p className="text-sm text-slate-500 mt-2">
-                          Complete at least 50% of your profile to post jobs
-                        </p>
-                      )}
-                    </div>
-                  </CardContent>
-                </Card>
+                <JobPosting 
+                  user={profile} 
+                  onUpdateUser={fetchCurrentUser}
+                />
               </TabsContent>
             </Tabs>
           </div>
