@@ -117,7 +117,7 @@ class JobPostingTestSuite:
             return False
 
     def setup_test_environment(self):
-        """Setup test environment with recruiter login"""
+        """Setup test environment with recruiter and job seeker login"""
         print_test_header("Setting up Test Environment")
         
         # Login as recruiter
@@ -138,6 +138,24 @@ class JobPostingTestSuite:
         print_info(f"Logged in as recruiter: {login_result['user']['email']}")
         print_info(f"Company ID: {self.company_id}")
         print_info(f"User Role: {login_result['user']['role']}")
+        
+        # Login as job seeker for application tests
+        job_seeker_login = {
+            "email": "sarah.johnson@demo.com",
+            "password": "demo123"
+        }
+        
+        response = self.make_request("POST", "/auth/login", job_seeker_login)
+        if not self.assert_response(response, 200, "Job Seeker Login"):
+            return False
+            
+        job_seeker_result = response.json()
+        self.job_seeker_token = job_seeker_result["access_token"]
+        self.job_seeker_user_id = job_seeker_result["user"]["id"]
+        
+        print_info(f"Logged in as job seeker: {job_seeker_result['user']['email']}")
+        print_info(f"Job Seeker ID: {self.job_seeker_user_id}")
+        print_info(f"Job Seeker Role: {job_seeker_result['user']['role']}")
         
         return True
 
