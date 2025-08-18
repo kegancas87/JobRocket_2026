@@ -2381,7 +2381,7 @@ class JobPostingTestSuite:
 
     def run_all_tests(self):
         """Run all job posting and application system tests"""
-        print(f"{Colors.BOLD}{Colors.BLUE}🚀 Starting Enhanced Easy Apply System Tests{Colors.ENDC}")
+        print(f"{Colors.BOLD}{Colors.BLUE}🚀 Starting Job Rocket Package and Payment System Tests{Colors.ENDC}")
         print(f"{Colors.BLUE}Testing against: {BASE_URL}{Colors.ENDC}")
         print(f"{Colors.BLUE}Timestamp: {datetime.now().isoformat()}{Colors.ENDC}")
         
@@ -2393,13 +2393,25 @@ class JobPostingTestSuite:
                 print_error("Failed to setup test environment. Aborting tests.")
                 return False
             
-            # Run Enhanced Easy Apply System Tests (Priority)
+            # Run Package and Payment System Tests (Priority)
+            print(f"\n{Colors.BOLD}{Colors.BLUE}=== PACKAGE AND PAYMENT SYSTEM TESTS ==={Colors.ENDC}")
+            self.test_package_management()
+            self.test_payment_initiation()
+            self.test_payment_completion_and_package_activation()
+            self.test_user_package_management()
+            self.test_job_posting_with_package_credits()
+            self.test_package_credit_management()
+            self.test_package_scenarios()
+            
+            # Run Enhanced Easy Apply System Tests
+            print(f"\n{Colors.BOLD}{Colors.BLUE}=== ENHANCED EASY APPLY SYSTEM TESTS ==={Colors.ENDC}")
             self.test_enhanced_easy_apply_with_profile_snapshot()
             self.test_application_data_enrichment()
             self.test_profile_completeness_scenarios()
             self.test_external_vs_easy_apply_differentiation()
             
             # Run existing Easy Apply tests
+            print(f"\n{Colors.BOLD}{Colors.BLUE}=== EASY APPLY SYSTEM TESTS ==={Colors.ENDC}")
             self.test_easy_apply_job_creation()
             self.test_easy_apply_job_application()
             self.test_job_seeker_applications_management()
@@ -2410,6 +2422,7 @@ class JobPostingTestSuite:
             self.test_easy_apply_vs_external_differentiation()
             
             # Run core job posting tests
+            print(f"\n{Colors.BOLD}{Colors.BLUE}=== CORE JOB POSTING SYSTEM TESTS ==={Colors.ENDC}")
             self.test_get_accessible_companies()
             self.test_create_single_job()
             self.test_automatic_job_expiry()
