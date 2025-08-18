@@ -318,7 +318,7 @@ Marketing Manager,Johannesburg,R45000 - R60000,Permanent,Onsite,Marketing,"Join 
                           <Badge variant="outline">{job.industry}</Badge>
                         </div>
                         <p className="text-sm text-slate-500 mt-2">
-                          Posted: {formatDate(job.posted_date)}
+                          Posted: {formatPostedDate(job.posted_date)}
                         </p>
                       </div>
                       <div className="flex space-x-2">
