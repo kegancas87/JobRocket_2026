@@ -374,6 +374,10 @@ Marketing Manager,Johannesburg,R45000 - R60000,Permanent,Onsite,Marketing,"Join 
           </CardContent>
         </Card>
       )}
+
+      {/* Jobs List Toggle */}
+      <div className="flex items-center justify-between">
+        <div></div>
         <Button
           onClick={() => setShowJobsList(!showJobsList)}
           variant="outline"
@@ -381,7 +385,6 @@ Marketing Manager,Johannesburg,R45000 - R60000,Permanent,Onsite,Marketing,"Join 
           <Eye className="w-4 h-4 mr-2" />
           {showJobsList ? 'Hide' : 'View'} Jobs ({jobs.length} active, {archivedJobs.length} archived)
         </Button>
-      </div>
       </div>
 
       {/* Jobs List */}
