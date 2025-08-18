@@ -67,6 +67,118 @@ class JobCategory(str, Enum):
     OPERATIONS = "Operations"
     CUSTOMER_SERVICE = "Customer Service"
 
+class UserRole(str, Enum):
+    JOB_SEEKER = "job_seeker"
+    RECRUITER = "recruiter"
+    ADMIN = "admin"
+
+class EducationLevel(str, Enum):
+    HIGH_SCHOOL = "High School"
+    CERTIFICATE = "Certificate"
+    DIPLOMA = "Diploma"
+    BACHELORS = "Bachelor's Degree"
+    MASTERS = "Master's Degree"
+    PHD = "PhD"
+    OTHER = "Other"
+
+
+# Authentication Models
+class UserLogin(BaseModel):
+    email: EmailStr
+    password: str
+
+class UserRegister(BaseModel):
+    email: EmailStr
+    password: str
+    first_name: str
+    last_name: str
+    role: UserRole = UserRole.JOB_SEEKER
+
+class Token(BaseModel):
+    access_token: str
+    token_type: str
+    user: dict
+
+class WorkExperience(BaseModel):
+    company: str
+    position: str
+    start_date: datetime
+    end_date: Optional[datetime] = None
+    current: bool = False
+    description: str
+    location: str
+
+class Education(BaseModel):
+    institution: str
+    degree: str
+    field_of_study: str
+    level: EducationLevel
+    start_date: datetime
+    end_date: Optional[datetime] = None
+    current: bool = False
+    grade: Optional[str] = None
+    document_url: Optional[str] = None
+
+class Achievement(BaseModel):
+    title: str
+    description: str
+    date_achieved: datetime
+    issuer: Optional[str] = None
+    credential_url: Optional[str] = None
+
+class ProfileProgress(BaseModel):
+    profile_picture: bool = False  # 5 points
+    about_me: bool = False         # 10 points
+    work_history: bool = False     # 10 points
+    skills: bool = False           # 20 points (5+ skills)
+    education: bool = False        # 10 points
+    achievements: bool = False     # 10 points
+    intro_video: bool = False      # 20 points
+    job_applications: int = 0      # 10 points (5 applications)
+    email_alerts: bool = False     # 5 points
+    total_points: int = 0
+
+class User(BaseModel):
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    email: EmailStr
+    password_hash: str
+    first_name: str
+    last_name: str
+    role: UserRole = UserRole.JOB_SEEKER
+    
+    # Profile fields
+    profile_picture_url: Optional[str] = None
+    about_me: Optional[str] = None
+    phone: Optional[str] = None
+    location: str = ""
+    current_salary_range: Optional[str] = None
+    desired_salary_range: Optional[str] = None
+    skills: List[str] = []
+    work_experience: List[WorkExperience] = []
+    education: List[Education] = []
+    achievements: List[Achievement] = []
+    intro_video_url: Optional[str] = None
+    
+    # Gamification
+    profile_progress: ProfileProgress = Field(default_factory=ProfileProgress)
+    
+    # Timestamps
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+    updated_at: datetime = Field(default_factory=datetime.utcnow)
+    last_login: Optional[datetime] = None
+
+class UserProfileUpdate(BaseModel):
+    first_name: Optional[str] = None
+    last_name: Optional[str] = None
+    about_me: Optional[str] = None
+    phone: Optional[str] = None
+    location: Optional[str] = None
+    current_salary_range: Optional[str] = None
+    desired_salary_range: Optional[str] = None
+    skills: Optional[List[str]] = None
+    profile_picture_url: Optional[str] = None
+    intro_video_url: Optional[str] = None
+
 
 # Models
 class Company(BaseModel):
