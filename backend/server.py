@@ -560,9 +560,64 @@ class JobApplicationUpdate(BaseModel):
     status: Optional[ApplicationStatus] = None
     notes: Optional[str] = None
 
-class BulkJobCreate(BaseModel):
-    jobs: List[JobCreate]
-    company_id: Optional[str] = None  # Can override individual job company_id
+class PackageType(str, Enum):
+    TWO_LISTINGS = "two_listings"
+    FIVE_LISTINGS = "five_listings" 
+    UNLIMITED_LISTINGS = "unlimited_listings"
+    CV_SEARCH_10 = "cv_search_10"
+    CV_SEARCH_20 = "cv_search_20"
+    CV_SEARCH_UNLIMITED = "cv_search_unlimited"
+
+class PaymentStatus(str, Enum):
+    PENDING = "pending"
+    COMPLETED = "completed"
+    FAILED = "failed"
+    CANCELLED = "cancelled"
+    REFUNDED = "refunded"
+
+class SubscriptionStatus(str, Enum):
+    ACTIVE = "active"
+    CANCELLED = "cancelled"
+    EXPIRED = "expired"
+    PENDING = "pending"
+
+class Package(BaseModel):
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    name: str
+    description: str
+    package_type: PackageType
+    price: float  # In South African Rand
+    is_subscription: bool = False
+    duration_days: Optional[int] = None  # For subscriptions
+    job_listings_included: Optional[int] = None  # None = unlimited
+    cv_searches_included: Optional[int] = None  # None = unlimited  
+    job_expiry_days: int = 35  # Default job expiry
+    is_active: bool = True
+
+class UserPackage(BaseModel):
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    user_id: str
+    package_id: str
+    package_type: PackageType
+    purchased_date: datetime = Field(default_factory=datetime.utcnow)
+    expiry_date: Optional[datetime] = None  # For subscriptions
+    job_listings_remaining: Optional[int] = None  # None = unlimited
+    cv_searches_remaining: Optional[int] = None  # None = unlimited
+    is_active: bool = True
+    subscription_status: Optional[SubscriptionStatus] = None
+
+class Payment(BaseModel):
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    user_id: str
+    package_id: str
+    amount: float
+    currency: str = "ZAR"
+    payment_method: str = "payfast"
+    payment_reference: Optional[str] = None  # Payfast payment reference
+    status: PaymentStatus = PaymentStatus.PENDING
+    created_date: datetime = Field(default_factory=datetime.utcnow)
+    completed_date: Optional[datetime] = None
+    failure_reason: Optional[str] = None
 
 class JobSearchFilters(BaseModel):
     location: Optional[str] = None
