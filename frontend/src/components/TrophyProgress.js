@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Trophy, Rocket, Star, Sparkles, Zap } from 'lucide-react';
 
-const TrophyProgress = ({ progress, showDetails = false, onComplete }) => {
+const TrophyProgress = ({ progress, showDetails = false, onComplete, userRole = 'job_seeker' }) => {
   const [animateComplete, setAnimateComplete] = useState(false);
   const [showRocket, setShowRocket] = useState(false);
   
@@ -9,7 +9,7 @@ const TrophyProgress = ({ progress, showDetails = false, onComplete }) => {
   const percentage = Math.min((totalPoints / 100) * 100, 100);
   const isComplete = totalPoints >= 100;
   
-  const tasks = [
+  const jobSeekerTasks = [
     { key: 'profile_picture', label: 'Add Profile Picture', points: 5, completed: progress?.profile_picture },
     { key: 'about_me', label: 'Write About Me (50+ chars)', points: 10, completed: progress?.about_me },
     { key: 'work_history', label: 'Add Work Experience', points: 10, completed: progress?.work_history },
@@ -20,6 +20,18 @@ const TrophyProgress = ({ progress, showDetails = false, onComplete }) => {
     { key: 'job_applications', label: 'Apply to 5 Jobs', points: 10, completed: (progress?.job_applications || 0) >= 5 },
     { key: 'email_alerts', label: 'Setup Email Alerts', points: 5, completed: progress?.email_alerts }
   ];
+
+  const recruiterTasks = [
+    { key: 'company_logo', label: 'Add Company Logo', points: 15, completed: progress?.company_logo },
+    { key: 'cover_image', label: 'Add Cover Image', points: 10, completed: progress?.cover_image },
+    { key: 'company_description', label: 'Company Description (100+ chars)', points: 20, completed: progress?.company_description },
+    { key: 'company_size', label: 'Set Company Size', points: 10, completed: progress?.company_size },
+    { key: 'website_link', label: 'Add Website Link', points: 15, completed: progress?.website_link },
+    { key: 'linkedin_link', label: 'Add LinkedIn Link', points: 10, completed: progress?.linkedin_link },
+    { key: 'first_job_posted', label: 'Post First Job', points: 20, completed: progress?.first_job_posted }
+  ];
+
+  const tasks = userRole === 'recruiter' ? recruiterTasks : jobSeekerTasks;
 
   useEffect(() => {
     if (isComplete && !animateComplete) {
@@ -34,8 +46,15 @@ const TrophyProgress = ({ progress, showDetails = false, onComplete }) => {
   return (
     <div className="bg-white/80 backdrop-blur-sm rounded-3xl shadow-xl p-8 border border-slate-200/50">
       <div className="text-center mb-8">
-        <h3 className="text-2xl font-bold text-slate-800 mb-2">Profile Completion</h3>
-        <p className="text-slate-600">Complete your profile to unlock all features</p>
+        <h3 className="text-2xl font-bold text-slate-800 mb-2">
+          {userRole === 'recruiter' ? 'Company Profile Completion' : 'Profile Completion'}
+        </h3>
+        <p className="text-slate-600">
+          {userRole === 'recruiter' 
+            ? 'Complete your company profile to attract top talent' 
+            : 'Complete your profile to unlock all features'
+          }
+        </p>
       </div>
 
       {/* Trophy with Progress Circle */}
@@ -121,7 +140,7 @@ const TrophyProgress = ({ progress, showDetails = false, onComplete }) => {
         </div>
         {isComplete && (
           <div className="text-yellow-600 font-medium mt-2 animate-pulse">
-            ✨ Career rocket launched! ✨
+            {userRole === 'recruiter' ? '✨ Ready to hire top talent! ✨' : '✨ Career rocket launched! ✨'}
           </div>
         )}
       </div>
