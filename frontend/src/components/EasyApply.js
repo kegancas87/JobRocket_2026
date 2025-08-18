@@ -225,8 +225,65 @@ const EasyApplyModal = ({ job, isOpen, onClose, onSuccess, user }) => {
               </div>
 
               <form className="space-y-6">
+                {/* Pre-populated Profile Information */}
+                {user && (
+                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                    <h4 className="font-semibold text-blue-900 mb-3 flex items-center">
+                      <User className="w-4 h-4 mr-2" />
+                      Your Profile Information
+                    </h4>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+                      <div>
+                        <span className="font-medium text-blue-800">Name:</span>
+                        <p className="text-blue-700">{user.first_name} {user.last_name}</p>
+                      </div>
+                      <div>
+                        <span className="font-medium text-blue-800">Email:</span>
+                        <p className="text-blue-700">{user.email}</p>
+                      </div>
+                      {user.location && (
+                        <div>
+                          <span className="font-medium text-blue-800">Location:</span>
+                          <p className="text-blue-700">{user.location}</p>
+                        </div>
+                      )}
+                      {user.phone && (
+                        <div>
+                          <span className="font-medium text-blue-800">Phone:</span>
+                          <p className="text-blue-700">{user.phone}</p>
+                        </div>
+                      )}
+                    </div>
+                    
+                    {user.skills && user.skills.length > 0 && (
+                      <div className="mt-3">
+                        <span className="font-medium text-blue-800">Skills:</span>
+                        <div className="flex flex-wrap gap-1 mt-1">
+                          {user.skills.slice(0, 6).map((skill, index) => (
+                            <Badge key={index} variant="outline" className="text-xs bg-white border-blue-300 text-blue-700">
+                              {skill}
+                            </Badge>
+                          ))}
+                          {user.skills.length > 6 && (
+                            <Badge variant="outline" className="text-xs bg-white border-blue-300 text-blue-700">
+                              +{user.skills.length - 6} more
+                            </Badge>
+                          )}
+                        </div>
+                      </div>
+                    )}
+                    
+                    {(user.resume_url || user.cv_url) && (
+                      <div className="mt-3">
+                        <span className="font-medium text-blue-800">CV/Resume:</span>
+                        <p className="text-blue-700 text-xs truncate">{user.resume_url || user.cv_url}</p>
+                      </div>
+                    )}
+                  </div>
+                )}
+
                 <div className="space-y-2">
-                  <Label htmlFor="cover_letter">Cover Letter</Label>
+                  <Label htmlFor="cover_letter">Cover Letter *</Label>
                   <Textarea
                     id="cover_letter"
                     value={applicationData.cover_letter}
@@ -234,6 +291,7 @@ const EasyApplyModal = ({ job, isOpen, onClose, onSuccess, user }) => {
                     placeholder="Write a brief cover letter explaining why you're interested in this position and how your skills match the requirements..."
                     rows={6}
                     className="resize-none"
+                    required
                   />
                   <p className="text-sm text-slate-500">
                     {applicationData.cover_letter.length} characters
