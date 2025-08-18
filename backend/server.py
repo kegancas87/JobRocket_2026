@@ -526,9 +526,38 @@ class JobCreate(BaseModel):
     featured: bool = False
     # expiry_date will be automatically set to 35 days from now
 
-class BulkJobCreate(BaseModel):
-    jobs: List[JobCreate]
-    company_id: Optional[str] = None  # Can override individual job company_id
+class ApplicationStatus(str, Enum):
+    PENDING = "pending"
+    REVIEWED = "reviewed"
+    SHORTLISTED = "shortlisted"
+    INTERVIEWED = "interviewed"
+    OFFERED = "offered"
+    REJECTED = "rejected"
+    WITHDRAWN = "withdrawn"
+
+class JobApplication(BaseModel):
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    job_id: str
+    applicant_id: str  # User ID of the job seeker
+    company_id: str
+    status: ApplicationStatus = ApplicationStatus.PENDING
+    cover_letter: Optional[str] = None
+    resume_url: Optional[str] = None
+    additional_info: Optional[str] = None
+    applied_date: datetime = Field(default_factory=datetime.utcnow)
+    last_updated: datetime = Field(default_factory=datetime.utcnow)
+    reviewed_by: Optional[str] = None  # Recruiter who reviewed
+    notes: Optional[str] = None  # Internal recruiter notes
+
+class JobApplicationCreate(BaseModel):
+    job_id: str
+    cover_letter: Optional[str] = None
+    resume_url: Optional[str] = None
+    additional_info: Optional[str] = None
+
+class JobApplicationUpdate(BaseModel):
+    status: Optional[ApplicationStatus] = None
+    notes: Optional[str] = None
 
 class JobSearchFilters(BaseModel):
     location: Optional[str] = None
