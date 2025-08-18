@@ -636,7 +636,7 @@ async def get_me(current_user: User = Depends(get_current_user)):
         )
         current_user.profile_progress = progress
     elif current_user.role == UserRole.RECRUITER:
-        progress = calculate_recruiter_progress(current_user)
+        progress = await calculate_recruiter_progress_with_structure(current_user)
         # Update progress in database
         await db.users.update_one(
             {"id": current_user.id},
@@ -649,6 +649,389 @@ async def get_me(current_user: User = Depends(get_current_user)):
     return user_dict
 
 
+# Company Structure Routes
+@api_router.post("/company/branches", response_model=CompanyBranch)
+async def create_branch(
+    branch_data: BranchCreate,
+    current_user: User = Depends(get_current_user)
+):
+    """Create a new company branch"""
+    if current_user.role != UserRole.RECRUITER:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only recruiters can create branches"
+        )
+    
+    # Use user ID as company ID (each recruiter represents their company)
+    branch_dict = branch_data.dict()
+    branch_dict["company_id"] = current_user.id
+    
+    branch_obj = CompanyBranch(**branch_dict)
+    await db.company_branches.insert_one(branch_obj.dict())
+    
+    return branch_obj
+
+@api_router.get("/company/branches", response_model=List[CompanyBranch])
+async def get_branches(current_user: User = Depends(get_current_user)):
+    """Get all branches for the current company"""
+    if current_user.role != UserRole.RECRUITER:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only recruiters can view branches"
+        )
+    
+    branches = await db.company_branches.find({"company_id": current_user.id}).to_list(1000)
+    return [CompanyBranch(**branch) for branch in branches]
+
+@api_router.put("/company/branches/{branch_id}", response_model=CompanyBranch)
+async def update_branch(
+    branch_id: str,
+    branch_update: BranchUpdate,
+    current_user: User = Depends(get_current_user)
+):
+    """Update a company branch"""
+    if current_user.role != UserRole.RECRUITER:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only recruiters can update branches"
+        )
+    
+    # Check if branch belongs to current user's company
+    existing_branch = await db.company_branches.find_one({
+        "id": branch_id,
+        "company_id": current_user.id
+    })
+    
+    if not existing_branch:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Branch not found"
+        )
+    
+    update_data = {k: v for k, v in branch_update.dict().items() if v is not None}
+    
+    await db.company_branches.update_one(
+        {"id": branch_id},
+        {"$set": update_data}
+    )
+    
+    updated_branch = await db.company_branches.find_one({"id": branch_id})
+    return CompanyBranch(**updated_branch)
+
+@api_router.delete("/company/branches/{branch_id}")
+async def delete_branch(
+    branch_id: str,
+    current_user: User = Depends(get_current_user)
+):
+    """Delete a company branch"""
+    if current_user.role != UserRole.RECRUITER:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only recruiters can delete branches"
+        )
+    
+    # Check if branch belongs to current user's company
+    existing_branch = await db.company_branches.find_one({
+        "id": branch_id,
+        "company_id": current_user.id
+    })
+    
+    if not existing_branch:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Branch not found"
+        )
+    
+    # Remove branch associations from team members
+    await db.company_members.update_many(
+        {"company_id": current_user.id},
+        {"$pull": {"branch_ids": branch_id}}
+    )
+    
+    # Delete the branch
+    await db.company_branches.delete_one({"id": branch_id})
+    
+    return {"message": "Branch deleted successfully"}
+
+
+# Team Management Routes
+@api_router.post("/company/invite", response_model=TeamInvitation)
+async def invite_team_member(
+    invitation_data: TeamInvitationCreate,
+    current_user: User = Depends(get_current_user)
+):
+    """Invite a new team member to the company"""
+    if current_user.role != UserRole.RECRUITER:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only recruiters can invite team members"
+        )
+    
+    # Check if user is already invited or exists
+    existing_invitation = await db.team_invitations.find_one({
+        "email": invitation_data.email,
+        "company_id": current_user.id,
+        "status": InvitationStatus.PENDING
+    })
+    
+    if existing_invitation:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="User already has a pending invitation"
+        )
+    
+    # Check if user already exists in the company
+    existing_user = await db.users.find_one({"email": invitation_data.email})
+    if existing_user:
+        existing_member = await db.company_members.find_one({
+            "company_id": current_user.id,
+            "user_id": existing_user["id"],
+            "is_active": True
+        })
+        if existing_member:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="User is already a team member"
+            )
+    
+    # Validate branch IDs
+    if invitation_data.branch_ids:
+        for branch_id in invitation_data.branch_ids:
+            branch = await db.company_branches.find_one({
+                "id": branch_id,
+                "company_id": current_user.id
+            })
+            if not branch:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"Branch {branch_id} not found"
+                )
+    
+    # Create invitation
+    invitation_dict = invitation_data.dict()
+    invitation_dict["company_id"] = current_user.id
+    invitation_dict["invited_by"] = current_user.id
+    
+    invitation_obj = TeamInvitation(**invitation_dict)
+    await db.team_invitations.insert_one(invitation_obj.dict())
+    
+    # TODO: Send email invitation
+    # send_invitation_email(invitation_obj)
+    
+    return invitation_obj
+
+@api_router.get("/company/invitations", response_model=List[TeamInvitation])
+async def get_company_invitations(current_user: User = Depends(get_current_user)):
+    """Get all pending invitations for the company"""
+    if current_user.role != UserRole.RECRUITER:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only recruiters can view invitations"
+        )
+    
+    invitations = await db.team_invitations.find({
+        "company_id": current_user.id
+    }).sort("created_at", -1).to_list(1000)
+    
+    return [TeamInvitation(**inv) for inv in invitations]
+
+@api_router.post("/company/invitations/{invitation_id}/cancel")
+async def cancel_invitation(
+    invitation_id: str,
+    current_user: User = Depends(get_current_user)
+):
+    """Cancel a pending invitation"""
+    if current_user.role != UserRole.RECRUITER:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only recruiters can cancel invitations"
+        )
+    
+    result = await db.team_invitations.update_one(
+        {
+            "id": invitation_id,
+            "company_id": current_user.id,
+            "status": InvitationStatus.PENDING
+        },
+        {"$set": {"status": InvitationStatus.CANCELLED}}
+    )
+    
+    if result.matched_count == 0:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Invitation not found or already processed"
+        )
+    
+    return {"message": "Invitation cancelled successfully"}
+
+@api_router.get("/company/members", response_model=List[dict])
+async def get_team_members(current_user: User = Depends(get_current_user)):
+    """Get all team members for the company"""
+    if current_user.role != UserRole.RECRUITER:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only recruiters can view team members"
+        )
+    
+    # Get company members with user details
+    members = await db.company_members.find({
+        "company_id": current_user.id,
+        "is_active": True
+    }).to_list(1000)
+    
+    result = []
+    for member in members:
+        user = await db.users.find_one({"id": member["user_id"]})
+        if user:
+            if "_id" in user:
+                del user["_id"]
+            
+            # Get branch details
+            branches = []
+            if member["branch_ids"]:
+                for branch_id in member["branch_ids"]:
+                    branch = await db.company_branches.find_one({"id": branch_id})
+                    if branch:
+                        branches.append(CompanyBranch(**branch))
+            
+            member_info = {
+                "member_id": member["id"],
+                "user": user,
+                "role": member["role"],
+                "branches": branches,
+                "joined_at": member["joined_at"],
+                "is_active": member["is_active"]
+            }
+            result.append(member_info)
+    
+    return result
+
+@api_router.put("/company/members/{member_id}")
+async def update_team_member(
+    member_id: str,
+    member_update: TeamMemberUpdate,
+    current_user: User = Depends(get_current_user)
+):
+    """Update team member details"""
+    if current_user.role != UserRole.RECRUITER:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only recruiters can update team members"
+        )
+    
+    # Validate branch IDs if provided
+    if member_update.branch_ids:
+        for branch_id in member_update.branch_ids:
+            branch = await db.company_branches.find_one({
+                "id": branch_id,
+                "company_id": current_user.id
+            })
+            if not branch:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"Branch {branch_id} not found"
+                )
+    
+    update_data = {k: v for k, v in member_update.dict().items() if v is not None}
+    
+    result = await db.company_members.update_one(
+        {"id": member_id, "company_id": current_user.id},
+        {"$set": update_data}
+    )
+    
+    if result.matched_count == 0:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Team member not found"
+        )
+    
+    return {"message": "Team member updated successfully"}
+
+@api_router.delete("/company/members/{member_id}")
+async def remove_team_member(
+    member_id: str,
+    current_user: User = Depends(get_current_user)
+):
+    """Remove team member from company"""
+    if current_user.role != UserRole.RECRUITER:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only recruiters can remove team members"
+        )
+    
+    result = await db.company_members.update_one(
+        {"id": member_id, "company_id": current_user.id},
+        {"$set": {"is_active": False}}
+    )
+    
+    if result.matched_count == 0:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Team member not found"
+        )
+    
+    return {"message": "Team member removed successfully"}
+
+
+# Invitation Acceptance Route (for invited users)
+@api_router.post("/invitations/{invitation_token}/accept")
+async def accept_invitation(
+    invitation_token: str,
+    current_user: User = Depends(get_current_user)
+):
+    """Accept a team invitation"""
+    # Find invitation by token
+    invitation = await db.team_invitations.find_one({
+        "invitation_token": invitation_token,
+        "status": InvitationStatus.PENDING
+    })
+    
+    if not invitation:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Invitation not found or expired"
+        )
+    
+    # Check if invitation is expired
+    if datetime.utcnow() > invitation["expires_at"]:
+        await db.team_invitations.update_one(
+            {"id": invitation["id"]},
+            {"$set": {"status": InvitationStatus.EXPIRED}}
+        )
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invitation has expired"
+        )
+    
+    # Check if user email matches invitation
+    if current_user.email != invitation["email"]:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="This invitation is not for your email address"
+        )
+    
+    # Create company member
+    member_data = {
+        "company_id": invitation["company_id"],
+        "user_id": current_user.id,
+        "role": invitation["role"],
+        "branch_ids": invitation["branch_ids"],
+        "invited_by": invitation["invited_by"]
+    }
+    
+    member_obj = CompanyMember(**member_data)
+    await db.company_members.insert_one(member_obj.dict())
+    
+    # Mark invitation as accepted
+    await db.team_invitations.update_one(
+        {"id": invitation["id"]},
+        {"$set": {"status": InvitationStatus.ACCEPTED}}
+    )
+    
+    return {"message": "Invitation accepted successfully"}
+
+
+# Company Profile Routes (existing)
 @api_router.put("/profile/company", response_model=User)
 async def update_company_profile(
     company_update: CompanyProfileUpdate,
