@@ -325,7 +325,7 @@ const ProfileDashboard = ({ user, onUpdateUser }) => {
           {/* Main Profile Tabs */}
           <div className="lg:col-span-3">
             <Tabs value={activeTab} onValueChange={setActiveTab}>
-              <TabsList className="grid w-full grid-cols-6 bg-white/80 backdrop-blur-sm">
+              <TabsList className="grid w-full grid-cols-7 bg-white/80 backdrop-blur-sm">
                 <TabsTrigger value="overview" className="flex items-center space-x-1">
                   <User className="w-4 h-4" />
                   <span className="hidden sm:inline">Overview</span>
@@ -341,6 +341,10 @@ const ProfileDashboard = ({ user, onUpdateUser }) => {
                 <TabsTrigger value="achievements" className="flex items-center space-x-1">
                   <Award className="w-4 h-4" />
                   <span className="hidden sm:inline">Awards</span>
+                </TabsTrigger>
+                <TabsTrigger value="applications" className="flex items-center space-x-1">
+                  <FileText className="w-4 h-4" />
+                  <span className="hidden sm:inline">Applications</span>
                 </TabsTrigger>
                 <TabsTrigger value="media" className="flex items-center space-x-1">
                   <Video className="w-4 h-4" />
