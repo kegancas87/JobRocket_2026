@@ -46,7 +46,12 @@ class JobPostingTestSuite:
         self.recruiter_token = None
         self.recruiter_user_id = None
         self.company_id = None
+        self.job_seeker_token = None
+        self.job_seeker_user_id = None
         self.job_ids = []
+        self.easy_apply_job_ids = []
+        self.external_job_ids = []
+        self.application_ids = []
         self.expired_job_ids = []
         self.accessible_companies = []
         self.test_results = {
