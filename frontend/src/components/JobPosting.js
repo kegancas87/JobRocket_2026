@@ -31,9 +31,11 @@ const API = `${BACKEND_URL}/api`;
 
 const JobPosting = ({ user, onUpdateUser }) => {
   const [activeTab, setActiveTab] = useState('single');
+  const [jobsTab, setJobsTab] = useState('active');
   const [loading, setLoading] = useState(false);
   const [companies, setCompanies] = useState([]);
   const [jobs, setJobs] = useState([]);
+  const [archivedJobs, setArchivedJobs] = useState([]);
   const [showJobsList, setShowJobsList] = useState(false);
   
   // Single job form
