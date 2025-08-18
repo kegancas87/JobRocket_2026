@@ -583,6 +583,9 @@ function App() {
       <div className="App">
         <BrowserRouter>
           <Routes>
+            <Route path="/invitation/:token" element={
+              <InvitationPage onLogin={handleLogin} />
+            } />
             <Route path="*" element={
               authPage === 'login' ? (
                 <LoginPage 
