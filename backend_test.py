@@ -2308,8 +2308,7 @@ class JobPostingTestSuite:
             
             # Complete the payment
             payment_reference = f"PF_TEST_CV_{uuid.uuid4().hex[:8]}"
-            response = self.make_request("POST", f"/payments/{payment_id}/complete", 
-                                       data={"payment_reference": payment_reference}, 
+            response = self.make_request("POST", f"/payments/{payment_id}/complete?payment_reference={payment_reference}", 
                                        auth_token=self.recruiter_token)
             if self.assert_response(response, 200, "Complete CV Search Package Payment"):
                 result = response.json()
