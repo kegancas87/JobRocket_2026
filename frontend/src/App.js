@@ -141,6 +141,7 @@ const JobCard = ({ job, onSave, onApply }) => {
                 </div>
                 <ApplyButton 
                   job={job}
+                  user={user}
                   onApplicationSuccess={(applicationData) => {
                     console.log('Application submitted:', applicationData);
                     // You can add any success handling here
