@@ -544,6 +544,7 @@ class JobApplication(BaseModel):
     cover_letter: Optional[str] = None
     resume_url: Optional[str] = None
     additional_info: Optional[str] = None
+    applicant_snapshot: Optional[dict] = None  # Snapshot of applicant profile at time of application
     applied_date: datetime = Field(default_factory=datetime.utcnow)
     last_updated: datetime = Field(default_factory=datetime.utcnow)
     reviewed_by: Optional[str] = None  # Recruiter who reviewed
