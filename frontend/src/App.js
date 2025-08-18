@@ -6,6 +6,7 @@ import { LoginPage, RegisterPage } from "./components/AuthPages";
 import ProfileDashboard from "./components/ProfileDashboard";
 import RecruiterDashboard from "./components/RecruiterDashboard";
 import InvitationPage from "./components/InvitationPage";
+import { ApplyButton } from "./components/EasyApply";
 import { Button } from "./components/ui/button";
 import { Input } from "./components/ui/input";
 import { Card, CardContent, CardHeader } from "./components/ui/card";
