@@ -223,8 +223,36 @@ Marketing Manager,Johannesburg,R45000 - R60000,Permanent,Onsite,Marketing,"Join 
     window.URL.revokeObjectURL(url);
   };
 
-  const formatDate = (dateString) => {
-    return new Date(dateString).toLocaleDateString();
+  const formatPostedDate = (dateString) => {
+    const date = new Date(dateString);
+    const now = new Date();
+    const diffTime = Math.abs(now - date);
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    
+    if (diffDays === 0) return 'Today';
+    if (diffDays === 1) return '1 day ago';
+    if (diffDays < 7) return `${diffDays} days ago`;
+    if (diffDays < 14) return '1 week ago';
+    if (diffDays < 30) return `${Math.ceil(diffDays / 7)} weeks ago`;
+    if (diffDays < 60) return '1 month ago';
+    return `${Math.ceil(diffDays / 30)} months ago`;
+  };
+
+  const formatExpiryDate = (expiryDateString) => {
+    const expiryDate = new Date(expiryDateString);
+    const now = new Date();
+    const diffTime = expiryDate - now;
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    
+    if (diffDays < 0) return 'Expired';
+    if (diffDays === 0) return 'Expires today';
+    if (diffDays === 1) return 'Expires tomorrow';
+    if (diffDays <= 7) return `Expires in ${diffDays} days`;
+    return `Expires in ${Math.ceil(diffDays / 7)} weeks`;
+  };
+
+  const isJobExpired = (expiryDateString) => {
+    return new Date(expiryDateString) <= new Date();
   };
 
   const jobTypeOptions = ['Permanent', 'Contract'];
