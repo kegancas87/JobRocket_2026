@@ -1253,6 +1253,278 @@ async def track_job_posted(
     return {"message": "First job posting tracked successfully"}
 
 
+# Job Posting Routes
+@api_router.post("/jobs", response_model=Job)
+async def create_job(
+    job_data: JobCreate,
+    current_user: User = Depends(get_current_user)
+):
+    """Create a new job posting"""
+    if current_user.role != UserRole.RECRUITER:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only recruiters can post jobs"
+        )
+    
+    # Get company details for the job
+    if job_data.company_id == current_user.id:
+        # Using current user's company
+        company_name = current_user.company_profile.company_name if current_user.company_profile else "Company Name Not Set"
+    else:
+        # Check if user is a member of this company
+        member = await db.company_members.find_one({
+            "user_id": current_user.id,
+            "company_id": job_data.company_id,
+            "is_active": True
+        })
+        if not member:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="You don't have permission to post jobs for this company"
+            )
+        
+        # Get company details from the company owner
+        company_owner = await db.users.find_one({"id": job_data.company_id})
+        if not company_owner:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Company not found"
+            )
+        company_name = company_owner.get("company_profile", {}).get("company_name", "Company Name Not Set")
+    
+    # Create job object
+    job_dict = job_data.dict()
+    job_dict["company_name"] = company_name
+    job_dict["posted_by"] = current_user.id
+    
+    job_obj = Job(**job_dict)
+    await db.jobs.insert_one(job_obj.dict())
+    
+    # Update recruiter progress for first job posting
+    if not current_user.recruiter_progress or not current_user.recruiter_progress.first_job_posted:
+        await db.users.update_one(
+            {"id": current_user.id},
+            {"$set": {"recruiter_progress.first_job_posted": True}}
+        )
+    
+    return job_obj
+
+@api_router.post("/jobs/bulk")
+async def create_jobs_bulk(
+    file: UploadFile = File(...),
+    company_id: Optional[str] = Form(None),
+    current_user: User = Depends(get_current_user)
+):
+    """Create multiple jobs from CSV/Excel file"""
+    if current_user.role != UserRole.RECRUITER:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only recruiters can post jobs"
+        )
+    
+    # Check file type
+    if not file.filename.lower().endswith(('.csv', '.xlsx', '.xls')):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="File must be CSV or Excel format"
+        )
+    
+    try:
+        # Read file content
+        contents = await file.read()
+        
+        if file.filename.lower().endswith('.csv'):
+            df = pd.read_csv(io.StringIO(contents.decode('utf-8')))
+        else:
+            df = pd.read_excel(io.BytesIO(contents))
+        
+        # Validate required columns
+        required_columns = ['title', 'location', 'salary', 'job_type', 'work_type', 'industry', 'description']
+        missing_columns = [col for col in required_columns if col not in df.columns]
+        if missing_columns:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Missing required columns: {missing_columns}"
+            )
+        
+        jobs_created = []
+        errors = []
+        
+        for index, row in df.iterrows():
+            try:
+                # Use provided company_id or fall back to current user
+                job_company_id = company_id if company_id else current_user.id
+                
+                # Validate company access
+                if job_company_id != current_user.id:
+                    member = await db.company_members.find_one({
+                        "user_id": current_user.id,
+                        "company_id": job_company_id,
+                        "is_active": True
+                    })
+                    if not member:
+                        errors.append(f"Row {index + 1}: No permission for company {job_company_id}")
+                        continue
+                
+                # Get company name
+                if job_company_id == current_user.id:
+                    company_name = current_user.company_profile.company_name if current_user.company_profile else "Company Name Not Set"
+                else:
+                    company_owner = await db.users.find_one({"id": job_company_id})
+                    company_name = company_owner.get("company_profile", {}).get("company_name", "Company Name Not Set") if company_owner else "Unknown Company"
+                
+                # Validate enum values
+                try:
+                    job_type = JobType(row['job_type'])
+                    work_type = WorkType(row['work_type'])
+                except ValueError as e:
+                    errors.append(f"Row {index + 1}: Invalid job_type or work_type - {str(e)}")
+                    continue
+                
+                # Create job object
+                job_data = {
+                    "title": str(row['title']),
+                    "location": str(row['location']),
+                    "salary": str(row['salary']),
+                    "job_type": job_type,
+                    "work_type": work_type,
+                    "industry": str(row['industry']),
+                    "description": str(row['description']),
+                    "experience": str(row.get('experience', '')) if pd.notna(row.get('experience')) else None,
+                    "qualifications": str(row.get('qualifications', '')) if pd.notna(row.get('qualifications')) else None,
+                    "application_url": str(row.get('application_url', '')) if pd.notna(row.get('application_url')) else None,
+                    "application_email": str(row.get('application_email', '')) if pd.notna(row.get('application_email')) else None,
+                    "company_id": job_company_id,
+                    "company_name": company_name,
+                    "posted_by": current_user.id
+                }
+                
+                job_obj = Job(**job_data)
+                await db.jobs.insert_one(job_obj.dict())
+                jobs_created.append(job_obj.id)
+                
+            except Exception as e:
+                errors.append(f"Row {index + 1}: {str(e)}")
+        
+        # Update recruiter progress for first job posting
+        if jobs_created and (not current_user.recruiter_progress or not current_user.recruiter_progress.first_job_posted):
+            await db.users.update_one(
+                {"id": current_user.id},
+                {"$set": {"recruiter_progress.first_job_posted": True}}
+            )
+        
+        return {
+            "message": f"Bulk upload completed",
+            "jobs_created": len(jobs_created),
+            "total_rows": len(df),
+            "errors": errors
+        }
+        
+    except pd.errors.EmptyDataError:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="File is empty or has no data"
+        )
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Error processing file: {str(e)}"
+        )
+
+@api_router.get("/jobs", response_model=List[Job])
+async def get_jobs(
+    company_id: Optional[str] = Query(None),
+    current_user: User = Depends(get_current_user)
+):
+    """Get jobs for recruiter (all jobs they have access to)"""
+    if current_user.role != UserRole.RECRUITER:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only recruiters can view job listings"
+        )
+    
+    # Build query based on user's company access
+    query = {}
+    
+    if company_id:
+        # Check if user has access to this company
+        if company_id != current_user.id:
+            member = await db.company_members.find_one({
+                "user_id": current_user.id,
+                "company_id": company_id,
+                "is_active": True
+            })
+            if not member:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="You don't have access to this company's jobs"
+                )
+        query["company_id"] = company_id
+    else:
+        # Get all companies the user has access to
+        accessible_companies = [current_user.id]  # Always include own company
+        
+        # Add companies where user is a member
+        memberships = await db.company_members.find({
+            "user_id": current_user.id,
+            "is_active": True
+        }).to_list(1000)
+        
+        for membership in memberships:
+            accessible_companies.append(membership["company_id"])
+        
+        query["company_id"] = {"$in": accessible_companies}
+    
+    # Get jobs
+    jobs = await db.jobs.find(query).sort("posted_date", -1).to_list(1000)
+    
+    # Convert to Job objects and remove MongoDB _id
+    result = []
+    for job in jobs:
+        if "_id" in job:
+            del job["_id"]
+        result.append(Job(**job))
+    
+    return result
+
+@api_router.get("/companies", response_model=List[dict])
+async def get_accessible_companies(current_user: User = Depends(get_current_user)):
+    """Get all companies the user has access to for job posting"""
+    if current_user.role != UserRole.RECRUITER:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only recruiters can access company information"
+        )
+    
+    companies = []
+    
+    # Add user's own company
+    companies.append({
+        "id": current_user.id,
+        "name": current_user.company_profile.company_name if current_user.company_profile else "Your Company",
+        "role": "owner",
+        "is_default": True
+    })
+    
+    # Add companies where user is a member
+    memberships = await db.company_members.find({
+        "user_id": current_user.id,
+        "is_active": True
+    }).to_list(1000)
+    
+    for membership in memberships:
+        company_owner = await db.users.find_one({"id": membership["company_id"]})
+        if company_owner:
+            companies.append({
+                "id": membership["company_id"],
+                "name": company_owner.get("company_profile", {}).get("company_name", "Unknown Company"),
+                "role": membership["role"],
+                "is_default": False
+            })
+    
+    return companies
+
+
 # User Profile Routes (existing)
 @api_router.put("/profile", response_model=User)
 async def update_profile(
