@@ -482,46 +482,40 @@ class Job(BaseModel):
     company_id: str
     company_name: str
     description: str
-    requirements: List[str] = []
-    responsibilities: List[str] = []
     location: str
+    salary: str
     job_type: JobType
-    experience_level: ExperienceLevel
-    category: JobCategory
-    salary_min: Optional[int] = None
-    salary_max: Optional[int] = None
-    salary_currency: str = "ZAR"
-    is_remote: bool = False
-    is_hybrid: bool = False
+    work_type: WorkType
+    industry: str
+    experience: Optional[str] = None
+    qualifications: Optional[str] = None
+    posted_by: str  # User ID who posted the job
     application_url: Optional[str] = None
     application_email: Optional[str] = None
     posted_date: datetime = Field(default_factory=datetime.utcnow)
     closing_date: Optional[datetime] = None
-    logo_url: Optional[str] = None
     is_active: bool = True
     featured: bool = False
 
 class JobCreate(BaseModel):
     title: str
     company_id: str
-    company_name: str
     description: str
-    requirements: List[str] = []
-    responsibilities: List[str] = []
     location: str
+    salary: str
     job_type: JobType
-    experience_level: ExperienceLevel
-    category: JobCategory
-    salary_min: Optional[int] = None
-    salary_max: Optional[int] = None
-    salary_currency: str = "ZAR"
-    is_remote: bool = False
-    is_hybrid: bool = False
+    work_type: WorkType
+    industry: str
+    experience: Optional[str] = None
+    qualifications: Optional[str] = None
     application_url: Optional[str] = None
     application_email: Optional[str] = None
     closing_date: Optional[datetime] = None
-    logo_url: Optional[str] = None
     featured: bool = False
+
+class BulkJobCreate(BaseModel):
+    jobs: List[JobCreate]
+    company_id: Optional[str] = None  # Can override individual job company_id
 
 class JobSearchFilters(BaseModel):
     location: Optional[str] = None
