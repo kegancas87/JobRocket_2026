@@ -54,6 +54,9 @@ class JobPostingTestSuite:
         self.application_ids = []
         self.expired_job_ids = []
         self.accessible_companies = []
+        self.packages = []
+        self.payment_ids = []
+        self.user_packages = []
         self.test_results = {
             "passed": 0,
             "failed": 0,
