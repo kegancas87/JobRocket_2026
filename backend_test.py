@@ -2304,8 +2304,7 @@ class JobPostingTestSuite:
         print_info("Testing package purchase and activation scenarios")
         
         # Initiate and complete CV search package
-        response = self.make_request("POST", "/payments/initiate", 
-                                   data={"package_type": "cv_search_10"}, 
+        response = self.make_request("POST", "/payments/initiate?package_type=cv_search_10", 
                                    auth_token=self.recruiter_token)
         if self.assert_response(response, 200, "Initiate CV Search Package Payment"):
             result = response.json()
