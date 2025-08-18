@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
-Backend Test Suite for Job Rocket Team Member Invitation System
-Tests all invitation-related API endpoints without email integration
+Backend Test Suite for Job Rocket Job Posting System
+Tests all job posting API endpoints including single job creation, bulk upload, and company access
 """
 
 import requests
@@ -9,6 +9,8 @@ import json
 import time
 from datetime import datetime, timedelta
 import uuid
+import io
+import csv
 
 # Configuration
 BASE_URL = "https://rocket-ats.preview.emergentagent.com/api"
