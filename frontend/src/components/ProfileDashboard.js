@@ -622,6 +622,11 @@ const ProfileDashboard = ({ user, onUpdateUser }) => {
                 </Card>
               </TabsContent>
 
+              {/* Applications Tab */}
+              <TabsContent value="applications" className="space-y-6 mt-6">
+                <MyApplications user={profile} />
+              </TabsContent>
+
               {/* Settings Tab - Email Alerts */}
               <TabsContent value="settings" className="space-y-6 mt-6">
                 <Card className="bg-white/80 backdrop-blur-sm border-0 shadow-xl">
