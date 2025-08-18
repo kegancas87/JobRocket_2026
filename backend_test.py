@@ -1539,7 +1539,7 @@ class JobPostingTestSuite:
         
         # Determine overall result
         if self.test_results["failed"] == 0:
-            print(f"\n{Colors.GREEN}{Colors.BOLD}🎉 All tests passed! Job posting system is working correctly.{Colors.ENDC}")
+            print(f"\n{Colors.GREEN}{Colors.BOLD}🎉 All tests passed! Job posting and Easy Apply system is working correctly.{Colors.ENDC}")
             return True
         else:
             print(f"\n{Colors.RED}{Colors.BOLD}💥 Some tests failed. Please review the errors above.{Colors.ENDC}")
