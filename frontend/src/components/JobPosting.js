@@ -315,15 +315,65 @@ Marketing Manager,Johannesburg,R45000 - R60000,Permanent,Onsite,Marketing,"Join 
 
   const jobTypeOptions = ['Permanent', 'Contract'];
   const workTypeOptions = ['Remote', 'Onsite', 'Hybrid'];
+  const credits = getTotalCredits();
 
   return (
     <div className="space-y-6">
-      {/* Header */}
+      {/* Header with Credits */}
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-2xl font-bold text-slate-800 mb-2">Job Postings</h2>
           <p className="text-slate-600">Create and manage your job listings</p>
         </div>
+        <div className="text-right">
+          <div className="text-2xl font-bold text-blue-600">
+            {credits.hasUnlimited ? '∞' : credits.jobListings}
+          </div>
+          <div className="text-sm text-slate-600">
+            {credits.hasUnlimited ? 'Unlimited Credits' : 'Job Credits Remaining'}
+          </div>
+        </div>
+      </div>
+
+      {/* Credits Warning */}
+      {!credits.hasUnlimited && credits.jobListings === 0 && (
+        <Card className="bg-red-50 border-red-200">
+          <CardContent className="p-4">
+            <div className="flex items-center space-x-3">
+              <AlertCircle className="w-6 h-6 text-red-600" />
+              <div>
+                <h4 className="font-semibold text-red-800">No Job Credits Available</h4>
+                <p className="text-red-700 text-sm">
+                  You need to purchase a package to post job listings. 
+                  <Button variant="link" className="p-0 h-auto text-red-600 underline ml-1">
+                    View Packages
+                  </Button>
+                </p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Low Credits Warning */}
+      {!credits.hasUnlimited && credits.jobListings > 0 && credits.jobListings <= 2 && (
+        <Card className="bg-yellow-50 border-yellow-200">
+          <CardContent className="p-4">
+            <div className="flex items-center space-x-3">
+              <AlertCircle className="w-6 h-6 text-yellow-600" />
+              <div>
+                <h4 className="font-semibold text-yellow-800">Running Low on Credits</h4>
+                <p className="text-yellow-700 text-sm">
+                  You have {credits.jobListings} job credit{credits.jobListings > 1 ? 's' : ''} remaining.
+                  <Button variant="link" className="p-0 h-auto text-yellow-600 underline ml-1">
+                    Buy More Credits
+                  </Button>
+                </p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
         <Button
           onClick={() => setShowJobsList(!showJobsList)}
           variant="outline"
