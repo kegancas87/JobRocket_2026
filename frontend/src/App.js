@@ -110,10 +110,10 @@ const JobCard = ({ job, onSave, onApply }) => {
                 </div>
               </div>
               
-              {formatSalary(job.salary_min, job.salary_max, job.salary_currency) && (
+              {job.salary && (
                 <div className="flex items-center space-x-2 text-emerald-700 font-bold mb-4 bg-emerald-50 px-3 py-2 rounded-lg w-fit">
                   <DollarSign className="w-4 h-4" />
-                  <span>{formatSalary(job.salary_min, job.salary_max, job.salary_currency)}</span>
+                  <span>{job.salary}</span>
                 </div>
               )}
               
