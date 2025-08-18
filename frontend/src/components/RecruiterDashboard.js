@@ -27,7 +27,8 @@ import {
   Zap,
   Image,
   Link,
-  Award
+  Award,
+  FileText
 } from "lucide-react";
 import axios from 'axios';
 
