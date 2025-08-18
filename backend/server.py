@@ -1269,7 +1269,9 @@ async def create_job(
     # Get company details for the job
     if job_data.company_id == current_user.id:
         # Using current user's company
-        company_name = current_user.company_profile.company_name if current_user.company_profile else "Company Name Not Set"
+        company_name = "Company Name Not Set"
+        if current_user.company_profile and current_user.company_profile.company_name:
+            company_name = current_user.company_profile.company_name
     else:
         # Check if user is a member of this company
         member = await db.company_members.find_one({
