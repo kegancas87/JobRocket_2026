@@ -281,21 +281,19 @@ const RecruiterDashboard = ({ user, onUpdateUser }) => {
                         </div>
                         <div className="space-y-2">
                           <Label htmlFor="company_industry">Industry</Label>
-                          <Select 
+                          <select 
+                            id="company_industry"
                             value={companyForm.company_industry}
-                            onValueChange={(value) => setCompanyForm(prev => ({ ...prev, company_industry: value }))}
+                            onChange={(e) => setCompanyForm(prev => ({ ...prev, company_industry: e.target.value }))}
+                            className="h-12 w-full px-3 border border-slate-300 rounded-md focus:border-blue-500 focus:ring-blue-500 bg-white"
                           >
-                            <SelectTrigger className="h-12">
-                              <SelectValue placeholder="Select industry" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {industryOptions.map((industry) => (
-                                <SelectItem key={industry} value={industry}>
-                                  {industry}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
+                            <option value="">Select industry</option>
+                            {industryOptions.map((industry) => (
+                              <option key={industry} value={industry}>
+                                {industry}
+                              </option>
+                            ))}
+                          </select>
                         </div>
                         <div className="space-y-2">
                           <Label htmlFor="company_size">Company Size</Label>
@@ -304,21 +302,19 @@ const RecruiterDashboard = ({ user, onUpdateUser }) => {
                               +10 points
                             </Badge>
                           )}
-                          <Select 
+                          <select 
+                            id="company_size"
                             value={companyForm.company_size}
-                            onValueChange={(value) => setCompanyForm(prev => ({ ...prev, company_size: value }))}
+                            onChange={(e) => setCompanyForm(prev => ({ ...prev, company_size: e.target.value }))}
+                            className="h-12 w-full px-3 border border-slate-300 rounded-md focus:border-blue-500 focus:ring-blue-500 bg-white"
                           >
-                            <SelectTrigger className="h-12">
-                              <SelectValue placeholder="Select company size" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {companySizeOptions.map((size) => (
-                                <SelectItem key={size} value={size}>
-                                  {size}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
+                            <option value="">Select company size</option>
+                            {companySizeOptions.map((size) => (
+                              <option key={size} value={size}>
+                                {size}
+                              </option>
+                            ))}
+                          </select>
                         </div>
                       </div>
 
