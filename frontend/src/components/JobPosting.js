@@ -116,6 +116,15 @@ const JobPosting = ({ user, onUpdateUser }) => {
     }
   };
 
+  const fetchUserPackages = async () => {
+    try {
+      const response = await axios.get(`${API}/my-packages`, getAuthHeaders());
+      setUserPackages(response.data);
+    } catch (error) {
+      console.error('Error fetching packages:', error);
+    }
+  };
+
   const handleJobFormChange = (field, value) => {
     setJobForm(prev => ({ ...prev, [field]: value }));
   };
