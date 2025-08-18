@@ -619,6 +619,73 @@ class Payment(BaseModel):
     completed_date: Optional[datetime] = None
     failure_reason: Optional[str] = None
 
+class BulkJobCreate(BaseModel):
+    jobs: List[JobCreate]
+    company_id: Optional[str] = None  # Can override individual job company_id
+
+# Initialize default packages
+DEFAULT_PACKAGES = [
+    {
+        "name": "Two Listings Package",
+        "description": "Perfect for smaller companies. Two job listings that never expire until used.",
+        "package_type": PackageType.TWO_LISTINGS,
+        "price": 2800.00,
+        "is_subscription": False,
+        "job_listings_included": 2,
+        "job_expiry_days": 30,
+        "cv_searches_included": 0
+    },
+    {
+        "name": "Five Listings Package", 
+        "description": "Great for growing companies. Five job listings available whenever you need them.",
+        "package_type": PackageType.FIVE_LISTINGS,
+        "price": 4150.00,
+        "is_subscription": False,
+        "job_listings_included": 5,
+        "job_expiry_days": 30,
+        "cv_searches_included": 0
+    },
+    {
+        "name": "Unlimited Listings Package",
+        "description": "For hiring at scale. Unlimited job postings plus 10 free CV searches monthly.",
+        "package_type": PackageType.UNLIMITED_LISTINGS,
+        "price": 3899.00,
+        "is_subscription": True,
+        "duration_days": 30,
+        "job_listings_included": None,  # Unlimited
+        "job_expiry_days": 35,
+        "cv_searches_included": 10
+    },
+    {
+        "name": "10 CV Searches",
+        "description": "Search through 10 candidate CVs to find the perfect match.",
+        "package_type": PackageType.CV_SEARCH_10,
+        "price": 699.00,
+        "is_subscription": False,
+        "job_listings_included": 0,
+        "cv_searches_included": 10
+    },
+    {
+        "name": "20 CV Searches",
+        "description": "Extended CV search access for thorough candidate screening.",
+        "package_type": PackageType.CV_SEARCH_20,
+        "price": 1299.00,
+        "is_subscription": False,
+        "job_listings_included": 0,
+        "cv_searches_included": 20
+    },
+    {
+        "name": "Unlimited CV Searches",
+        "description": "Unlimited access to our CV database for comprehensive talent acquisition.",
+        "package_type": PackageType.CV_SEARCH_UNLIMITED,
+        "price": 2899.00,
+        "is_subscription": True,
+        "duration_days": 30,
+        "job_listings_included": 0,
+        "cv_searches_included": None  # Unlimited
+    }
+]
+
 class JobSearchFilters(BaseModel):
     location: Optional[str] = None
     job_type: Optional[JobType] = None
