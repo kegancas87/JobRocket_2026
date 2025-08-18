@@ -35,7 +35,7 @@ import {
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
 
-const JobCard = ({ job, onSave, onApply }) => {
+const JobCard = ({ job, user, onSave, onApply }) => {
   const formatPostedDate = (dateString) => {
     const date = new Date(dateString);
     const now = new Date();
