@@ -142,6 +142,7 @@ const RecruiterDashboard = ({ user, onUpdateUser }) => {
                 progress={progress} 
                 onComplete={onProfileComplete}
                 showDetails={false}
+                userRole="recruiter"
               />
             </div>
           </div>
