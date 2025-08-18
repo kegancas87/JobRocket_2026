@@ -304,60 +304,157 @@ Marketing Manager,Johannesburg,R45000 - R60000,Permanent,Onsite,Marketing,"Join 
       {showJobsList && (
         <Card className="bg-white/80 backdrop-blur-sm border-0 shadow-xl">
           <CardHeader>
-            <CardTitle className="flex items-center space-x-2">
-              <Briefcase className="w-5 h-5 text-blue-600" />
-              <span>Your Posted Jobs</span>
+            <CardTitle className="flex items-center justify-between">
+              <div className="flex items-center space-x-2">
+                <Briefcase className="w-5 h-5 text-blue-600" />
+                <span>Your Posted Jobs</span>
+              </div>
+              <div className="flex items-center space-x-2">
+                <Button
+                  onClick={() => setJobsTab('active')}
+                  variant={jobsTab === 'active' ? 'default' : 'outline'}
+                  size="sm"
+                >
+                  Active ({jobs.length})
+                </Button>
+                <Button
+                  onClick={() => setJobsTab('archived')}
+                  variant={jobsTab === 'archived' ? 'default' : 'outline'}
+                  size="sm"
+                >
+                  Archived ({archivedJobs.length})
+                </Button>
+              </div>
             </CardTitle>
           </CardHeader>
           <CardContent>
-            {jobs.length === 0 ? (
-              <div className="text-center py-8">
-                <Briefcase className="w-16 h-16 text-slate-300 mx-auto mb-4" />
-                <h3 className="text-xl font-semibold text-slate-800 mb-2">No jobs posted yet</h3>
-                <p className="text-slate-600">Create your first job posting to get started</p>
-              </div>
-            ) : (
-              <div className="space-y-4">
-                {jobs.map((job) => (
-                  <div key={job.id} className="border border-slate-200 rounded-lg p-4 hover:shadow-md transition-shadow">
-                    <div className="flex items-start justify-between">
-                      <div className="flex-1">
-                        <h4 className="font-semibold text-slate-800 text-lg">{job.title}</h4>
-                        <div className="flex items-center space-x-4 text-sm text-slate-600 mt-2">
-                          <div className="flex items-center space-x-1">
-                            <Building2 className="w-4 h-4" />
-                            <span>{job.company_name}</span>
+            {jobsTab === 'active' ? (
+              jobs.length === 0 ? (
+                <div className="text-center py-8">
+                  <Briefcase className="w-16 h-16 text-slate-300 mx-auto mb-4" />
+                  <h3 className="text-xl font-semibold text-slate-800 mb-2">No active jobs posted</h3>
+                  <p className="text-slate-600">Create your first job posting to get started</p>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {jobs.map((job) => (
+                    <div key={job.id} className="border border-slate-200 rounded-lg p-4 hover:shadow-md transition-shadow">
+                      <div className="flex items-start justify-between">
+                        <div className="flex-1">
+                          <h4 className="font-semibold text-slate-800 text-lg">{job.title}</h4>
+                          <div className="flex items-center space-x-4 text-sm text-slate-600 mt-2">
+                            <div className="flex items-center space-x-1">
+                              <Building2 className="w-4 h-4" />
+                              <span>{job.company_name}</span>
+                            </div>
+                            <div className="flex items-center space-x-1">
+                              <MapPin className="w-4 h-4" />
+                              <span>{job.location}</span>
+                            </div>
+                            <div className="flex items-center space-x-1">
+                              <DollarSign className="w-4 h-4" />
+                              <span>{job.salary}</span>
+                            </div>
                           </div>
-                          <div className="flex items-center space-x-1">
-                            <MapPin className="w-4 h-4" />
-                            <span>{job.location}</span>
+                          <div className="flex items-center space-x-2 mt-3">
+                            <Badge variant="outline">{job.job_type}</Badge>
+                            <Badge variant="outline">{job.work_type}</Badge>
+                            <Badge variant="outline">{job.industry}</Badge>
+                            <Badge 
+                              variant="outline" 
+                              className={isJobExpired(job.expiry_date) ? 'border-red-500 text-red-700' : 'border-green-500 text-green-700'}
+                            >
+                              {formatExpiryDate(job.expiry_date)}
+                            </Badge>
                           </div>
-                          <div className="flex items-center space-x-1">
-                            <DollarSign className="w-4 h-4" />
-                            <span>{job.salary}</span>
+                          <div className="flex items-center justify-between mt-2">
+                            <p className="text-sm text-slate-500">
+                              Posted: {formatPostedDate(job.posted_date)}
+                            </p>
+                            <p className="text-xs text-slate-400">
+                              Expires: {new Date(job.expiry_date).toLocaleDateString()}
+                            </p>
                           </div>
                         </div>
-                        <div className="flex items-center space-x-2 mt-3">
-                          <Badge variant="outline">{job.job_type}</Badge>
-                          <Badge variant="outline">{job.work_type}</Badge>
-                          <Badge variant="outline">{job.industry}</Badge>
+                        <div className="flex space-x-2">
+                          <Button size="sm" variant="outline">
+                            <Edit className="w-4 h-4" />
+                          </Button>
+                          <Button size="sm" variant="outline" className="text-red-600 hover:text-red-700">
+                            <Trash className="w-4 h-4" />
+                          </Button>
                         </div>
-                        <p className="text-sm text-slate-500 mt-2">
-                          Posted: {formatPostedDate(job.posted_date)}
-                        </p>
-                      </div>
-                      <div className="flex space-x-2">
-                        <Button size="sm" variant="outline">
-                          <Edit className="w-4 h-4" />
-                        </Button>
-                        <Button size="sm" variant="outline" className="text-red-600 hover:text-red-700">
-                          <Trash className="w-4 h-4" />
-                        </Button>
                       </div>
                     </div>
-                  </div>
-                ))}
-              </div>
+                  ))}
+                </div>
+              )
+            ) : (
+              archivedJobs.length === 0 ? (
+                <div className="text-center py-8">
+                  <Clock className="w-16 h-16 text-slate-300 mx-auto mb-4" />
+                  <h3 className="text-xl font-semibold text-slate-800 mb-2">No archived jobs</h3>
+                  <p className="text-slate-600">Expired jobs will appear here</p>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {archivedJobs.map((job) => (
+                    <div key={job.id} className="border border-slate-200 rounded-lg p-4 bg-slate-50 hover:shadow-md transition-shadow">
+                      <div className="flex items-start justify-between">
+                        <div className="flex-1">
+                          <div className="flex items-center space-x-2">
+                            <h4 className="font-semibold text-slate-700 text-lg">{job.title}</h4>
+                            <Badge variant="outline" className="border-red-500 text-red-700 bg-red-50">
+                              Expired
+                            </Badge>
+                          </div>
+                          <div className="flex items-center space-x-4 text-sm text-slate-600 mt-2">
+                            <div className="flex items-center space-x-1">
+                              <Building2 className="w-4 h-4" />
+                              <span>{job.company_name}</span>
+                            </div>
+                            <div className="flex items-center space-x-1">
+                              <MapPin className="w-4 h-4" />
+                              <span>{job.location}</span>
+                            </div>
+                            <div className="flex items-center space-x-1">
+                              <DollarSign className="w-4 h-4" />
+                              <span>{job.salary}</span>
+                            </div>
+                          </div>
+                          <div className="flex items-center space-x-2 mt-3">
+                            <Badge variant="outline">{job.job_type}</Badge>
+                            <Badge variant="outline">{job.work_type}</Badge>
+                            <Badge variant="outline">{job.industry}</Badge>
+                          </div>
+                          <div className="flex items-center justify-between mt-2">
+                            <p className="text-sm text-slate-500">
+                              Originally posted: {formatPostedDate(job.posted_date)}
+                            </p>
+                            <p className="text-xs text-red-500">
+                              Expired: {new Date(job.expiry_date).toLocaleDateString()}
+                            </p>
+                          </div>
+                        </div>
+                        <div className="flex space-x-2">
+                          <Button 
+                            size="sm" 
+                            onClick={() => handleRepostJob(job.id)}
+                            disabled={loading}
+                            className="bg-blue-600 hover:bg-blue-700 text-white"
+                          >
+                            <Plus className="w-4 h-4 mr-1" />
+                            Repost
+                          </Button>
+                          <Button size="sm" variant="outline" className="text-red-600 hover:text-red-700">
+                            <Trash className="w-4 h-4" />
+                          </Button>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )
             )}
           </CardContent>
         </Card>
