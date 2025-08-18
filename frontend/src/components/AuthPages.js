@@ -168,7 +168,7 @@ const RegisterPage = ({ onRegister, onSwitchToLogin }) => {
     password: '',
     first_name: '',
     last_name: '',
-    role: 'job_seeker'
+    role: 'job_seeker' // Default role
   });
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -203,7 +203,7 @@ const RegisterPage = ({ onRegister, onSwitchToLogin }) => {
       {/* Animated stars background */}
       <div className="absolute inset-0 stars"></div>
       
-      <Card className="w-full max-w-md bg-white/90 backdrop-blur-lg shadow-2xl border-0 relative z-10">
+      <Card className="w-full max-w-lg bg-white/90 backdrop-blur-lg shadow-2xl border-0 relative z-10">
         <CardHeader className="text-center pb-8">
           <div className="flex justify-center mb-4">
             <div className="bg-gradient-to-br from-blue-600 to-slate-700 text-white p-4 rounded-2xl shadow-lg">
@@ -223,6 +223,39 @@ const RegisterPage = ({ onRegister, onSwitchToLogin }) => {
                 {error}
               </div>
             )}
+
+            {/* Role Selection */}
+            <div className="space-y-3">
+              <Label className="text-slate-700 font-medium text-base">I want to:</Label>
+              <div className="grid grid-cols-2 gap-3">
+                <button
+                  type="button"
+                  onClick={() => setFormData(prev => ({ ...prev, role: 'job_seeker' }))}
+                  className={`p-4 rounded-xl border-2 transition-all text-left ${
+                    formData.role === 'job_seeker'
+                      ? 'border-blue-500 bg-blue-50 text-blue-800'
+                      : 'border-slate-300 hover:border-slate-400 text-slate-600'
+                  }`}
+                >
+                  <User className="w-6 h-6 mb-2" />
+                  <div className="font-semibold">Find Jobs</div>
+                  <div className="text-sm opacity-75">Job Seeker</div>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setFormData(prev => ({ ...prev, role: 'recruiter' }))}
+                  className={`p-4 rounded-xl border-2 transition-all text-left ${
+                    formData.role === 'recruiter'
+                      ? 'border-blue-500 bg-blue-50 text-blue-800'
+                      : 'border-slate-300 hover:border-slate-400 text-slate-600'
+                  }`}
+                >
+                  <Briefcase className="w-6 h-6 mb-2" />
+                  <div className="font-semibold">Hire Talent</div>
+                  <div className="text-sm opacity-75">Recruiter</div>
+                </button>
+              </div>
+            </div>
             
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
@@ -307,7 +340,9 @@ const RegisterPage = ({ onRegister, onSwitchToLogin }) => {
               ) : (
                 <div className="flex items-center space-x-2">
                   <Rocket className="w-5 h-5" />
-                  <span>Launch My Career</span>
+                  <span>
+                    {formData.role === 'job_seeker' ? 'Launch My Career' : 'Start Hiring'}
+                  </span>
                 </div>
               )}
             </Button>
