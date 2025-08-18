@@ -13,7 +13,7 @@ import io
 import csv
 
 # Configuration
-BASE_URL = "https://rocket-ats.preview.emergentagent.com/api"
+BASE_URL = "https://e87f2e83-0579-4553-bbd3-e5348d9b2194.preview.emergentagent.com/api"
 HEADERS = {"Content-Type": "application/json"}
 
 class Colors:
