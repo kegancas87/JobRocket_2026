@@ -1,7 +1,9 @@
 import React, { useState, useEffect } from "react";
 import "./App.css";
-import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import axios from "axios";
+import { LoginPage, RegisterPage } from "./components/AuthPages";
+import ProfileDashboard from "./components/ProfileDashboard";
 import { Button } from "./components/ui/button";
 import { Input } from "./components/ui/input";
 import { Card, CardContent, CardHeader } from "./components/ui/card";
@@ -23,13 +25,14 @@ import {
   Clock,
   DollarSign,
   Users,
-  Zap
+  Zap,
+  LogOut
 } from "lucide-react";
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
 
-const JobCard = ({ job, onSave }) => {
+const JobCard = ({ job, onSave, onApply }) => {
   const formatPostedDate = (dateString) => {
     const date = new Date(dateString);
     const now = new Date();
@@ -133,6 +136,16 @@ const JobCard = ({ job, onSave }) => {
                     {job.experience_level}
                   </Badge>
                 </div>
+                <Button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onApply(job.id);
+                  }}
+                  className="bg-gradient-to-r from-blue-600 to-slate-700 hover:from-blue-700 hover:to-slate-800"
+                >
+                  <Rocket className="w-4 h-4 mr-2" />
+                  Quick Apply
+                </Button>
               </div>
             </div>
           </div>
@@ -189,7 +202,7 @@ const FilterOption = ({ label, count, selected, onChange }) => (
   </label>
 );
 
-const JobListingPage = () => {
+const JobListingPage = ({ user, onLogout }) => {
   const [jobs, setJobs] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
@@ -207,6 +220,16 @@ const JobListingPage = () => {
       banking: false
     }
   });
+
+  const getAuthHeaders = () => {
+    const token = localStorage.getItem('token');
+    return {
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      }
+    };
+  };
 
   // Fetch jobs from API
   const fetchJobs = async () => {
@@ -240,6 +263,16 @@ const JobListingPage = () => {
     setJobs(jobs.map(job => 
       job.id === jobId ? { ...job, saved: !job.saved } : job
     ));
+  };
+
+  const handleApplyToJob = async (jobId) => {
+    try {
+      await axios.post(`${API}/profile/job-application/${jobId}`, {}, getAuthHeaders());
+      // Show success message or redirect to application
+      console.log('Job application tracked!');
+    } catch (error) {
+      console.error('Error applying to job:', error);
+    }
   };
 
   const filteredJobs = jobs.filter(job => {
@@ -298,11 +331,22 @@ const JobListingPage = () => {
                 <span>My Jobs</span>
                 <ChevronDown className="w-4 h-4" />
               </Button>
-              <Button variant="ghost" className="flex items-center space-x-2 hover:bg-slate-50 font-semibold px-6">
-                <User className="w-5 h-5" />
-                <span>Kegan</span>
-                <ChevronDown className="w-4 h-4" />
-              </Button>
+              {user && (
+                <div className="flex items-center space-x-4">
+                  <Button variant="ghost" className="flex items-center space-x-2 hover:bg-slate-50 font-semibold px-6">
+                    <User className="w-5 h-5" />
+                    <span>{user.first_name}</span>
+                    <ChevronDown className="w-4 h-4" />
+                  </Button>
+                  <Button 
+                    variant="ghost" 
+                    onClick={onLogout}
+                    className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                  >
+                    <LogOut className="w-5 h-5" />
+                  </Button>
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -423,7 +467,12 @@ const JobListingPage = () => {
 
             <div className="space-y-6">
               {filteredJobs.map((job) => (
-                <JobCard key={job.id} job={job} onSave={handleSaveJob} />
+                <JobCard 
+                  key={job.id} 
+                  job={job} 
+                  onSave={handleSaveJob}
+                  onApply={handleApplyToJob}
+                />
               ))}
             </div>
 
@@ -457,11 +506,119 @@ const JobListingPage = () => {
 };
 
 function App() {
+  const [user, setUser] = useState(null);
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [authPage, setAuthPage] = useState('login'); // 'login' or 'register'
+  const [currentPage, setCurrentPage] = useState('jobs'); // 'jobs' or 'profile'
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    // Check if user is already logged in
+    const token = localStorage.getItem('token');
+    const savedUser = localStorage.getItem('user');
+    
+    if (token && savedUser) {
+      setUser(JSON.parse(savedUser));
+      setIsAuthenticated(true);
+    }
+    setLoading(false);
+  }, []);
+
+  const handleLogin = (userData) => {
+    setUser(userData);
+    setIsAuthenticated(true);
+    
+    // If user's profile is incomplete, redirect to profile
+    const totalPoints = userData.profile_progress?.total_points || 0;
+    if (totalPoints < 50) {
+      setCurrentPage('profile');
+    }
+  };
+
+  const handleRegister = (userData) => {
+    setUser(userData);
+    setIsAuthenticated(true);
+    setCurrentPage('profile'); // Always go to profile after registration
+  };
+
+  const handleLogout = () => {
+    localStorage.removeItem('token');
+    localStorage.removeItem('user');
+    setUser(null);
+    setIsAuthenticated(false);
+    setCurrentPage('jobs');
+  };
+
+  const handleUpdateUser = (updatedUser) => {
+    setUser(updatedUser);
+    localStorage.setItem('user', JSON.stringify(updatedUser));
+  };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-slate-100 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-24 w-24 border-4 border-slate-200 border-t-blue-600 mx-auto mb-4"></div>
+          <p className="text-slate-600">Loading Job Rocket...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!isAuthenticated) {
+    return (
+      <div className="App">
+        <BrowserRouter>
+          <Routes>
+            <Route path="*" element={
+              authPage === 'login' ? (
+                <LoginPage 
+                  onLogin={handleLogin}
+                  onSwitchToRegister={() => setAuthPage('register')}
+                />
+              ) : (
+                <RegisterPage 
+                  onRegister={handleRegister}
+                  onSwitchToLogin={() => setAuthPage('login')}
+                />
+              )
+            } />
+          </Routes>
+        </BrowserRouter>
+      </div>
+    );
+  }
+
   return (
     <div className="App">
       <BrowserRouter>
         <Routes>
-          <Route path="/" element={<JobListingPage />} />
+          <Route path="/" element={
+            currentPage === 'profile' ? (
+              <ProfileDashboard 
+                user={user} 
+                onUpdateUser={handleUpdateUser}
+              />
+            ) : (
+              <JobListingPage 
+                user={user} 
+                onLogout={handleLogout}
+              />
+            )
+          } />
+          <Route path="/profile" element={
+            <ProfileDashboard 
+              user={user} 
+              onUpdateUser={handleUpdateUser}
+            />
+          } />
+          <Route path="/jobs" element={
+            <JobListingPage 
+              user={user} 
+              onLogout={handleLogout}
+            />
+          } />
+          <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </BrowserRouter>
     </div>
