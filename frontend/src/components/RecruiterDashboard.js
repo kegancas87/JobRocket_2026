@@ -547,6 +547,13 @@ const RecruiterDashboard = ({ user, onUpdateUser }) => {
                 />
               </TabsContent>
 
+              {/* Packages Tab */}
+              <TabsContent value="packages" className="space-y-6 mt-6">
+                <PackageManagement 
+                  user={profile}
+                />
+              </TabsContent>
+
               {/* Jobs Tab */}
               <TabsContent value="jobs" className="space-y-6 mt-6">
                 <JobPosting 
