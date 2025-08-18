@@ -543,7 +543,63 @@ async def get_me(current_user: User = Depends(get_current_user)):
     return user_dict
 
 
-# User Profile Routes
+@api_router.put("/profile/company", response_model=User)
+async def update_company_profile(
+    company_update: CompanyProfileUpdate,
+    current_user: User = Depends(get_current_user)
+):
+    """Update company profile (for recruiters)"""
+    if current_user.role != UserRole.RECRUITER:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only recruiters can update company profiles"
+        )
+    
+    update_data = {f"company_profile.{k}": v for k, v in company_update.dict().items() if v is not None}
+    update_data["updated_at"] = datetime.utcnow()
+    
+    # Update user in database
+    await db.users.update_one(
+        {"id": current_user.id},
+        {"$set": update_data}
+    )
+    
+    # Get updated user
+    updated_user = await db.users.find_one({"id": current_user.id})
+    if "_id" in updated_user:
+        del updated_user["_id"]
+    
+    user_obj = User(**updated_user)
+    
+    # Calculate and update progress
+    progress = calculate_recruiter_progress(user_obj)
+    await db.users.update_one(
+        {"id": current_user.id},
+        {"$set": {"recruiter_progress": progress.dict()}}
+    )
+    
+    user_obj.recruiter_progress = progress
+    return user_obj
+
+@api_router.post("/profile/job-posted")
+async def track_job_posted(
+    current_user: User = Depends(get_current_user)
+):
+    """Mark first job as posted for recruiter gamification"""
+    if current_user.role != UserRole.RECRUITER:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only recruiters can track job postings"
+        )
+    
+    await db.users.update_one(
+        {"id": current_user.id},
+        {"$set": {"recruiter_progress.first_job_posted": True}}
+    )
+    return {"message": "First job posting tracked successfully"}
+
+
+# User Profile Routes (existing)
 @api_router.put("/profile", response_model=User)
 async def update_profile(
     profile_update: UserProfileUpdate,
@@ -561,16 +617,27 @@ async def update_profile(
     
     # Get updated user
     updated_user = await db.users.find_one({"id": current_user.id})
+    if "_id" in updated_user:
+        del updated_user["_id"]
+    
     user_obj = User(**updated_user)
     
-    # Calculate and update progress
-    progress = calculate_profile_progress(user_obj)
-    await db.users.update_one(
-        {"id": current_user.id},
-        {"$set": {"profile_progress": progress.dict()}}
-    )
+    # Calculate and update progress based on role
+    if user_obj.role == UserRole.JOB_SEEKER:
+        progress = calculate_profile_progress(user_obj)
+        await db.users.update_one(
+            {"id": current_user.id},
+            {"$set": {"profile_progress": progress.dict()}}
+        )
+        user_obj.profile_progress = progress
+    elif user_obj.role == UserRole.RECRUITER:
+        progress = calculate_recruiter_progress(user_obj)
+        await db.users.update_one(
+            {"id": current_user.id},
+            {"$set": {"recruiter_progress": progress.dict()}}
+        )
+        user_obj.recruiter_progress = progress
     
-    user_obj.profile_progress = progress
     return user_obj
 
 @api_router.post("/profile/work-experience")
