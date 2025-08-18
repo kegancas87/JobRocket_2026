@@ -1463,15 +1463,22 @@ class JobPostingTestSuite:
         """Clean up test data created during testing"""
         print_test_header("Cleaning Up Test Data")
         
-        # Note: In a real system, you might want to delete created jobs
+        # Note: In a real system, you might want to delete created jobs and applications
         # For this test, we'll just log what was created
         print_info(f"Created {len(self.job_ids)} test jobs during testing")
+        print_info(f"Created {len(self.easy_apply_job_ids)} Easy Apply jobs")
+        print_info(f"Created {len(self.external_job_ids)} External Apply jobs")
+        print_info(f"Created {len(self.application_ids)} job applications")
+        
         for job_id in self.job_ids:
             print_info(f"Test job ID: {job_id}")
+        
+        for app_id in self.application_ids:
+            print_info(f"Test application ID: {app_id}")
 
     def run_all_tests(self):
-        """Run all job posting system tests"""
-        print(f"{Colors.BOLD}{Colors.BLUE}🚀 Starting Job Rocket Job Posting System Tests{Colors.ENDC}")
+        """Run all job posting and application system tests"""
+        print(f"{Colors.BOLD}{Colors.BLUE}🚀 Starting Job Rocket Complete System Tests{Colors.ENDC}")
         print(f"{Colors.BLUE}Testing against: {BASE_URL}{Colors.ENDC}")
         print(f"{Colors.BLUE}Timestamp: {datetime.now().isoformat()}{Colors.ENDC}")
         
@@ -1483,7 +1490,7 @@ class JobPostingTestSuite:
                 print_error("Failed to setup test environment. Aborting tests.")
                 return False
             
-            # Run all test suites
+            # Run existing job posting tests
             self.test_get_accessible_companies()
             self.test_create_single_job()
             self.test_automatic_job_expiry()
@@ -1497,6 +1504,16 @@ class JobPostingTestSuite:
             self.test_recruiter_progress_tracking()
             self.test_authentication_and_authorization()
             self.test_error_handling_and_edge_cases()
+            
+            # Run new Easy Apply system tests
+            self.test_easy_apply_job_creation()
+            self.test_easy_apply_job_application()
+            self.test_job_seeker_applications_management()
+            self.test_recruiter_application_management()
+            self.test_application_status_updates()
+            self.test_application_status_values()
+            self.test_job_seeker_progress_tracking()
+            self.test_easy_apply_vs_external_differentiation()
             
             # Cleanup
             self.cleanup_test_data()
