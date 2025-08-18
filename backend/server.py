@@ -1448,6 +1448,7 @@ async def create_jobs_bulk(
 @api_router.get("/jobs", response_model=List[Job])
 async def get_jobs(
     company_id: Optional[str] = Query(None),
+    include_archived: Optional[bool] = Query(False),
     current_user: User = Depends(get_current_user)
 ):
     """Get jobs for recruiter (all jobs they have access to)"""
@@ -1489,6 +1490,10 @@ async def get_jobs(
         
         query["company_id"] = {"$in": accessible_companies}
     
+    # Filter by expiry status if not including archived
+    if not include_archived:
+        query["expiry_date"] = {"$gt": datetime.utcnow()}
+    
     # Get jobs
     jobs = await db.jobs.find(query).sort("posted_date", -1).to_list(1000)
     
@@ -1500,6 +1505,160 @@ async def get_jobs(
         result.append(Job(**job))
     
     return result
+
+@api_router.get("/public/jobs", response_model=List[Job])
+async def get_public_jobs(
+    location: Optional[str] = Query(None),
+    job_type: Optional[str] = Query(None),
+    work_type: Optional[str] = Query(None),
+    industry: Optional[str] = Query(None),
+    search: Optional[str] = Query(None),
+    limit: Optional[int] = Query(20)
+):
+    """Get active jobs for job seekers (public endpoint with filtering)"""
+    query = {
+        "is_active": True,
+        "expiry_date": {"$gt": datetime.utcnow()}  # Only show non-expired jobs
+    }
+    
+    # Apply filters
+    if location:
+        query["location"] = {"$regex": location, "$options": "i"}
+    
+    if job_type:
+        query["job_type"] = job_type
+    
+    if work_type:
+        query["work_type"] = work_type
+    
+    if industry:
+        query["industry"] = {"$regex": industry, "$options": "i"}
+    
+    if search:
+        # Search in title and description
+        query["$or"] = [
+            {"title": {"$regex": search, "$options": "i"}},
+            {"description": {"$regex": search, "$options": "i"}}
+        ]
+    
+    # Get jobs
+    jobs = await db.jobs.find(query).sort("posted_date", -1).limit(limit).to_list(limit)
+    
+    # Convert to Job objects and remove MongoDB _id
+    result = []
+    for job in jobs:
+        if "_id" in job:
+            del job["_id"]
+        result.append(Job(**job))
+    
+    return result
+
+@api_router.get("/jobs/archived", response_model=List[Job])
+async def get_archived_jobs(
+    company_id: Optional[str] = Query(None),
+    current_user: User = Depends(get_current_user)
+):
+    """Get archived (expired) jobs for recruiter"""
+    if current_user.role != UserRole.RECRUITER:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only recruiters can view archived jobs"
+        )
+    
+    # Build query for expired jobs
+    query = {
+        "expiry_date": {"$lte": datetime.utcnow()}  # Only expired jobs
+    }
+    
+    if company_id:
+        # Check if user has access to this company
+        if company_id != current_user.id:
+            member = await db.company_members.find_one({
+                "user_id": current_user.id,
+                "company_id": company_id,
+                "is_active": True
+            })
+            if not member:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="You don't have access to this company's jobs"
+                )
+        query["company_id"] = company_id
+    else:
+        # Get all companies the user has access to
+        accessible_companies = [current_user.id]
+        
+        memberships = await db.company_members.find({
+            "user_id": current_user.id,
+            "is_active": True
+        }).to_list(1000)
+        
+        for membership in memberships:
+            accessible_companies.append(membership["company_id"])
+        
+        query["company_id"] = {"$in": accessible_companies}
+    
+    # Get archived jobs
+    jobs = await db.jobs.find(query).sort("expiry_date", -1).to_list(1000)
+    
+    # Convert to Job objects and remove MongoDB _id
+    result = []
+    for job in jobs:
+        if "_id" in job:
+            del job["_id"]
+        result.append(Job(**job))
+    
+    return result
+
+@api_router.put("/jobs/{job_id}/repost")
+async def repost_job(
+    job_id: str,
+    current_user: User = Depends(get_current_user)
+):
+    """Repost an expired job (extends expiry by 35 days)"""
+    if current_user.role != UserRole.RECRUITER:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only recruiters can repost jobs"
+        )
+    
+    # Find the job
+    job = await db.jobs.find_one({"id": job_id})
+    if not job:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Job not found"
+        )
+    
+    # Check if user has permission to repost this job
+    if job["company_id"] != current_user.id:
+        member = await db.company_members.find_one({
+            "user_id": current_user.id,
+            "company_id": job["company_id"],
+            "is_active": True
+        })
+        if not member:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="You don't have permission to repost this job"
+            )
+    
+    # Extend expiry by 35 days
+    new_expiry_date = datetime.utcnow() + timedelta(days=35)
+    
+    await db.jobs.update_one(
+        {"id": job_id},
+        {"$set": {
+            "expiry_date": new_expiry_date,
+            "posted_date": datetime.utcnow(),  # Update posted date too
+            "is_active": True
+        }}
+    )
+    
+    return {
+        "message": "Job reposted successfully",
+        "new_expiry_date": new_expiry_date.isoformat()
+    }
 
 @api_router.get("/companies", response_model=List[dict])
 async def get_accessible_companies(current_user: User = Depends(get_current_user)):
