@@ -126,19 +126,16 @@ const JobCard = ({ job, onSave, onApply }) => {
                   <Badge variant="secondary" className="bg-slate-100 text-slate-700 hover:bg-slate-200 px-3 py-1 font-medium">
                     {job.job_type}
                   </Badge>
-                  {job.is_remote && (
-                    <Badge className="bg-blue-100 text-blue-700 hover:bg-blue-200 px-3 py-1 font-medium border-0">
-                      <Zap className="w-3 h-3 mr-1" />
-                      Remote
-                    </Badge>
-                  )}
-                  {job.is_hybrid && (
-                    <Badge className="bg-purple-100 text-purple-700 hover:bg-purple-200 px-3 py-1 font-medium border-0">
-                      Hybrid
-                    </Badge>
-                  )}
+                  <Badge className={`px-3 py-1 font-medium border-0 ${
+                    job.work_type === 'Remote' ? 'bg-blue-100 text-blue-700 hover:bg-blue-200' :
+                    job.work_type === 'Hybrid' ? 'bg-purple-100 text-purple-700 hover:bg-purple-200' :
+                    'bg-green-100 text-green-700 hover:bg-green-200'
+                  }`}>
+                    {job.work_type === 'Remote' && <Zap className="w-3 h-3 mr-1" />}
+                    {job.work_type}
+                  </Badge>
                   <Badge variant="outline" className="border-slate-300 text-slate-600 px-3 py-1 font-medium">
-                    {job.experience_level}
+                    {job.industry}
                   </Badge>
                 </div>
                 <Button
