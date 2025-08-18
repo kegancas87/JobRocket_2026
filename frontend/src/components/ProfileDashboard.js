@@ -7,6 +7,7 @@ import { Badge } from "./ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "./ui/tabs";
 import { Label } from "./ui/label";
 import TrophyProgress from './TrophyProgress';
+import MyApplications from './MyApplications';
 import { 
   User, 
   Briefcase, 
