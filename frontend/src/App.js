@@ -607,10 +607,17 @@ function App() {
         <Routes>
           <Route path="/" element={
             currentPage === 'profile' ? (
-              <ProfileDashboard 
-                user={user} 
-                onUpdateUser={handleUpdateUser}
-              />
+              user.role === 'recruiter' ? (
+                <RecruiterDashboard 
+                  user={user} 
+                  onUpdateUser={handleUpdateUser}
+                />
+              ) : (
+                <ProfileDashboard 
+                  user={user} 
+                  onUpdateUser={handleUpdateUser}
+                />
+              )
             ) : (
               <JobListingPage 
                 user={user} 
@@ -619,10 +626,17 @@ function App() {
             )
           } />
           <Route path="/profile" element={
-            <ProfileDashboard 
-              user={user} 
-              onUpdateUser={handleUpdateUser}
-            />
+            user.role === 'recruiter' ? (
+              <RecruiterDashboard 
+                user={user} 
+                onUpdateUser={handleUpdateUser}
+              />
+            ) : (
+              <ProfileDashboard 
+                user={user} 
+                onUpdateUser={handleUpdateUser}
+              />
+            )
           } />
           <Route path="/jobs" element={
             <JobListingPage 
