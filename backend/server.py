@@ -815,8 +815,9 @@ async def invite_team_member(
     invitation_obj = TeamInvitation(**invitation_dict)
     await db.team_invitations.insert_one(invitation_obj.dict())
     
-    # TODO: Send email invitation
-    # send_invitation_email(invitation_obj)
+    # TODO: Send email invitation (will be implemented with SendGrid later)
+    # For now, we'll just create the invitation and show success
+    # Later: send_invitation_email(invitation_obj)
     
     return invitation_obj
 
