@@ -9,6 +9,7 @@ import { Label } from "./ui/label";
 import TrophyProgress from './TrophyProgress';
 import CompanyStructure from './CompanyStructure';
 import JobPosting from './JobPosting';
+import ApplicationManagement from './ApplicationManagement';
 import { 
   Building2, 
   Globe, 
