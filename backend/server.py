@@ -1032,6 +1032,171 @@ async def accept_invitation(
     return {"message": "Invitation accepted successfully"}
 
 
+# Public Invitation Routes (no authentication required)
+class InvitationResponse(BaseModel):
+    invitation_id: str
+    company_name: str
+    first_name: str
+    last_name: str
+    role: str
+    branches: List[dict] = []
+    expires_at: datetime
+    
+class InvitationRegistration(BaseModel):
+    email: EmailStr
+    password: str
+    first_name: str
+    last_name: str
+
+@api_router.get("/public/invitations/{invitation_token}", response_model=InvitationResponse)
+async def get_invitation_details(invitation_token: str):
+    """Get invitation details for public registration (no auth required)"""
+    # Find invitation by token
+    invitation = await db.team_invitations.find_one({
+        "invitation_token": invitation_token,
+        "status": InvitationStatus.PENDING
+    })
+    
+    if not invitation:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Invitation not found or expired"
+        )
+    
+    # Check if invitation is expired
+    if datetime.utcnow() > invitation["expires_at"]:
+        await db.team_invitations.update_one(
+            {"id": invitation["id"]},
+            {"$set": {"status": InvitationStatus.EXPIRED}}
+        )
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invitation has expired"
+        )
+    
+    # Get company details
+    company_user = await db.users.find_one({"id": invitation["company_id"]})
+    if not company_user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Company not found"
+        )
+    
+    # Get branch details
+    branches = []
+    if invitation["branch_ids"]:
+        for branch_id in invitation["branch_ids"]:
+            branch = await db.company_branches.find_one({"id": branch_id})
+            if branch:
+                branches.append({
+                    "id": branch["id"],
+                    "name": branch["name"], 
+                    "location": branch["location"]
+                })
+    
+    return InvitationResponse(
+        invitation_id=invitation["id"],
+        company_name=company_user.get("company_profile", {}).get("company_name", "Unknown Company"),
+        first_name=invitation["first_name"],
+        last_name=invitation["last_name"],
+        role=invitation["role"],
+        branches=branches,
+        expires_at=invitation["expires_at"]
+    )
+
+@api_router.post("/public/invitations/{invitation_token}/register", response_model=Token)
+async def register_via_invitation(
+    invitation_token: str,
+    registration_data: InvitationRegistration
+):
+    """Register new user via invitation token"""
+    # Find and validate invitation
+    invitation = await db.team_invitations.find_one({
+        "invitation_token": invitation_token,
+        "status": InvitationStatus.PENDING
+    })
+    
+    if not invitation:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Invitation not found or expired"
+        )
+    
+    # Check if invitation is expired
+    if datetime.utcnow() > invitation["expires_at"]:
+        await db.team_invitations.update_one(
+            {"id": invitation["id"]},
+            {"$set": {"status": InvitationStatus.EXPIRED}}
+        )
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invitation has expired"
+        )
+    
+    # Check if email matches invitation
+    if registration_data.email != invitation["email"]:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Email address must match the invitation"
+        )
+    
+    # Check if user already exists
+    existing_user = await db.users.find_one({"email": registration_data.email})
+    if existing_user:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="User with this email already exists. Please use the login page."
+        )
+    
+    # Hash password and create user
+    hashed_password = get_password_hash(registration_data.password)
+    
+    user_data = {
+        "email": registration_data.email,
+        "password_hash": hashed_password,
+        "first_name": registration_data.first_name,
+        "last_name": registration_data.last_name,
+        "role": UserRole.RECRUITER,  # Invited users become recruiters
+    }
+    
+    user_obj = User(**user_data)
+    await db.users.insert_one(user_obj.dict())
+    
+    # Create company member relationship
+    member_data = {
+        "company_id": invitation["company_id"],
+        "user_id": user_obj.id,
+        "role": invitation["role"],
+        "branch_ids": invitation["branch_ids"],
+        "invited_by": invitation["invited_by"]
+    }
+    
+    member_obj = CompanyMember(**member_data)
+    await db.company_members.insert_one(member_obj.dict())
+    
+    # Mark invitation as accepted
+    await db.team_invitations.update_one(
+        {"id": invitation["id"]},
+        {"$set": {"status": InvitationStatus.ACCEPTED}}
+    )
+    
+    # Create access token
+    access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+    access_token = create_access_token(
+        data={"sub": user_obj.id}, expires_delta=access_token_expires
+    )
+    
+    # Return token and user info
+    user_dict = user_obj.dict()
+    del user_dict['password_hash']
+    
+    return {
+        "access_token": access_token,
+        "token_type": "bearer",
+        "user": user_dict
+    }
+
+
 # Company Profile Routes (existing)
 @api_router.put("/profile/company", response_model=User)
 async def update_company_profile(
