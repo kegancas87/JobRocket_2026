@@ -548,6 +548,13 @@ const RecruiterDashboard = ({ user, onUpdateUser }) => {
                   onUpdateUser={fetchCurrentUser}
                 />
               </TabsContent>
+
+              {/* Applications Tab */}
+              <TabsContent value="applications" className="space-y-6 mt-6">
+                <ApplicationManagement 
+                  user={profile}
+                />
+              </TabsContent>
             </Tabs>
           </div>
         </div>
