@@ -22,7 +22,7 @@ import axios from 'axios';
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
 
-const EasyApplyModal = ({ job, isOpen, onClose, onSuccess }) => {
+const EasyApplyModal = ({ job, isOpen, onClose, onSuccess, user }) => {
   const [loading, setLoading] = useState(false);
   const [step, setStep] = useState(1);
   const [applicationData, setApplicationData] = useState({
@@ -30,6 +30,19 @@ const EasyApplyModal = ({ job, isOpen, onClose, onSuccess }) => {
     resume_url: '',
     additional_info: ''
   });
+
+  // Pre-populate form when modal opens and user data is available
+  useEffect(() => {
+    if (isOpen && user) {
+      setApplicationData(prev => ({
+        ...prev,
+        resume_url: user.resume_url || user.cv_url || '',
+        additional_info: user.skills && user.skills.length > 0 
+          ? `Skills: ${user.skills.join(', ')}\n\n`
+          : ''
+      }));
+    }
+  }, [isOpen, user]);
 
   const getAuthHeaders = () => {
     const token = localStorage.getItem('token');
