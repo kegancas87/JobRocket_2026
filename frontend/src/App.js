@@ -41,10 +41,13 @@ const JobCard = ({ job, onSave, onApply }) => {
     const diffTime = Math.abs(now - date);
     const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
     
+    if (diffDays === 0) return 'Today';
     if (diffDays === 1) return '1 day ago';
     if (diffDays < 7) return `${diffDays} days ago`;
     if (diffDays < 14) return '1 week ago';
-    return `${Math.ceil(diffDays / 7)} weeks ago`;
+    if (diffDays < 30) return `${Math.ceil(diffDays / 7)} weeks ago`;
+    if (diffDays < 60) return '1 month ago';
+    return `${Math.ceil(diffDays / 30)} months ago`;
   };
 
   const formatSalary = (salaryMin, salaryMax, currency = 'ZAR') => {
