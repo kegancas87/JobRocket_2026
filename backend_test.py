@@ -2037,8 +2037,7 @@ class JobPostingTestSuite:
         payment_id = self.payment_ids[0]
         payment_reference = f"PF_TEST_{uuid.uuid4().hex[:8]}"
         
-        response = self.make_request("POST", f"/payments/{payment_id}/complete", 
-                                   data={"payment_reference": payment_reference}, 
+        response = self.make_request("POST", f"/payments/{payment_id}/complete?payment_reference={payment_reference}", 
                                    auth_token=self.recruiter_token)
         if self.assert_response(response, 200, "Complete Two Listings Payment"):
             result = response.json()
@@ -2068,8 +2067,7 @@ class JobPostingTestSuite:
             payment_id = self.payment_ids[2]  # Unlimited Listings
             payment_reference = f"PF_TEST_{uuid.uuid4().hex[:8]}"
             
-            response = self.make_request("POST", f"/payments/{payment_id}/complete", 
-                                       data={"payment_reference": payment_reference}, 
+            response = self.make_request("POST", f"/payments/{payment_id}/complete?payment_reference={payment_reference}", 
                                        auth_token=self.recruiter_token)
             if self.assert_response(response, 200, "Complete Unlimited Listings Payment"):
                 result = response.json()
@@ -2087,16 +2085,14 @@ class JobPostingTestSuite:
         
         # Test 3: Try to complete non-existent payment (should fail)
         fake_payment_id = str(uuid.uuid4())
-        response = self.make_request("POST", f"/payments/{fake_payment_id}/complete", 
-                                   data={"payment_reference": "fake_ref"}, 
+        response = self.make_request("POST", f"/payments/{fake_payment_id}/complete?payment_reference=fake_ref", 
                                    auth_token=self.recruiter_token)
         self.assert_response(response, 404, "Complete Non-existent Payment (Should Fail)")
         
         # Test 4: Try to complete another user's payment (should fail)
         if len(self.payment_ids) > 1:
             payment_id = self.payment_ids[1]
-            response = self.make_request("POST", f"/payments/{payment_id}/complete", 
-                                       data={"payment_reference": "fake_ref"}, 
+            response = self.make_request("POST", f"/payments/{payment_id}/complete?payment_reference=fake_ref", 
                                        auth_token=self.job_seeker_token)
             self.assert_response(response, 403, "Complete Other User's Payment (Should Fail)")
 
