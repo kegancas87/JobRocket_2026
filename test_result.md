@@ -378,7 +378,53 @@ backend:
         -agent: "testing"
         -comment: "Minor: Job seeker progress tracking for applications implemented but not updating in real-time during testing. Progress tracking logic exists for first 5 applications but profile_progress.job_applications shows 0 despite creating 2 applications. This may be a timing issue or requires profile refresh. Core application functionality works correctly regardless."
 
-  - task: "Authenticated invitation acceptance for existing users"
+  - task: "Enhanced Easy Apply with Profile Snapshot"
+    implemented: true
+    working: false
+    file: "/app/backend/server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+        -working: false
+        -agent: "testing"
+        -comment: "Enhanced Easy Apply system partially working but missing critical profile snapshot functionality. Applications are created successfully but applicant_snapshot field is not being populated with user profile data. The system needs to capture profile information (first_name, last_name, email, location, phone, skills, resume_url, profile_picture_url) at time of application. Profile pre-population feature is not implemented as expected."
+
+  - task: "Application Data Enrichment with Profile Snapshots"
+    implemented: true
+    working: false
+    file: "/app/backend/server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+        -working: false
+        -agent: "testing"
+        -comment: "Application data enrichment working for basic job and applicant details, but missing applicant_snapshot in application responses. Job seeker applications properly enriched with job details, recruiter applications include applicant profile data with proper privacy controls (sensitive fields excluded). However, the key enhancement of profile snapshots is not implemented - applications should include applicant_snapshot field with profile data captured at time of application."
+
+  - task: "Profile Completeness Scenarios Testing"
+    implemented: true
+    working: true
+    file: "/app/backend/server.py"
+    stuck_count: 0
+    priority: "medium"
+    needs_retesting: false
+    status_history:
+        -working: true
+        -agent: "testing"
+        -comment: "Profile completeness scenarios working correctly. System handles users with minimal profiles (basic registration data only) and partial profiles (some additional fields filled). Applications can be created regardless of profile completeness level. User registration and profile updates working properly for different completeness levels."
+
+  - task: "External vs Easy Apply Differentiation Enhanced"
+    implemented: true
+    working: true
+    file: "/app/backend/server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+        -working: true
+        -agent: "testing"
+        -comment: "External vs Easy Apply differentiation working perfectly. Jobs without application_url properly support Easy Apply functionality. Jobs with application_url correctly block Easy Apply attempts with appropriate error messages. Mixed job type testing confirmed proper differentiation. Easy Apply jobs accept applications while external jobs redirect users to company websites."
     implemented: true
     working: true
     file: "/app/backend/server.py"
