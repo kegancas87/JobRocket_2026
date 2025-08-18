@@ -15,7 +15,8 @@ import {
   DollarSign,
   CheckCircle,
   AlertCircle,
-  ExternalLink
+  ExternalLink,
+  User
 } from "lucide-react";
 import axios from 'axios';
 
