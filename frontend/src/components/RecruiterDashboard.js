@@ -226,7 +226,7 @@ const RecruiterDashboard = ({ user, onUpdateUser }) => {
           {/* Main Company Profile Tabs */}
           <div className="lg:col-span-3">
             <Tabs value={activeTab} onValueChange={setActiveTab}>
-              <TabsList className="grid w-full grid-cols-4 bg-white/80 backdrop-blur-sm">
+              <TabsList className="grid w-full grid-cols-5 bg-white/80 backdrop-blur-sm">
                 <TabsTrigger value="overview" className="flex items-center space-x-1">
                   <Building2 className="w-4 h-4" />
                   <span className="hidden sm:inline">Company</span>
@@ -238,6 +238,10 @@ const RecruiterDashboard = ({ user, onUpdateUser }) => {
                 <TabsTrigger value="links" className="flex items-center space-x-1">
                   <Link className="w-4 h-4" />
                   <span className="hidden sm:inline">Links</span>
+                </TabsTrigger>
+                <TabsTrigger value="structure" className="flex items-center space-x-1">
+                  <Users className="w-4 h-4" />
+                  <span className="hidden sm:inline">Structure</span>
                 </TabsTrigger>
                 <TabsTrigger value="jobs" className="flex items-center space-x-1">
                   <Briefcase className="w-4 h-4" />
