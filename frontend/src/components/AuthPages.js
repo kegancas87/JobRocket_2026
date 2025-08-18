@@ -13,7 +13,8 @@ import {
   EyeOff,
   Star,
   Sparkles,
-  Zap
+  Zap,
+  Briefcase
 } from "lucide-react";
 import axios from 'axios';
 
