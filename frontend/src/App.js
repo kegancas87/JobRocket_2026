@@ -139,16 +139,13 @@ const JobCard = ({ job, onSave, onApply }) => {
                     {job.industry}
                   </Badge>
                 </div>
-                <Button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onApply(job.id);
+                <ApplyButton 
+                  job={job}
+                  onApplicationSuccess={(applicationData) => {
+                    console.log('Application submitted:', applicationData);
+                    // You can add any success handling here
                   }}
-                  className="bg-gradient-to-r from-blue-600 to-slate-700 hover:from-blue-700 hover:to-slate-800"
-                >
-                  <Rocket className="w-4 h-4 mr-2" />
-                  Quick Apply
-                </Button>
+                />
               </div>
             </div>
           </div>
