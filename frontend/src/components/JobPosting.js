@@ -129,6 +129,23 @@ const JobPosting = ({ user, onUpdateUser }) => {
     setJobForm(prev => ({ ...prev, [field]: value }));
   };
 
+  const getTotalCredits = () => {
+    let jobListings = 0;
+    let hasUnlimited = false;
+    
+    userPackages.forEach(({ user_package, is_expired }) => {
+      if (!is_expired && user_package.is_active) {
+        if (user_package.job_listings_remaining === null) {
+          hasUnlimited = true;
+        } else if (user_package.job_listings_remaining > 0) {
+          jobListings += user_package.job_listings_remaining;
+        }
+      }
+    });
+    
+    return { jobListings, hasUnlimited };
+  };
+
   const handleSingleJobSubmit = async (e) => {
     e.preventDefault();
     
