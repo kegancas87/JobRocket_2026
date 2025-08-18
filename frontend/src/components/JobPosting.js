@@ -83,6 +83,7 @@ const JobPosting = ({ user, onUpdateUser }) => {
   useEffect(() => {
     fetchCompanies();
     fetchJobs();
+    fetchUserPackages();
   }, []);
 
   const fetchCompanies = async () => {
