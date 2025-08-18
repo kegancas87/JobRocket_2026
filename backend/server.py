@@ -265,6 +265,32 @@ class CompanyProfileUpdate(BaseModel):
     company_industry: Optional[str] = None
     company_location: Optional[str] = None
 
+class BranchCreate(BaseModel):
+    name: str
+    location: str
+    email: Optional[str] = None
+    phone: Optional[str] = None
+    is_headquarters: bool = False
+
+class BranchUpdate(BaseModel):
+    name: Optional[str] = None
+    location: Optional[str] = None
+    email: Optional[str] = None
+    phone: Optional[str] = None
+    is_headquarters: Optional[bool] = None
+
+class TeamInvitationCreate(BaseModel):
+    email: EmailStr
+    first_name: str
+    last_name: str
+    role: TeamMemberRole = TeamMemberRole.RECRUITER
+    branch_ids: List[str] = []
+
+class TeamMemberUpdate(BaseModel):
+    role: Optional[TeamMemberRole] = None
+    branch_ids: Optional[List[str]] = None
+    is_active: Optional[bool] = None
+
 
 # Authentication helpers
 def verify_password(plain_password, hashed_password):
