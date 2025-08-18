@@ -102,8 +102,13 @@ const JobPosting = ({ user, onUpdateUser }) => {
 
   const fetchJobs = async () => {
     try {
-      const response = await axios.get(`${API}/jobs`, getAuthHeaders());
+      // Fetch active jobs
+      const response = await axios.get(`${API}/jobs?include_archived=false`, getAuthHeaders());
       setJobs(response.data);
+      
+      // Fetch archived jobs
+      const archivedResponse = await axios.get(`${API}/jobs/archived`, getAuthHeaders());
+      setArchivedJobs(archivedResponse.data);
     } catch (error) {
       console.error('Error fetching jobs:', error);
     }
