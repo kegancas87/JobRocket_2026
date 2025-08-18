@@ -1432,6 +1432,32 @@ async def create_job(
             detail="Only recruiters can post jobs"
         )
     
+    # Check if user has available job listings in their packages
+    user_packages = await db.user_packages.find({
+        "user_id": current_user.id,
+        "is_active": True,
+        "$or": [
+            {"job_listings_remaining": {"$gt": 0}},  # Has remaining listings
+            {"job_listings_remaining": None}  # Unlimited listings
+        ]
+    }).to_list(1000)
+    
+    # Filter out expired subscriptions
+    valid_packages = []
+    for user_package in user_packages:
+        if user_package.get("expiry_date"):
+            if datetime.utcnow() <= user_package["expiry_date"]:
+                valid_packages.append(user_package)
+        else:
+            # One-time packages (no expiry)
+            valid_packages.append(user_package)
+    
+    if not valid_packages:
+        raise HTTPException(
+            status_code=status.HTTP_402_PAYMENT_REQUIRED,
+            detail="No job listing credits available. Please purchase a package to post jobs."
+        )
+    
     # Get company details for the job
     if job_data.company_id == current_user.id:
         # Using current user's company
@@ -1460,13 +1486,53 @@ async def create_job(
             )
         company_name = company_owner.get("company_profile", {}).get("company_name", "Company Name Not Set")
     
-    # Create job object
+    # Find the best package to use (prioritize non-unlimited packages first to preserve unlimited)
+    selected_package = None
+    for pkg in valid_packages:
+        if pkg.get("job_listings_remaining") and pkg["job_listings_remaining"] > 0:
+            selected_package = pkg
+            break
+    
+    # If no limited packages, use unlimited package
+    if not selected_package:
+        for pkg in valid_packages:
+            if pkg.get("job_listings_remaining") is None:  # Unlimited
+                selected_package = pkg
+                break
+    
+    if not selected_package:
+        raise HTTPException(
+            status_code=status.HTTP_402_PAYMENT_REQUIRED,
+            detail="No job listing credits available"
+        )
+    
+    # Get the package details to determine job expiry
+    package = await db.packages.find_one({"id": selected_package["package_id"]})
+    job_expiry_days = package.get("job_expiry_days", 35) if package else 35
+    
+    # Create job object with appropriate expiry
     job_dict = job_data.dict()
     job_dict["company_name"] = company_name
     job_dict["posted_by"] = current_user.id
+    job_dict["expiry_date"] = datetime.utcnow() + timedelta(days=job_expiry_days)
     
     job_obj = Job(**job_dict)
     await db.jobs.insert_one(job_obj.dict())
+    
+    # Deduct job listing credit (if not unlimited)
+    if selected_package.get("job_listings_remaining") is not None:
+        new_count = selected_package["job_listings_remaining"] - 1
+        await db.user_packages.update_one(
+            {"id": selected_package["id"]},
+            {"$set": {"job_listings_remaining": new_count}}
+        )
+        
+        # Deactivate package if no listings remaining
+        if new_count <= 0:
+            await db.user_packages.update_one(
+                {"id": selected_package["id"]},
+                {"$set": {"is_active": False}}
+            )
     
     # Update recruiter progress for first job posting
     if not current_user.recruiter_progress or not current_user.recruiter_progress.first_job_posted:
