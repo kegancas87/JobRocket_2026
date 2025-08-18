@@ -253,6 +253,7 @@ const ProfileDashboard = ({ user, onUpdateUser }) => {
           <TrophyProgress 
             progress={progress} 
             onComplete={onProfileComplete}
+            userRole="job_seeker"
           />
         </div>
 
