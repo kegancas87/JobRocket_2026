@@ -422,8 +422,10 @@ async def login(login_data: UserLogin):
         data={"sub": user["id"]}, expires_delta=access_token_expires
     )
     
-    # Return token and user info (without password)
+    # Return token and user info (without password and _id)
     user_dict = user.copy()
+    if "_id" in user_dict:
+        del user_dict["_id"]
     del user_dict['password_hash']
     
     return {
