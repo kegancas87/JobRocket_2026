@@ -4,6 +4,7 @@ import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import axios from "axios";
 import { LoginPage, RegisterPage } from "./components/AuthPages";
 import ProfileDashboard from "./components/ProfileDashboard";
+import RecruiterDashboard from "./components/RecruiterDashboard";
 import { Button } from "./components/ui/button";
 import { Input } from "./components/ui/input";
 import { Card, CardContent, CardHeader } from "./components/ui/card";
