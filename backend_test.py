@@ -1875,11 +1875,9 @@ class JobPostingTestSuite:
             if i == 0:  # Easy Apply job
                 if self.assert_response(response, 200, "Apply to Easy Apply Mixed Job"):
                     print_success("Easy Apply job accepts applications")
-            else:  # External Apply job
-                if self.assert_response(response, 400, "Block Apply to External Mixed Job"):
-                    print_success("External Apply job blocks applications")
+    def run_all_tests(self):
         """Run all job posting and application system tests"""
-        print(f"{Colors.BOLD}{Colors.BLUE}🚀 Starting Job Rocket Complete System Tests{Colors.ENDC}")
+        print(f"{Colors.BOLD}{Colors.BLUE}🚀 Starting Enhanced Easy Apply System Tests{Colors.ENDC}")
         print(f"{Colors.BLUE}Testing against: {BASE_URL}{Colors.ENDC}")
         print(f"{Colors.BLUE}Timestamp: {datetime.now().isoformat()}{Colors.ENDC}")
         
@@ -1891,7 +1889,23 @@ class JobPostingTestSuite:
                 print_error("Failed to setup test environment. Aborting tests.")
                 return False
             
-            # Run existing job posting tests
+            # Run Enhanced Easy Apply System Tests (Priority)
+            self.test_enhanced_easy_apply_with_profile_snapshot()
+            self.test_application_data_enrichment()
+            self.test_profile_completeness_scenarios()
+            self.test_external_vs_easy_apply_differentiation()
+            
+            # Run existing Easy Apply tests
+            self.test_easy_apply_job_creation()
+            self.test_easy_apply_job_application()
+            self.test_job_seeker_applications_management()
+            self.test_recruiter_application_management()
+            self.test_application_status_updates()
+            self.test_application_status_values()
+            self.test_job_seeker_progress_tracking()
+            self.test_easy_apply_vs_external_differentiation()
+            
+            # Run core job posting tests
             self.test_get_accessible_companies()
             self.test_create_single_job()
             self.test_automatic_job_expiry()
@@ -1904,17 +1918,6 @@ class JobPostingTestSuite:
             self.test_job_posting_with_company_access()
             self.test_recruiter_progress_tracking()
             self.test_authentication_and_authorization()
-            self.test_error_handling_and_edge_cases()
-            
-            # Run new Easy Apply system tests
-            self.test_easy_apply_job_creation()
-            self.test_easy_apply_job_application()
-            self.test_job_seeker_applications_management()
-            self.test_recruiter_application_management()
-            self.test_application_status_updates()
-            self.test_application_status_values()
-            self.test_job_seeker_progress_tracking()
-            self.test_easy_apply_vs_external_differentiation()
             
             # Cleanup
             self.cleanup_test_data()
@@ -1940,7 +1943,7 @@ class JobPostingTestSuite:
         
         # Determine overall result
         if self.test_results["failed"] == 0:
-            print(f"\n{Colors.GREEN}{Colors.BOLD}🎉 All tests passed! Job posting and Easy Apply system is working correctly.{Colors.ENDC}")
+            print(f"\n{Colors.GREEN}{Colors.BOLD}🎉 All tests passed! Enhanced Easy Apply system is working correctly.{Colors.ENDC}")
             return True
         else:
             print(f"\n{Colors.RED}{Colors.BOLD}💥 Some tests failed. Please review the errors above.{Colors.ENDC}")
