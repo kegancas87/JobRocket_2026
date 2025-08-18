@@ -354,7 +354,193 @@ class StatusCheckCreate(BaseModel):
     client_name: str
 
 
-# Job Routes
+# Authentication Routes
+@api_router.post("/auth/register", response_model=Token)
+async def register(user_data: UserRegister):
+    """Register a new user"""
+    # Check if user already exists
+    existing_user = await db.users.find_one({"email": user_data.email})
+    if existing_user:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Email already registered"
+        )
+    
+    # Hash password
+    hashed_password = get_password_hash(user_data.password)
+    
+    # Create user
+    user_dict = user_data.dict()
+    del user_dict['password']
+    user_dict['password_hash'] = hashed_password
+    
+    user_obj = User(**user_dict)
+    await db.users.insert_one(user_obj.dict())
+    
+    # Create access token
+    access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+    access_token = create_access_token(
+        data={"sub": user_obj.id}, expires_delta=access_token_expires
+    )
+    
+    # Return token and user info (without password)
+    user_dict = user_obj.dict()
+    del user_dict['password_hash']
+    
+    return {
+        "access_token": access_token,
+        "token_type": "bearer",
+        "user": user_dict
+    }
+
+@api_router.post("/auth/login", response_model=Token)
+async def login(login_data: UserLogin):
+    """Login user"""
+    user = await db.users.find_one({"email": login_data.email})
+    
+    if not user or not verify_password(login_data.password, user["password_hash"]):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Incorrect email or password",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    
+    # Update last login
+    await db.users.update_one(
+        {"id": user["id"]},
+        {"$set": {"last_login": datetime.utcnow()}}
+    )
+    
+    # Create access token
+    access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+    access_token = create_access_token(
+        data={"sub": user["id"]}, expires_delta=access_token_expires
+    )
+    
+    # Return token and user info (without password)
+    user_dict = user.copy()
+    del user_dict['password_hash']
+    
+    return {
+        "access_token": access_token,
+        "token_type": "bearer",
+        "user": user_dict
+    }
+
+@api_router.get("/auth/me")
+async def get_me(current_user: User = Depends(get_current_user)):
+    """Get current user profile with progress"""
+    # Calculate and update profile progress
+    progress = calculate_profile_progress(current_user)
+    
+    # Update progress in database
+    await db.users.update_one(
+        {"id": current_user.id},
+        {"$set": {"profile_progress": progress.dict()}}
+    )
+    
+    # Return user without password hash
+    user_dict = current_user.dict()
+    user_dict['profile_progress'] = progress.dict()
+    return user_dict
+
+
+# User Profile Routes
+@api_router.put("/profile", response_model=User)
+async def update_profile(
+    profile_update: UserProfileUpdate,
+    current_user: User = Depends(get_current_user)
+):
+    """Update user profile"""
+    update_data = {k: v for k, v in profile_update.dict().items() if v is not None}
+    update_data["updated_at"] = datetime.utcnow()
+    
+    # Update user in database
+    await db.users.update_one(
+        {"id": current_user.id},
+        {"$set": update_data}
+    )
+    
+    # Get updated user
+    updated_user = await db.users.find_one({"id": current_user.id})
+    user_obj = User(**updated_user)
+    
+    # Calculate and update progress
+    progress = calculate_profile_progress(user_obj)
+    await db.users.update_one(
+        {"id": current_user.id},
+        {"$set": {"profile_progress": progress.dict()}}
+    )
+    
+    user_obj.profile_progress = progress
+    return user_obj
+
+@api_router.post("/profile/work-experience")
+async def add_work_experience(
+    experience: WorkExperience,
+    current_user: User = Depends(get_current_user)
+):
+    """Add work experience"""
+    await db.users.update_one(
+        {"id": current_user.id},
+        {"$push": {"work_experience": experience.dict()}}
+    )
+    return {"message": "Work experience added successfully"}
+
+@api_router.post("/profile/education")
+async def add_education(
+    education: Education,
+    current_user: User = Depends(get_current_user)
+):
+    """Add education"""
+    await db.users.update_one(
+        {"id": current_user.id},
+        {"$push": {"education": education.dict()}}
+    )
+    return {"message": "Education added successfully"}
+
+@api_router.post("/profile/achievement")
+async def add_achievement(
+    achievement: Achievement,
+    current_user: User = Depends(get_current_user)
+):
+    """Add achievement"""
+    await db.users.update_one(
+        {"id": current_user.id},
+        {"$push": {"achievements": achievement.dict()}}
+    )
+    return {"message": "Achievement added successfully"}
+
+@api_router.post("/profile/job-application/{job_id}")
+async def track_job_application(
+    job_id: str,
+    current_user: User = Depends(get_current_user)
+):
+    """Track job application for gamification"""
+    # Increment job applications count
+    await db.users.update_one(
+        {"id": current_user.id},
+        {"$inc": {"profile_progress.job_applications": 1}}
+    )
+    
+    # You can also store actual job applications here
+    # For now, we're just tracking the count for gamification
+    
+    return {"message": "Job application tracked successfully"}
+
+@api_router.post("/profile/email-alerts")
+async def setup_email_alerts(
+    current_user: User = Depends(get_current_user)
+):
+    """Mark email alerts as setup"""
+    await db.users.update_one(
+        {"id": current_user.id},
+        {"$set": {"profile_progress.email_alerts": True}}
+    )
+    return {"message": "Email alerts setup completed"}
+
+
+# Job Routes (existing)
 @api_router.post("/jobs", response_model=Job)
 async def create_job(job_data: JobCreate):
     """Create a new job posting"""
