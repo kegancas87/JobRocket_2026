@@ -151,16 +151,38 @@ const CompanyStructure = ({ user, onUpdateUser }) => {
 
   const handleInviteUser = async (e) => {
     e.preventDefault();
-    setLoading(true);
     
     try {
-      await axios.post(`${API}/company/invite`, inviteForm, getAuthHeaders());
-      setInviteForm({ email: '', first_name: '', last_name: '', role: 'recruiter', branch_ids: [] });
+      setLoading(true);
+      const response = await axios.post(`${API}/company/invite`, inviteForm, getAuthHeaders());
+      
+      // Show success message with invitation link
+      const invitationLink = `${window.location.origin}/invitation/${response.data.invitation_token}`;
+      
+      alert(`Invitation sent successfully! 
+
+Share this link with ${inviteForm.first_name} ${inviteForm.last_name}:
+${invitationLink}
+
+Note: This link will expire in 7 days.`);
+      
+      // Reset form
+      setInviteForm({
+        email: '',
+        first_name: '',
+        last_name: '',
+        role: 'recruiter',
+        branch_ids: []
+      });
       setShowInviteUser(false);
-      fetchInvitations();
+      
+      // Refresh invitations list
+      await fetchInvitations();
       onUpdateUser(); // Refresh user data to update progress
+      
     } catch (error) {
       console.error('Error inviting user:', error);
+      alert(error.response?.data?.detail || 'Failed to send invitation');
     } finally {
       setLoading(false);
     }
