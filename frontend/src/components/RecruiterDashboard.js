@@ -10,6 +10,7 @@ import TrophyProgress from './TrophyProgress';
 import CompanyStructure from './CompanyStructure';
 import JobPosting from './JobPosting';
 import ApplicationManagement from './ApplicationManagement';
+import PackageManagement from './PackageManagement';
 import { 
   Building2, 
   Globe, 
