@@ -1966,8 +1966,7 @@ class JobPostingTestSuite:
         print_test_header("Payment Initiation")
         
         # Test 1: Initiate payment for Two Listings package
-        response = self.make_request("POST", "/payments/initiate", 
-                                   data={"package_type": "two_listings"}, 
+        response = self.make_request("POST", "/payments/initiate?package_type=two_listings", 
                                    auth_token=self.recruiter_token)
         if self.assert_response(response, 200, "Initiate Payment for Two Listings"):
             result = response.json()
@@ -1995,8 +1994,7 @@ class JobPostingTestSuite:
                 print_error(f"Payment currency {result['currency']} should be ZAR")
         
         # Test 2: Initiate payment for Five Listings package
-        response = self.make_request("POST", "/payments/initiate", 
-                                   data={"package_type": "five_listings"}, 
+        response = self.make_request("POST", "/payments/initiate?package_type=five_listings", 
                                    auth_token=self.recruiter_token)
         if self.assert_response(response, 200, "Initiate Payment for Five Listings"):
             result = response.json()
@@ -2005,8 +2003,7 @@ class JobPostingTestSuite:
                 print_success("Five Listings payment amount correct")
         
         # Test 3: Initiate payment for Unlimited Listings package (subscription)
-        response = self.make_request("POST", "/payments/initiate", 
-                                   data={"package_type": "unlimited_listings"}, 
+        response = self.make_request("POST", "/payments/initiate?package_type=unlimited_listings", 
                                    auth_token=self.recruiter_token)
         if self.assert_response(response, 200, "Initiate Payment for Unlimited Listings"):
             result = response.json()
@@ -2015,21 +2012,18 @@ class JobPostingTestSuite:
                 print_success("Unlimited Listings payment amount correct")
         
         # Test 4: Job seeker trying to initiate payment (should fail)
-        response = self.make_request("POST", "/payments/initiate", 
-                                   data={"package_type": "two_listings"}, 
+        response = self.make_request("POST", "/payments/initiate?package_type=two_listings", 
                                    auth_token=self.job_seeker_token)
         self.assert_response(response, 403, "Job Seeker Initiate Payment (Should Fail)")
         
         # Test 5: Unauthenticated payment initiation (should fail)
-        response = self.make_request("POST", "/payments/initiate", 
-                                   data={"package_type": "two_listings"})
+        response = self.make_request("POST", "/payments/initiate?package_type=two_listings")
         self.assert_response(response, 401, "Unauthenticated Payment Initiation (Should Fail)")
         
         # Test 6: Invalid package type (should fail)
-        response = self.make_request("POST", "/payments/initiate", 
-                                   data={"package_type": "invalid_package"}, 
+        response = self.make_request("POST", "/payments/initiate?package_type=invalid_package", 
                                    auth_token=self.recruiter_token)
-        self.assert_response(response, 404, "Invalid Package Type (Should Fail)")
+        self.assert_response(response, 422, "Invalid Package Type (Should Fail)")
 
     def test_payment_completion_and_package_activation(self):
         """Test POST /api/payments/{payment_id}/complete - Complete payment and activate package"""
