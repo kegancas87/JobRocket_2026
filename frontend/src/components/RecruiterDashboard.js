@@ -8,6 +8,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "./ui/tabs";
 import { Label } from "./ui/label";
 import TrophyProgress from './TrophyProgress';
 import CompanyStructure from './CompanyStructure';
+import JobPosting from './JobPosting';
 import { 
   Building2, 
   Globe, 
