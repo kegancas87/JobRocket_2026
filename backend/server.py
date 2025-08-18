@@ -149,6 +149,52 @@ class CompanyProfile(BaseModel):
     company_industry: Optional[str] = None
     company_location: Optional[str] = None
 
+class CompanyBranch(BaseModel):
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    company_id: str
+    name: str
+    location: str
+    email: Optional[str] = None
+    phone: Optional[str] = None
+    is_headquarters: bool = False
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+
+class TeamMemberRole(str, Enum):
+    ADMIN = "admin"
+    RECRUITER = "recruiter"
+    MANAGER = "manager"
+    VIEWER = "viewer"
+
+class CompanyMember(BaseModel):
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    company_id: str
+    user_id: str
+    role: TeamMemberRole = TeamMemberRole.RECRUITER
+    branch_ids: List[str] = []  # Can be associated with multiple branches
+    invited_by: str
+    joined_at: datetime = Field(default_factory=datetime.utcnow)
+    is_active: bool = True
+
+class InvitationStatus(str, Enum):
+    PENDING = "pending"
+    ACCEPTED = "accepted"
+    EXPIRED = "expired"
+    CANCELLED = "cancelled"
+
+class TeamInvitation(BaseModel):
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    company_id: str
+    email: EmailStr
+    first_name: str
+    last_name: str
+    role: TeamMemberRole = TeamMemberRole.RECRUITER
+    branch_ids: List[str] = []
+    invited_by: str
+    invitation_token: str = Field(default_factory=lambda: secrets.token_urlsafe(32))
+    status: InvitationStatus = InvitationStatus.PENDING
+    expires_at: datetime = Field(default_factory=lambda: datetime.utcnow() + timedelta(days=7))
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+
 class RecruiterProgress(BaseModel):
     company_logo: bool = False         # 15 points
     cover_image: bool = False          # 10 points
@@ -157,6 +203,10 @@ class RecruiterProgress(BaseModel):
     website_link: bool = False         # 15 points
     linkedin_link: bool = False        # 10 points
     first_job_posted: bool = False     # 20 points
+    # New company structure points
+    headquarters_setup: bool = False   # 5 points (automatic when company is created)
+    first_branch_added: bool = False   # 10 points
+    first_team_member: bool = False    # 15 points
     total_points: int = 0
 
 class User(BaseModel):
