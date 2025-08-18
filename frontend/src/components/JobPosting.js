@@ -296,7 +296,7 @@ Marketing Manager,Johannesburg,R45000 - R60000,Permanent,Onsite,Marketing,"Join 
           variant="outline"
         >
           <Eye className="w-4 h-4 mr-2" />
-          {showJobsList ? 'Hide' : 'View'} Jobs ({jobs.length})
+          {showJobsList ? 'Hide' : 'View'} Jobs ({jobs.length} active, {archivedJobs.length} archived)
         </Button>
       </div>
 
