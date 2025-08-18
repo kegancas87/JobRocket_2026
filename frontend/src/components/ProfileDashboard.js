@@ -1,0 +1,697 @@
+import React, { useState, useEffect } from 'react';
+import { Button } from "./ui/button";
+import { Input } from "./ui/input";
+import { Textarea } from "./ui/textarea";
+import { Card, CardContent, CardHeader, CardTitle } from "./ui/card";
+import { Badge } from "./ui/badge";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "./ui/tabs";
+import { Label } from "./ui/label";
+import TrophyProgress from './TrophyProgress';
+import { 
+  User, 
+  Briefcase, 
+  GraduationCap, 
+  Award, 
+  Video, 
+  Mail, 
+  DollarSign,
+  Plus,
+  Upload,
+  Save,
+  Camera,
+  Rocket,
+  Star,
+  MapPin,
+  Calendar,
+  Building2,
+  Target,
+  Zap
+} from "lucide-react";
+import axios from 'axios';
+
+const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
+const API = `${BACKEND_URL}/api`;
+
+const ProfileDashboard = ({ user, onUpdateUser }) => {
+  const [profile, setProfile] = useState(user);
+  const [loading, setLoading] = useState(false);
+  const [activeTab, setActiveTab] = useState('overview');
+  const [progress, setProgress] = useState(user.profile_progress || {});
+  
+  // Form states
+  const [profileForm, setProfileForm] = useState({
+    first_name: user.first_name || '',
+    last_name: user.last_name || '',
+    about_me: user.about_me || '',
+    phone: user.phone || '',
+    location: user.location || '',
+    current_salary_range: user.current_salary_range || '',
+    desired_salary_range: user.desired_salary_range || '',
+    skills: user.skills || []
+  });
+
+  const [newSkill, setNewSkill] = useState('');
+  const [workExperience, setWorkExperience] = useState({
+    company: '',
+    position: '',
+    start_date: '',
+    end_date: '',
+    current: false,
+    description: '',
+    location: ''
+  });
+
+  const [education, setEducation] = useState({
+    institution: '',
+    degree: '',
+    field_of_study: '',
+    level: 'Bachelors',
+    start_date: '',
+    end_date: '',
+    current: false,
+    grade: ''
+  });
+
+  const [achievement, setAchievement] = useState({
+    title: '',
+    description: '',
+    date_achieved: '',
+    issuer: '',
+    credential_url: ''
+  });
+
+  const getAuthHeaders = () => {
+    const token = localStorage.getItem('token');
+    return {
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      }
+    };
+  };
+
+  const fetchCurrentUser = async () => {
+    try {
+      const response = await axios.get(`${API}/auth/me`, getAuthHeaders());
+      setProfile(response.data);
+      setProgress(response.data.profile_progress || {});
+      onUpdateUser(response.data);
+    } catch (error) {
+      console.error('Error fetching user data:', error);
+    }
+  };
+
+  const updateProfile = async (updates) => {
+    try {
+      setLoading(true);
+      await axios.put(`${API}/profile`, updates, getAuthHeaders());
+      await fetchCurrentUser();
+    } catch (error) {
+      console.error('Error updating profile:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleProfileSubmit = async (e) => {
+    e.preventDefault();
+    await updateProfile(profileForm);
+  };
+
+  const addSkill = () => {
+    if (newSkill.trim() && !profileForm.skills.includes(newSkill.trim())) {
+      const updatedSkills = [...profileForm.skills, newSkill.trim()];
+      setProfileForm(prev => ({ ...prev, skills: updatedSkills }));
+      updateProfile({ skills: updatedSkills });
+      setNewSkill('');
+    }
+  };
+
+  const removeSkill = (skillToRemove) => {
+    const updatedSkills = profileForm.skills.filter(skill => skill !== skillToRemove);
+    setProfileForm(prev => ({ ...prev, skills: updatedSkills }));
+    updateProfile({ skills: updatedSkills });
+  };
+
+  const addWorkExperience = async (e) => {
+    e.preventDefault();
+    try {
+      await axios.post(`${API}/profile/work-experience`, {
+        ...workExperience,
+        start_date: new Date(workExperience.start_date).toISOString(),
+        end_date: workExperience.end_date ? new Date(workExperience.end_date).toISOString() : null
+      }, getAuthHeaders());
+      
+      setWorkExperience({
+        company: '',
+        position: '',
+        start_date: '',
+        end_date: '',
+        current: false,
+        description: '',
+        location: ''
+      });
+      await fetchCurrentUser();
+    } catch (error) {
+      console.error('Error adding work experience:', error);
+    }
+  };
+
+  const addEducation = async (e) => {
+    e.preventDefault();
+    try {
+      await axios.post(`${API}/profile/education`, {
+        ...education,
+        start_date: new Date(education.start_date).toISOString(),
+        end_date: education.end_date ? new Date(education.end_date).toISOString() : null
+      }, getAuthHeaders());
+      
+      setEducation({
+        institution: '',
+        degree: '',
+        field_of_study: '',
+        level: 'Bachelors',
+        start_date: '',
+        end_date: '',
+        current: false,
+        grade: ''
+      });
+      await fetchCurrentUser();
+    } catch (error) {
+      console.error('Error adding education:', error);
+    }
+  };
+
+  const addAchievement = async (e) => {
+    e.preventDefault();
+    try {
+      await axios.post(`${API}/profile/achievement`, {
+        ...achievement,
+        date_achieved: new Date(achievement.date_achieved).toISOString()
+      }, getAuthHeaders());
+      
+      setAchievement({
+        title: '',
+        description: '',
+        date_achieved: '',
+        issuer: '',
+        credential_url: ''
+      });
+      await fetchCurrentUser();
+    } catch (error) {
+      console.error('Error adding achievement:', error);
+    }
+  };
+
+  const setupEmailAlerts = async () => {
+    try {
+      await axios.post(`${API}/profile/email-alerts`, {}, getAuthHeaders());
+      await fetchCurrentUser();
+    } catch (error) {
+      console.error('Error setting up email alerts:', error);
+    }
+  };
+
+  const onProfileComplete = () => {
+    // Trigger completion celebration
+    console.log('Profile completed! 🚀');
+  };
+
+  useEffect(() => {
+    fetchCurrentUser();
+  }, []);
+
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-slate-100 relative">
+      {/* Background tech grid pattern */}
+      <div className="absolute inset-0 opacity-5 tech-grid"></div>
+      
+      <div className="max-w-7xl mx-auto px-6 lg:px-8 py-8 relative z-10">
+        {/* Header */}
+        <div className="mb-8">
+          <div className="flex items-center justify-between">
+            <div>
+              <h1 className="text-4xl font-bold text-slate-800 mb-2">
+                Welcome back, {profile.first_name}! 👋
+              </h1>
+              <p className="text-slate-600 text-lg">
+                Complete your profile to unlock all Job Rocket features
+              </p>
+            </div>
+            <div className="hidden lg:block">
+              <TrophyProgress 
+                progress={progress} 
+                onComplete={onProfileComplete}
+              />
+            </div>
+          </div>
+        </div>
+
+        {/* Mobile Trophy Progress */}
+        <div className="lg:hidden mb-8">
+          <TrophyProgress 
+            progress={progress} 
+            onComplete={onProfileComplete}
+          />
+        </div>
+
+        {/* Main Content */}
+        <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
+          {/* Sidebar - Profile Overview */}
+          <div className="lg:col-span-1">
+            <Card className="bg-white/80 backdrop-blur-sm border-0 shadow-xl">
+              <CardContent className="p-6">
+                <div className="text-center mb-6">
+                  <div className="relative inline-block mb-4">
+                    <div className="w-24 h-24 bg-gradient-to-br from-blue-100 to-slate-200 rounded-full flex items-center justify-center overflow-hidden">
+                      {profile.profile_picture_url ? (
+                        <img 
+                          src={profile.profile_picture_url} 
+                          alt="Profile" 
+                          className="w-full h-full object-cover"
+                        />
+                      ) : (
+                        <User className="w-12 h-12 text-slate-400" />
+                      )}
+                    </div>
+                    <Button
+                      size="sm"
+                      className="absolute -bottom-2 -right-2 w-8 h-8 rounded-full p-0"
+                      onClick={() => {/* Handle profile picture upload */}}
+                    >
+                      <Camera className="w-4 h-4" />
+                    </Button>
+                  </div>
+                  <h3 className="font-bold text-slate-800 text-lg">
+                    {profile.first_name} {profile.last_name}
+                  </h3>
+                  <p className="text-slate-600 text-sm">{profile.email}</p>
+                  {profile.location && (
+                    <div className="flex items-center justify-center space-x-1 text-slate-500 text-sm mt-2">
+                      <MapPin className="w-4 h-4" />
+                      <span>{profile.location}</span>
+                    </div>
+                  )}
+                </div>
+
+                {/* Quick Stats */}
+                <div className="space-y-4">
+                  <div className="flex justify-between items-center">
+                    <span className="text-slate-600 text-sm">Profile Score</span>
+                    <Badge className="bg-blue-100 text-blue-800">
+                      {progress.total_points || 0}/100
+                    </Badge>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-slate-600 text-sm">Skills</span>
+                    <Badge variant="outline">
+                      {profile.skills?.length || 0} added
+                    </Badge>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-slate-600 text-sm">Experience</span>
+                    <Badge variant="outline">
+                      {profile.work_experience?.length || 0} roles
+                    </Badge>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Main Profile Tabs */}
+          <div className="lg:col-span-3">
+            <Tabs value={activeTab} onValueChange={setActiveTab}>
+              <TabsList className="grid w-full grid-cols-6 bg-white/80 backdrop-blur-sm">
+                <TabsTrigger value="overview" className="flex items-center space-x-1">
+                  <User className="w-4 h-4" />
+                  <span className="hidden sm:inline">Overview</span>
+                </TabsTrigger>
+                <TabsTrigger value="experience" className="flex items-center space-x-1">
+                  <Briefcase className="w-4 h-4" />
+                  <span className="hidden sm:inline">Experience</span>
+                </TabsTrigger>
+                <TabsTrigger value="education" className="flex items-center space-x-1">
+                  <GraduationCap className="w-4 h-4" />
+                  <span className="hidden sm:inline">Education</span>
+                </TabsTrigger>
+                <TabsTrigger value="achievements" className="flex items-center space-x-1">
+                  <Award className="w-4 h-4" />
+                  <span className="hidden sm:inline">Awards</span>
+                </TabsTrigger>
+                <TabsTrigger value="media" className="flex items-center space-x-1">
+                  <Video className="w-4 h-4" />
+                  <span className="hidden sm:inline">Media</span>
+                </TabsTrigger>
+                <TabsTrigger value="settings" className="flex items-center space-x-1">
+                  <Target className="w-4 h-4" />
+                  <span className="hidden sm:inline">Settings</span>
+                </TabsTrigger>
+              </TabsList>
+
+              {/* Overview Tab */}
+              <TabsContent value="overview" className="space-y-6 mt-6">
+                <Card className="bg-white/80 backdrop-blur-sm border-0 shadow-xl">
+                  <CardHeader>
+                    <CardTitle className="flex items-center space-x-2">
+                      <User className="w-5 h-5 text-blue-600" />
+                      <span>Basic Information</span>
+                      {!progress.about_me && (
+                        <Badge className="bg-yellow-100 text-yellow-800 text-xs">
+                          +10 points
+                        </Badge>
+                      )}
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <form onSubmit={handleProfileSubmit} className="space-y-6">
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div className="space-y-2">
+                          <Label htmlFor="first_name">First Name</Label>
+                          <Input
+                            id="first_name"
+                            value={profileForm.first_name}
+                            onChange={(e) => setProfileForm(prev => ({ ...prev, first_name: e.target.value }))}
+                            placeholder="Your first name"
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label htmlFor="last_name">Last Name</Label>
+                          <Input
+                            id="last_name"
+                            value={profileForm.last_name}
+                            onChange={(e) => setProfileForm(prev => ({ ...prev, last_name: e.target.value }))}
+                            placeholder="Your last name"
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label htmlFor="phone">Phone Number</Label>
+                          <Input
+                            id="phone"
+                            value={profileForm.phone}
+                            onChange={(e) => setProfileForm(prev => ({ ...prev, phone: e.target.value }))}
+                            placeholder="+27 123 456 7890"
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label htmlFor="location">Location</Label>
+                          <Input
+                            id="location"
+                            value={profileForm.location}
+                            onChange={(e) => setProfileForm(prev => ({ ...prev, location: e.target.value }))}
+                            placeholder="City, Province"
+                          />
+                        </div>
+                      </div>
+
+                      <div className="space-y-2">
+                        <Label htmlFor="about_me">About Me (50+ characters for points)</Label>
+                        <Textarea
+                          id="about_me"
+                          value={profileForm.about_me}
+                          onChange={(e) => setProfileForm(prev => ({ ...prev, about_me: e.target.value }))}
+                          placeholder="Tell us about yourself, your career goals, and what makes you unique..."
+                          rows={4}
+                          className="resize-none"
+                        />
+                        <div className="text-sm text-slate-500">
+                          {profileForm.about_me.length}/50 characters minimum
+                        </div>
+                      </div>
+
+                      <Button 
+                        type="submit" 
+                        disabled={loading}
+                        className="bg-gradient-to-r from-blue-600 to-slate-700 hover:from-blue-700 hover:to-slate-800"
+                      >
+                        {loading ? (
+                          <div className="flex items-center space-x-2">
+                            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                            <span>Saving...</span>
+                          </div>
+                        ) : (
+                          <div className="flex items-center space-x-2">
+                            <Save className="w-4 h-4" />
+                            <span>Save Changes</span>
+                          </div>
+                        )}
+                      </Button>
+                    </form>
+                  </CardContent>
+                </Card>
+
+                {/* Skills Section */}
+                <Card className="bg-white/80 backdrop-blur-sm border-0 shadow-xl">
+                  <CardHeader>
+                    <CardTitle className="flex items-center space-x-2">
+                      <Zap className="w-5 h-5 text-blue-600" />
+                      <span>Skills</span>
+                      {!progress.skills && (
+                        <Badge className="bg-yellow-100 text-yellow-800 text-xs">
+                          +20 points (5+ skills)
+                        </Badge>
+                      )}
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="space-y-4">
+                      <div className="flex space-x-2">
+                        <Input
+                          value={newSkill}
+                          onChange={(e) => setNewSkill(e.target.value)}
+                          placeholder="Add a skill (e.g., React, Python, Leadership)"
+                          onKeyPress={(e) => e.key === 'Enter' && addSkill()}
+                        />
+                        <Button onClick={addSkill} disabled={!newSkill.trim()}>
+                          <Plus className="w-4 h-4" />
+                        </Button>
+                      </div>
+                      
+                      <div className="flex flex-wrap gap-2">
+                        {profileForm.skills.map((skill, index) => (
+                          <Badge
+                            key={index}
+                            variant="secondary"
+                            className="text-sm px-3 py-1 cursor-pointer hover:bg-red-100 hover:text-red-800"
+                            onClick={() => removeSkill(skill)}
+                          >
+                            {skill} ×
+                          </Badge>
+                        ))}
+                      </div>
+                      
+                      <div className="text-sm text-slate-600">
+                        {profileForm.skills.length}/5 skills minimum for points
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              </TabsContent>
+
+              {/* Additional tabs would go here - Experience, Education, etc. */}
+              <TabsContent value="experience" className="space-y-6 mt-6">
+                <Card className="bg-white/80 backdrop-blur-sm border-0 shadow-xl">
+                  <CardHeader>
+                    <CardTitle className="flex items-center space-x-2">
+                      <Briefcase className="w-5 h-5 text-blue-600" />
+                      <span>Work Experience</span>
+                      {!progress.work_history && (
+                        <Badge className="bg-yellow-100 text-yellow-800 text-xs">
+                          +10 points
+                        </Badge>
+                      )}
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <form onSubmit={addWorkExperience} className="space-y-6">
+                      {/* Work experience form fields */}
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div className="space-y-2">
+                          <Label htmlFor="company">Company</Label>
+                          <Input
+                            id="company"
+                            value={workExperience.company}
+                            onChange={(e) => setWorkExperience(prev => ({ ...prev, company: e.target.value }))}
+                            placeholder="Company name"
+                            required
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label htmlFor="position">Position</Label>
+                          <Input
+                            id="position"
+                            value={workExperience.position}
+                            onChange={(e) => setWorkExperience(prev => ({ ...prev, position: e.target.value }))}
+                            placeholder="Job title"
+                            required
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label htmlFor="work_location">Location</Label>
+                          <Input
+                            id="work_location"
+                            value={workExperience.location}
+                            onChange={(e) => setWorkExperience(prev => ({ ...prev, location: e.target.value }))}
+                            placeholder="City, Province"
+                            required
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label htmlFor="start_date">Start Date</Label>
+                          <Input
+                            id="start_date"
+                            type="date"
+                            value={workExperience.start_date}
+                            onChange={(e) => setWorkExperience(prev => ({ ...prev, start_date: e.target.value }))}
+                            required
+                          />
+                        </div>
+                        {!workExperience.current && (
+                          <div className="space-y-2">
+                            <Label htmlFor="end_date">End Date</Label>
+                            <Input
+                              id="end_date"
+                              type="date"
+                              value={workExperience.end_date}
+                              onChange={(e) => setWorkExperience(prev => ({ ...prev, end_date: e.target.value }))}
+                            />
+                          </div>
+                        )}
+                      </div>
+
+                      <div className="flex items-center space-x-2">
+                        <input
+                          type="checkbox"
+                          id="current"
+                          checked={workExperience.current}
+                          onChange={(e) => setWorkExperience(prev => ({ ...prev, current: e.target.checked, end_date: e.target.checked ? '' : prev.end_date }))}
+                          className="w-4 h-4 text-blue-600"
+                        />
+                        <Label htmlFor="current">I currently work here</Label>
+                      </div>
+
+                      <div className="space-y-2">
+                        <Label htmlFor="description">Description</Label>
+                        <Textarea
+                          id="description"
+                          value={workExperience.description}
+                          onChange={(e) => setWorkExperience(prev => ({ ...prev, description: e.target.value }))}
+                          placeholder="Describe your role, responsibilities, and achievements..."
+                          rows={4}
+                          required
+                        />
+                      </div>
+
+                      <Button 
+                        type="submit"
+                        className="bg-gradient-to-r from-blue-600 to-slate-700 hover:from-blue-700 hover:to-slate-800"
+                      >
+                        <Plus className="w-4 h-4 mr-2" />
+                        Add Experience
+                      </Button>
+                    </form>
+
+                    {/* Display existing work experience */}
+                    <div className="mt-8 space-y-4">
+                      {profile.work_experience?.map((exp, index) => (
+                        <div key={index} className="border border-slate-200 rounded-lg p-4">
+                          <div className="flex items-start justify-between">
+                            <div>
+                              <h4 className="font-semibold text-slate-800">{exp.position}</h4>
+                              <p className="text-blue-600 font-medium">{exp.company}</p>
+                              <p className="text-sm text-slate-600">{exp.location}</p>
+                              <p className="text-sm text-slate-500">
+                                {new Date(exp.start_date).toLocaleDateString()} - {
+                                  exp.current ? 'Present' : new Date(exp.end_date).toLocaleDateString()
+                                }
+                              </p>
+                            </div>
+                          </div>
+                          <p className="mt-2 text-slate-700 text-sm">{exp.description}</p>
+                        </div>
+                      ))}
+                    </div>
+                  </CardContent>
+                </Card>
+              </TabsContent>
+
+              {/* Settings Tab - Email Alerts */}
+              <TabsContent value="settings" className="space-y-6 mt-6">
+                <Card className="bg-white/80 backdrop-blur-sm border-0 shadow-xl">
+                  <CardHeader>
+                    <CardTitle className="flex items-center space-x-2">
+                      <Mail className="w-5 h-5 text-blue-600" />
+                      <span>Email Alerts & Preferences</span>
+                      {!progress.email_alerts && (
+                        <Badge className="bg-yellow-100 text-yellow-800 text-xs">
+                          +5 points
+                        </Badge>
+                      )}
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="space-y-6">
+                      <div className="flex items-center justify-between p-4 bg-slate-50 rounded-lg">
+                        <div>
+                          <h4 className="font-medium text-slate-800">Job Alerts</h4>
+                          <p className="text-sm text-slate-600">Get notified about new job opportunities</p>
+                        </div>
+                        <Button
+                          onClick={setupEmailAlerts}
+                          disabled={progress.email_alerts}
+                          className={progress.email_alerts ? "bg-green-600" : "bg-gradient-to-r from-blue-600 to-slate-700"}
+                        >
+                          {progress.email_alerts ? (
+                            <span>✓ Enabled</span>
+                          ) : (
+                            <span>Setup Alerts</span>
+                          )}
+                        </Button>
+                      </div>
+
+                      <div className="space-y-4">
+                        <h4 className="font-medium text-slate-800">Salary Preferences (Optional)</h4>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          <div className="space-y-2">
+                            <Label htmlFor="current_salary">Current Salary Range</Label>
+                            <Input
+                              id="current_salary"
+                              value={profileForm.current_salary_range}
+                              onChange={(e) => setProfileForm(prev => ({ ...prev, current_salary_range: e.target.value }))}
+                              placeholder="e.g., R50,000 - R80,000"
+                            />
+                          </div>
+                          <div className="space-y-2">
+                            <Label htmlFor="desired_salary">Desired Salary Range</Label>
+                            <Input
+                              id="desired_salary"
+                              value={profileForm.desired_salary_range}
+                              onChange={(e) => setProfileForm(prev => ({ ...prev, desired_salary_range: e.target.value }))}
+                              placeholder="e.g., R80,000 - R120,000"
+                            />
+                          </div>
+                        </div>
+                        <Button 
+                          onClick={() => updateProfile({ 
+                            current_salary_range: profileForm.current_salary_range,
+                            desired_salary_range: profileForm.desired_salary_range
+                          })}
+                          variant="outline"
+                        >
+                          <Save className="w-4 h-4 mr-2" />
+                          Save Salary Preferences
+                        </Button>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              </TabsContent>
+            </Tabs>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+export default ProfileDashboard;
