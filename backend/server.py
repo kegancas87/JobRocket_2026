@@ -1120,7 +1120,7 @@ async def update_profile(
         )
         user_obj.profile_progress = progress
     elif user_obj.role == UserRole.RECRUITER:
-        progress = calculate_recruiter_progress(user_obj)
+        progress = await calculate_recruiter_progress_with_structure(user_obj)
         await db.users.update_one(
             {"id": current_user.id},
             {"$set": {"recruiter_progress": progress.dict()}}
