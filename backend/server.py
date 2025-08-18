@@ -1783,17 +1783,25 @@ async def apply_for_job(
     application_dict["applicant_id"] = current_user.id
     application_dict["company_id"] = job["company_id"]
     
-    # Store applicant snapshot for quick access
-    application_dict["applicant_snapshot"] = {
+    # Store applicant snapshot for quick access (capture profile at time of application)
+    applicant_snapshot = {
         "first_name": current_user.first_name,
         "last_name": current_user.last_name,
         "email": current_user.email,
         "location": getattr(current_user, 'location', None),
         "phone": getattr(current_user, 'phone', None),
         "skills": getattr(current_user, 'skills', []),
-        "resume_url": getattr(current_user, 'resume_url', None) or getattr(current_user, 'cv_url', None),
         "profile_picture_url": getattr(current_user, 'profile_picture_url', None)
     }
+    
+    # Add resume URL from application or profile
+    if application_data.resume_url:
+        applicant_snapshot["resume_url"] = application_data.resume_url
+    else:
+        # Try to get from user profile
+        applicant_snapshot["resume_url"] = getattr(current_user, 'resume_url', None) or getattr(current_user, 'cv_url', None)
+    
+    application_dict["applicant_snapshot"] = applicant_snapshot
     
     application_obj = JobApplication(**application_dict)
     await db.job_applications.insert_one(application_obj.dict())
