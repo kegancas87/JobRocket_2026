@@ -471,6 +471,7 @@ const JobListingPage = ({ user, onLogout }) => {
                 <JobCard 
                   key={job.id} 
                   job={job} 
+                  user={user}
                   onSave={handleSaveJob}
                   onApply={handleApplyToJob}
                 />
