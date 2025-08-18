@@ -518,6 +518,370 @@ class JobPostingTestSuite:
             else:
                 print_info(f"Long field values rejected with status {response.status_code}")
 
+    def test_automatic_job_expiry(self):
+        """Test automatic 35-day expiry functionality"""
+        print_test_header("Automatic Job Expiry (35 days)")
+        
+        # Test 1: Create job and verify expiry_date is set automatically
+        job_data = {
+            "title": "Expiry Test Job",
+            "company_id": self.company_id,
+            "description": "Testing automatic expiry date setting",
+            "location": "Johannesburg, Gauteng",
+            "salary": "R50,000 - R70,000 per month",
+            "job_type": "Permanent",
+            "work_type": "Remote",
+            "industry": "Technology"
+        }
+        
+        response = self.make_request("POST", "/jobs", job_data, auth_token=self.recruiter_token)
+        if self.assert_response(response, 200, "Create Job with Auto Expiry"):
+            result = response.json()
+            self.job_ids.append(result["id"])
+            
+            # Verify expiry_date is present and set to ~35 days from now
+            if "expiry_date" in result:
+                print_success("Job has expiry_date field")
+                expiry_date = datetime.fromisoformat(result["expiry_date"].replace('Z', '+00:00'))
+                posted_date = datetime.fromisoformat(result["posted_date"].replace('Z', '+00:00'))
+                days_diff = (expiry_date - posted_date).days
+                
+                if 34 <= days_diff <= 36:  # Allow 1 day tolerance
+                    print_success(f"Expiry date correctly set to {days_diff} days from posting")
+                else:
+                    print_error(f"Expiry date is {days_diff} days from posting, expected ~35 days")
+            else:
+                print_error("Job missing expiry_date field")
+        
+        # Test 2: Create a manually expired job for testing
+        expired_job_data = job_data.copy()
+        expired_job_data["title"] = "Manually Expired Job"
+        
+        response = self.make_request("POST", "/jobs", expired_job_data, auth_token=self.recruiter_token)
+        if self.assert_response(response, 200, "Create Job for Manual Expiry"):
+            result = response.json()
+            expired_job_id = result["id"]
+            
+            # Manually set expiry date to past (simulate expired job)
+            # Note: This would typically be done directly in database for testing
+            # For now, we'll track this job ID for later tests
+            self.expired_job_ids.append(expired_job_id)
+            print_info(f"Created job {expired_job_id} for expiry testing")
+
+    def test_public_jobs_api(self):
+        """Test public jobs API (no authentication required)"""
+        print_test_header("Public Jobs API (No Authentication)")
+        
+        # Test 1: Get public jobs without authentication
+        response = self.make_request("GET", "/public/jobs")
+        if self.assert_response(response, 200, "Get Public Jobs (No Auth)"):
+            jobs = response.json()
+            print_info(f"Found {len(jobs)} public jobs")
+            
+            if jobs:
+                job = jobs[0]
+                # Verify job structure
+                required_fields = ["id", "title", "company_name", "description", 
+                                 "location", "salary", "job_type", "work_type", "industry", "posted_date", "expiry_date"]
+                for field in required_fields:
+                    if field in job:
+                        print_success(f"Public job contains required field: {field}")
+                    else:
+                        print_error(f"Public job missing required field: {field}")
+                
+                # Verify all jobs are non-expired
+                for job in jobs:
+                    expiry_date = datetime.fromisoformat(job["expiry_date"].replace('Z', '+00:00'))
+                    if expiry_date > datetime.now(expiry_date.tzinfo):
+                        print_success(f"Job '{job['title']}' is not expired")
+                    else:
+                        print_error(f"Expired job '{job['title']}' found in public listings")
+        
+        # Test 2: Filter by location
+        response = self.make_request("GET", "/public/jobs", data={"location": "Johannesburg"})
+        if self.assert_response(response, 200, "Filter Public Jobs by Location"):
+            jobs = response.json()
+            print_info(f"Found {len(jobs)} jobs in Johannesburg")
+            
+            for job in jobs:
+                if "johannesburg" in job["location"].lower():
+                    print_success(f"Location filter working: {job['title']} - {job['location']}")
+                else:
+                    print_warning(f"Location filter may be loose: {job['title']} - {job['location']}")
+        
+        # Test 3: Filter by job_type
+        response = self.make_request("GET", "/public/jobs", data={"job_type": "Permanent"})
+        if self.assert_response(response, 200, "Filter Public Jobs by Job Type"):
+            jobs = response.json()
+            print_info(f"Found {len(jobs)} permanent jobs")
+            
+            for job in jobs:
+                if job["job_type"] == "Permanent":
+                    print_success(f"Job type filter working: {job['title']} - {job['job_type']}")
+                else:
+                    print_error(f"Job type filter failed: {job['title']} - {job['job_type']}")
+        
+        # Test 4: Filter by work_type
+        response = self.make_request("GET", "/public/jobs", data={"work_type": "Remote"})
+        if self.assert_response(response, 200, "Filter Public Jobs by Work Type"):
+            jobs = response.json()
+            print_info(f"Found {len(jobs)} remote jobs")
+            
+            for job in jobs:
+                if job["work_type"] == "Remote":
+                    print_success(f"Work type filter working: {job['title']} - {job['work_type']}")
+                else:
+                    print_error(f"Work type filter failed: {job['title']} - {job['work_type']}")
+        
+        # Test 5: Filter by industry
+        response = self.make_request("GET", "/public/jobs", data={"industry": "Technology"})
+        if self.assert_response(response, 200, "Filter Public Jobs by Industry"):
+            jobs = response.json()
+            print_info(f"Found {len(jobs)} technology jobs")
+            
+            for job in jobs:
+                if "technology" in job["industry"].lower():
+                    print_success(f"Industry filter working: {job['title']} - {job['industry']}")
+                else:
+                    print_warning(f"Industry filter may be loose: {job['title']} - {job['industry']}")
+        
+        # Test 6: Search functionality
+        response = self.make_request("GET", "/public/jobs", data={"search": "developer"})
+        if self.assert_response(response, 200, "Search Public Jobs"):
+            jobs = response.json()
+            print_info(f"Found {len(jobs)} jobs matching 'developer'")
+            
+            for job in jobs:
+                if "developer" in job["title"].lower() or "developer" in job["description"].lower():
+                    print_success(f"Search working: {job['title']}")
+                else:
+                    print_warning(f"Search may be loose: {job['title']}")
+        
+        # Test 7: Limit parameter
+        response = self.make_request("GET", "/public/jobs", data={"limit": 5})
+        if self.assert_response(response, 200, "Limit Public Jobs"):
+            jobs = response.json()
+            if len(jobs) <= 5:
+                print_success(f"Limit working: returned {len(jobs)} jobs (max 5)")
+            else:
+                print_error(f"Limit not working: returned {len(jobs)} jobs (expected max 5)")
+
+    def test_enhanced_recruiter_job_management(self):
+        """Test enhanced recruiter job management with archive functionality"""
+        print_test_header("Enhanced Recruiter Job Management")
+        
+        # Test 1: Get active jobs only (default behavior)
+        response = self.make_request("GET", "/jobs", data={"include_archived": False}, auth_token=self.recruiter_token)
+        if self.assert_response(response, 200, "Get Active Jobs Only"):
+            active_jobs = response.json()
+            print_info(f"Found {len(active_jobs)} active jobs")
+            
+            # Verify all jobs are non-expired
+            for job in active_jobs:
+                expiry_date = datetime.fromisoformat(job["expiry_date"].replace('Z', '+00:00'))
+                if expiry_date > datetime.now(expiry_date.tzinfo):
+                    print_success(f"Active job '{job['title']}' is not expired")
+                else:
+                    print_error(f"Expired job '{job['title']}' found in active listings")
+        
+        # Test 2: Get all jobs (active + expired)
+        response = self.make_request("GET", "/jobs", data={"include_archived": True}, auth_token=self.recruiter_token)
+        if self.assert_response(response, 200, "Get All Jobs (Active + Archived)"):
+            all_jobs = response.json()
+            print_info(f"Found {len(all_jobs)} total jobs (active + archived)")
+            
+            # Should include both active and expired jobs
+            active_count = 0
+            expired_count = 0
+            for job in all_jobs:
+                expiry_date = datetime.fromisoformat(job["expiry_date"].replace('Z', '+00:00'))
+                if expiry_date > datetime.now(expiry_date.tzinfo):
+                    active_count += 1
+                else:
+                    expired_count += 1
+            
+            print_info(f"Active jobs: {active_count}, Expired jobs: {expired_count}")
+        
+        # Test 3: Get archived jobs only
+        response = self.make_request("GET", "/jobs/archived", auth_token=self.recruiter_token)
+        if self.assert_response(response, 200, "Get Archived Jobs Only"):
+            archived_jobs = response.json()
+            print_info(f"Found {len(archived_jobs)} archived jobs")
+            
+            # Verify all jobs are expired
+            for job in archived_jobs:
+                expiry_date = datetime.fromisoformat(job["expiry_date"].replace('Z', '+00:00'))
+                if expiry_date <= datetime.now(expiry_date.tzinfo):
+                    print_success(f"Archived job '{job['title']}' is properly expired")
+                else:
+                    print_error(f"Non-expired job '{job['title']}' found in archived listings")
+        
+        # Test 4: Filter archived jobs by company
+        if self.accessible_companies:
+            response = self.make_request("GET", "/jobs/archived", 
+                                       data={"company_id": self.company_id}, 
+                                       auth_token=self.recruiter_token)
+            if self.assert_response(response, 200, "Filter Archived Jobs by Company"):
+                company_archived_jobs = response.json()
+                print_info(f"Found {len(company_archived_jobs)} archived jobs for company")
+                
+                # Verify all jobs belong to the specified company
+                for job in company_archived_jobs:
+                    if job["company_id"] == self.company_id:
+                        print_success(f"Archived job belongs to correct company: {job['title']}")
+                    else:
+                        print_error(f"Archived job belongs to wrong company: {job['title']}")
+
+    def test_job_reposting_functionality(self):
+        """Test job reposting functionality"""
+        print_test_header("Job Reposting Functionality")
+        
+        # First, we need to create a job and then test reposting
+        # Since we can't easily create expired jobs in this test environment,
+        # we'll test the repost endpoint with existing jobs
+        
+        # Test 1: Try to repost a job (should work even if not expired)
+        if self.job_ids:
+            job_id = self.job_ids[0]
+            response = self.make_request("PUT", f"/jobs/{job_id}/repost", auth_token=self.recruiter_token)
+            if self.assert_response(response, 200, "Repost Job"):
+                result = response.json()
+                print_success("Job reposted successfully")
+                
+                if "new_expiry_date" in result:
+                    print_success("Repost response includes new expiry date")
+                    new_expiry = datetime.fromisoformat(result["new_expiry_date"])
+                    # Verify new expiry is ~35 days from now
+                    days_from_now = (new_expiry - datetime.now()).days
+                    if 34 <= days_from_now <= 36:
+                        print_success(f"New expiry date correctly set to {days_from_now} days from now")
+                    else:
+                        print_warning(f"New expiry date is {days_from_now} days from now, expected ~35 days")
+                else:
+                    print_error("Repost response missing new_expiry_date")
+        
+        # Test 2: Try to repost non-existent job (should fail)
+        fake_job_id = str(uuid.uuid4())
+        response = self.make_request("PUT", f"/jobs/{fake_job_id}/repost", auth_token=self.recruiter_token)
+        self.assert_response(response, 404, "Repost Non-existent Job (Should Fail)")
+        
+        # Test 3: Try to repost job without permission (should fail)
+        if self.job_ids:
+            # Login as different user (job seeker) and try to repost
+            job_seeker_login = {
+                "email": "sarah.johnson@demo.com",
+                "password": "demo123"
+            }
+            
+            response = self.make_request("POST", "/auth/login", job_seeker_login)
+            if self.assert_response(response, 200, "Job Seeker Login for Repost Test"):
+                job_seeker_token = response.json()["access_token"]
+                
+                job_id = self.job_ids[0]
+                response = self.make_request("PUT", f"/jobs/{job_id}/repost", auth_token=job_seeker_token)
+                self.assert_response(response, 403, "Unauthorized Repost (Should Fail)")
+        
+        # Test 4: Try to repost without authentication (should fail)
+        if self.job_ids:
+            job_id = self.job_ids[0]
+            response = self.make_request("PUT", f"/jobs/{job_id}/repost")
+            self.assert_response(response, 401, "Unauthenticated Repost (Should Fail)")
+
+    def test_job_model_enhancements(self):
+        """Test job model enhancements and enum validation"""
+        print_test_header("Job Model Enhancements")
+        
+        # Test 1: Verify job_type enum validation
+        job_types = ["Permanent", "Contract"]
+        for job_type in job_types:
+            job_data = {
+                "title": f"Test {job_type} Job",
+                "company_id": self.company_id,
+                "description": f"Testing {job_type} job type",
+                "location": "Cape Town, Western Cape",
+                "salary": "R50,000 - R70,000 per month",
+                "job_type": job_type,
+                "work_type": "Remote",
+                "industry": "Technology"
+            }
+            
+            response = self.make_request("POST", "/jobs", job_data, auth_token=self.recruiter_token)
+            if self.assert_response(response, 200, f"Create {job_type} Job"):
+                result = response.json()
+                self.job_ids.append(result["id"])
+                if result["job_type"] == job_type:
+                    print_success(f"Job type '{job_type}' correctly saved")
+                else:
+                    print_error(f"Job type mismatch: expected '{job_type}', got '{result['job_type']}'")
+        
+        # Test 2: Verify work_type enum validation
+        work_types = ["Remote", "Onsite", "Hybrid"]
+        for work_type in work_types:
+            job_data = {
+                "title": f"Test {work_type} Job",
+                "company_id": self.company_id,
+                "description": f"Testing {work_type} work type",
+                "location": "Durban, KwaZulu-Natal",
+                "salary": "R45,000 - R65,000 per month",
+                "job_type": "Permanent",
+                "work_type": work_type,
+                "industry": "Technology"
+            }
+            
+            response = self.make_request("POST", "/jobs", job_data, auth_token=self.recruiter_token)
+            if self.assert_response(response, 200, f"Create {work_type} Job"):
+                result = response.json()
+                self.job_ids.append(result["id"])
+                if result["work_type"] == work_type:
+                    print_success(f"Work type '{work_type}' correctly saved")
+                else:
+                    print_error(f"Work type mismatch: expected '{work_type}', got '{result['work_type']}'")
+        
+        # Test 3: Test bulk upload still works with new model structure
+        csv_data = """title,location,salary,job_type,work_type,industry,description
+"Enhanced Model Test Job","Pretoria, Gauteng","R55000-R75000","Contract","Hybrid","Technology","Testing enhanced job model with bulk upload"
+"""
+        
+        files = {'file': ('enhanced_model_test.csv', csv_data, 'text/csv')}
+        form_data = {'company_id': self.company_id}
+        
+        response = self.make_request("POST", "/jobs/bulk", data=form_data, files=files, auth_token=self.recruiter_token)
+        if self.assert_response(response, 200, "Bulk Upload with Enhanced Model"):
+            result = response.json()
+            if result.get('jobs_created', 0) > 0:
+                print_success("Bulk upload works with enhanced job model")
+            else:
+                print_error("Bulk upload failed with enhanced job model")
+        
+        # Test 4: Invalid enum values (should fail)
+        invalid_job_type = {
+            "title": "Invalid Job Type Test",
+            "company_id": self.company_id,
+            "description": "Testing invalid job type",
+            "location": "Test Location",
+            "salary": "R50,000",
+            "job_type": "InvalidJobType",
+            "work_type": "Remote",
+            "industry": "Technology"
+        }
+        
+        response = self.make_request("POST", "/jobs", invalid_job_type, auth_token=self.recruiter_token)
+        self.assert_response(response, 422, "Invalid Job Type Enum (Should Fail)")
+        
+        invalid_work_type = {
+            "title": "Invalid Work Type Test",
+            "company_id": self.company_id,
+            "description": "Testing invalid work type",
+            "location": "Test Location",
+            "salary": "R50,000",
+            "job_type": "Permanent",
+            "work_type": "InvalidWorkType",
+            "industry": "Technology"
+        }
+        
+        response = self.make_request("POST", "/jobs", invalid_work_type, auth_token=self.recruiter_token)
+        self.assert_response(response, 422, "Invalid Work Type Enum (Should Fail)")
+
     def cleanup_test_data(self):
         """Clean up test data created during testing"""
         print_test_header("Cleaning Up Test Data")
