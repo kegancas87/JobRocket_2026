@@ -520,18 +520,26 @@ async def login(login_data: UserLogin):
 @api_router.get("/auth/me")
 async def get_me(current_user: User = Depends(get_current_user)):
     """Get current user profile with progress"""
-    # Calculate and update profile progress
-    progress = calculate_profile_progress(current_user)
-    
-    # Update progress in database
-    await db.users.update_one(
-        {"id": current_user.id},
-        {"$set": {"profile_progress": progress.dict()}}
-    )
+    # Calculate and update progress based on user role
+    if current_user.role == UserRole.JOB_SEEKER:
+        progress = calculate_profile_progress(current_user)
+        # Update progress in database
+        await db.users.update_one(
+            {"id": current_user.id},
+            {"$set": {"profile_progress": progress.dict()}}
+        )
+        current_user.profile_progress = progress
+    elif current_user.role == UserRole.RECRUITER:
+        progress = calculate_recruiter_progress(current_user)
+        # Update progress in database
+        await db.users.update_one(
+            {"id": current_user.id},
+            {"$set": {"recruiter_progress": progress.dict()}}
+        )
+        current_user.recruiter_progress = progress
     
     # Return user without password hash
     user_dict = current_user.dict()
-    user_dict['profile_progress'] = progress.dict()
     return user_dict
 
 
