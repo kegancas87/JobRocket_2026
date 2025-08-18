@@ -425,10 +425,40 @@ def calculate_recruiter_progress(user: User) -> RecruiterProgress:
         progress.linkedin_link = True
         points += 10
     
+    # Headquarters setup (5 points) - automatic when company is created
+    if company.company_name and company.company_location:
+        progress.headquarters_setup = True
+        points += 5
+    
     # First job posted (20 points) - we'll track this separately
-    # This will be set when recruiter posts their first job
+    # First branch added (10 points) - we'll check this from database
+    # First team member (15 points) - we'll check this from database
     
     progress.total_points = points
+    return progress
+
+async def calculate_recruiter_progress_with_structure(user: User) -> RecruiterProgress:
+    """Calculate recruiter progress including company structure"""
+    progress = calculate_recruiter_progress(user)
+    
+    if user.role != UserRole.RECRUITER:
+        return progress
+    
+    # Check for branches
+    branches = await db.company_branches.find({"company_id": user.id}).to_list(1000)
+    if branches and len(branches) > 0:
+        progress.first_branch_added = True
+        progress.total_points += 10
+    
+    # Check for team members
+    members = await db.company_members.find({"company_id": user.id, "is_active": True}).to_list(1000)
+    if members and len(members) > 0:
+        progress.first_team_member = True
+        progress.total_points += 15
+    
+    # Cap at 100 points
+    progress.total_points = min(progress.total_points, 100)
+    
     return progress
 
 
