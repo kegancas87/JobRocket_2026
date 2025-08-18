@@ -529,10 +529,21 @@ function App() {
     setUser(userData);
     setIsAuthenticated(true);
     
-    // If user's profile is incomplete, redirect to profile
-    const totalPoints = userData.profile_progress?.total_points || 0;
-    if (totalPoints < 50) {
-      setCurrentPage('profile');
+    // Role-based routing after login
+    if (userData.role === 'recruiter') {
+      // For recruiters, check if company profile needs completion
+      const totalPoints = userData.recruiter_progress?.total_points || 0;
+      if (totalPoints < 50) {
+        setCurrentPage('profile');
+      } else {
+        setCurrentPage('jobs'); // or recruiter dashboard
+      }
+    } else {
+      // For job seekers, check if profile needs completion
+      const totalPoints = userData.profile_progress?.total_points || 0;
+      if (totalPoints < 50) {
+        setCurrentPage('profile');
+      }
     }
   };
 
