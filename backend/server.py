@@ -559,6 +559,10 @@ class JobApplicationUpdate(BaseModel):
     status: Optional[ApplicationStatus] = None
     notes: Optional[str] = None
 
+class BulkJobCreate(BaseModel):
+    jobs: List[JobCreate]
+    company_id: Optional[str] = None  # Can override individual job company_id
+
 class JobSearchFilters(BaseModel):
     location: Optional[str] = None
     job_type: Optional[JobType] = None
