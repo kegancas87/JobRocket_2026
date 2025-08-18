@@ -180,6 +180,94 @@ class UserProfileUpdate(BaseModel):
     intro_video_url: Optional[str] = None
 
 
+# Authentication helpers
+def verify_password(plain_password, hashed_password):
+    return pwd_context.verify(plain_password, hashed_password)
+
+def get_password_hash(password):
+    return pwd_context.hash(password)
+
+def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):
+    to_encode = data.copy()
+    if expires_delta:
+        expire = datetime.utcnow() + expires_delta
+    else:
+        expire = datetime.utcnow() + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+    to_encode.update({"exp": expire})
+    encoded_jwt = jwt.encode(to_encode, JWT_SECRET, algorithm=JWT_ALGORITHM)
+    return encoded_jwt
+
+async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(security)):
+    credentials_exception = HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail="Could not validate credentials",
+        headers={"WWW-Authenticate": "Bearer"},
+    )
+    try:
+        payload = jwt.decode(credentials.credentials, JWT_SECRET, algorithms=[JWT_ALGORITHM])
+        user_id: str = payload.get("sub")
+        if user_id is None:
+            raise credentials_exception
+    except jwt.PyJWTError:
+        raise credentials_exception
+    
+    user = await db.users.find_one({"id": user_id})
+    if user is None:
+        raise credentials_exception
+    return User(**user)
+
+def calculate_profile_progress(user: User) -> ProfileProgress:
+    """Calculate and update user's profile completion progress"""
+    progress = ProfileProgress()
+    points = 0
+    
+    # Profile picture (5 points)
+    if user.profile_picture_url:
+        progress.profile_picture = True
+        points += 5
+    
+    # About me (10 points)
+    if user.about_me and len(user.about_me.strip()) >= 50:
+        progress.about_me = True
+        points += 10
+    
+    # Work history (10 points)
+    if user.work_experience and len(user.work_experience) > 0:
+        progress.work_history = True
+        points += 10
+    
+    # Skills - at least 5 (20 points)
+    if user.skills and len(user.skills) >= 5:
+        progress.skills = True
+        points += 20
+    
+    # Education with document (10 points)
+    if user.education and any(edu.document_url for edu in user.education):
+        progress.education = True
+        points += 10
+    
+    # Achievements (10 points)
+    if user.achievements and len(user.achievements) > 0:
+        progress.achievements = True
+        points += 10
+    
+    # Intro video (20 points)
+    if user.intro_video_url:
+        progress.intro_video = True
+        points += 20
+    
+    # Job applications (10 points for 5+ applications)
+    if progress.job_applications >= 5:
+        points += 10
+    
+    # Email alerts setup (5 points)
+    if progress.email_alerts:
+        points += 5
+    
+    progress.total_points = points
+    return progress
+
+
 # Models
 class Company(BaseModel):
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
