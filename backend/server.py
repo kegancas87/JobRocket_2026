@@ -41,11 +41,13 @@ api_router = APIRouter(prefix="/api")
 
 # Enums for job-related data
 class JobType(str, Enum):
-    FULL_TIME = "Full-time"
-    PART_TIME = "Part-time"
+    PERMANENT = "Permanent"
     CONTRACT = "Contract"
-    TEMPORARY = "Temporary"
-    INTERNSHIP = "Internship"
+
+class WorkType(str, Enum):
+    REMOTE = "Remote"
+    ONSITE = "Onsite"
+    HYBRID = "Hybrid"
 
 class ExperienceLevel(str, Enum):
     ENTRY = "Entry Level"
