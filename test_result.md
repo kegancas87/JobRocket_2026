@@ -363,7 +363,8 @@ metadata:
 
 test_plan:
   current_focus: 
-    - "Job posting system testing completed"
+    - "Enhanced job posting system testing completed successfully"
+    - "All new expiry and archive features working"
   stuck_tasks: []
   test_all: false
   test_priority: "high_first"
@@ -375,3 +376,5 @@ agent_communication:
     -message: "Comprehensive backend testing completed for team member invitation system. All core functionality working correctly: 1) Team invitation creation with role/branch assignment ✅ 2) Public invitation details retrieval ✅ 3) New user registration via invitation ✅ 4) Existing user invitation acceptance ✅ 5) Invitation cancellation ✅ 6) Company member management ✅. Authentication/authorization properly implemented. Token validation and expiration logic working. Branch assignment functionality operational. Minor: HTTP error codes are 403 instead of 401 for unauthorized requests (both indicate unauthorized access). Email integration pending SendGrid setup as planned."
     -agent: "testing"
     -message: "Comprehensive job posting system testing completed successfully. All major functionality working: 1) Single job creation (POST /api/jobs) ✅ - Creates jobs with proper validation of required/optional fields, enum validation for JobType/WorkType 2) Bulk job upload (POST /api/jobs/bulk) ✅ - CSV processing with error handling and validation 3) Get jobs for recruiter (GET /api/jobs) ✅ - Proper filtering and access control 4) Get accessible companies (GET /api/companies) ✅ - Company access management working 5) Authentication/authorization ✅ - Only recruiters can access job posting endpoints. Fixed critical bug: company_name validation error causing 500 errors when company profile was incomplete. Successfully tested with demo recruiter account, created 6 test jobs. Minor: HTTP status codes are 403 instead of 401 for unauthorized requests (acceptable). Job posting system ready for production use."
+    -agent: "testing"
+    -message: "ENHANCED JOB POSTING SYSTEM TESTING COMPLETED SUCCESSFULLY ✅ Comprehensive testing of all new features: 1) Automatic Job Expiry (35 days) ✅ - Jobs automatically get expiry_date set to 35 days from posting, calculation accurate 2) Public Jobs API ✅ - GET /api/public/jobs works without auth, all filters working (location, job_type, work_type, industry, search, limit), only non-expired jobs returned 3) Enhanced Recruiter Job Management ✅ - Archive functionality working with include_archived parameter, GET /api/jobs/archived for expired jobs 4) Job Reposting ✅ - PUT /api/jobs/{id}/repost extends expiry by 35 days, access control working 5) Job Model Enhancements ✅ - New model with expiry_date, enum validation, bulk upload compatibility. Created 12 test jobs successfully. All major features operational. Minor: HTTP status codes 403 vs 401 for unauthorized (both acceptable). System ready for production."
