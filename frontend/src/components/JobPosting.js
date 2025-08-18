@@ -233,6 +233,8 @@ const JobPosting = ({ user, onUpdateUser }) => {
       setLoading(false);
     }
   };
+
+  const downloadTemplate = () => {
     const template = `title,location,salary,job_type,work_type,industry,description,experience,qualifications,application_url,application_email
 Software Engineer,Cape Town,R50000 - R70000,Permanent,Hybrid,Technology,"We are looking for a talented Software Engineer to join our dynamic team...",2-3 years experience in software development,"Degree in Computer Science or related field, Experience with React and Python",https://company.com/apply,careers@company.com
 Marketing Manager,Johannesburg,R45000 - R60000,Permanent,Onsite,Marketing,"Join our marketing team as a Marketing Manager...",3-5 years marketing experience,"Marketing degree, Experience with digital marketing campaigns",,marketing@company.com`;
