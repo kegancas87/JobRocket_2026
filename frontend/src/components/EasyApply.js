@@ -387,7 +387,7 @@ const EasyApplyModal = ({ job, isOpen, onClose, onSuccess, user }) => {
 };
 
 // Apply Button Component
-const ApplyButton = ({ job, onApplicationSuccess }) => {
+const ApplyButton = ({ job, user, onApplicationSuccess }) => {
   const [showEasyApply, setShowEasyApply] = useState(false);
 
   // Check if job uses external application
@@ -395,6 +395,10 @@ const ApplyButton = ({ job, onApplicationSuccess }) => {
 
   const handleExternalApply = () => {
     if (job.application_url) {
+      // Log the external application click (optional analytics)
+      console.log(`External application clicked for job: ${job.title}`);
+      
+      // Open external application URL in new tab
       window.open(job.application_url, '_blank', 'noopener,noreferrer');
     }
   };
@@ -405,6 +409,7 @@ const ApplyButton = ({ job, onApplicationSuccess }) => {
     }
   };
 
+  // For external applications, redirect to company website
   if (hasExternalApplication) {
     return (
       <Button
@@ -417,6 +422,7 @@ const ApplyButton = ({ job, onApplicationSuccess }) => {
     );
   }
 
+  // For Easy Apply jobs, show the modal
   return (
     <>
       <Button
@@ -429,6 +435,7 @@ const ApplyButton = ({ job, onApplicationSuccess }) => {
 
       <EasyApplyModal
         job={job}
+        user={user}
         isOpen={showEasyApply}
         onClose={() => setShowEasyApply(false)}
         onSuccess={handleEasyApplySuccess}
