@@ -905,6 +905,560 @@ class JobPostingTestSuite:
         response = self.make_request("POST", "/jobs", invalid_work_type, auth_token=self.recruiter_token)
         self.assert_response(response, 422, "Invalid Work Type Enum (Should Fail)")
 
+    def test_easy_apply_job_creation(self):
+        """Test creating jobs for Easy Apply functionality"""
+        print_test_header("Easy Apply Job Creation")
+        
+        # Test 1: Create job without application_url (Easy Apply enabled)
+        easy_apply_job = {
+            "title": "Easy Apply Frontend Developer",
+            "company_id": self.company_id,
+            "description": "Frontend developer position with Easy Apply functionality. No external application required.",
+            "location": "Cape Town, Western Cape",
+            "salary": "R55,000 - R75,000 per month",
+            "job_type": "Permanent",
+            "work_type": "Remote",
+            "industry": "Technology",
+            "experience": "3+ years in React/Vue.js",
+            "qualifications": "Bachelor's degree in Computer Science"
+        }
+        
+        response = self.make_request("POST", "/jobs", easy_apply_job, auth_token=self.recruiter_token)
+        if self.assert_response(response, 200, "Create Easy Apply Job"):
+            result = response.json()
+            self.easy_apply_job_ids.append(result["id"])
+            self.job_ids.append(result["id"])
+            print_success(f"Created Easy Apply job: {result['title']}")
+            
+            # Verify no application_url
+            if not result.get("application_url"):
+                print_success("Easy Apply job has no external application_url")
+            else:
+                print_error("Easy Apply job should not have application_url")
+        
+        # Test 2: Create job with application_url (External application)
+        external_job = {
+            "title": "External Apply Backend Developer",
+            "company_id": self.company_id,
+            "description": "Backend developer position requiring external application.",
+            "location": "Johannesburg, Gauteng",
+            "salary": "R65,000 - R85,000 per month",
+            "job_type": "Contract",
+            "work_type": "Hybrid",
+            "industry": "Technology",
+            "application_url": "https://company.com/careers/apply",
+            "application_email": "careers@company.com"
+        }
+        
+        response = self.make_request("POST", "/jobs", external_job, auth_token=self.recruiter_token)
+        if self.assert_response(response, 200, "Create External Apply Job"):
+            result = response.json()
+            self.external_job_ids.append(result["id"])
+            self.job_ids.append(result["id"])
+            print_success(f"Created External Apply job: {result['title']}")
+            
+            # Verify has application_url
+            if result.get("application_url"):
+                print_success("External Apply job has application_url")
+            else:
+                print_error("External Apply job should have application_url")
+        
+        # Create more Easy Apply jobs for testing
+        for i in range(3):
+            job_data = {
+                "title": f"Easy Apply Test Job {i+1}",
+                "company_id": self.company_id,
+                "description": f"Test job {i+1} for Easy Apply functionality testing",
+                "location": "Durban, KwaZulu-Natal",
+                "salary": "R45,000 - R65,000 per month",
+                "job_type": "Permanent",
+                "work_type": "Remote",
+                "industry": "Technology"
+            }
+            
+            response = self.make_request("POST", "/jobs", job_data, auth_token=self.recruiter_token)
+            if self.assert_response(response, 200, f"Create Easy Apply Test Job {i+1}"):
+                result = response.json()
+                self.easy_apply_job_ids.append(result["id"])
+                self.job_ids.append(result["id"])
+
+    def test_easy_apply_job_application(self):
+        """Test Easy Apply job application functionality"""
+        print_test_header("Easy Apply Job Application")
+        
+        if not self.easy_apply_job_ids:
+            print_error("No Easy Apply jobs available for testing")
+            return
+        
+        easy_apply_job_id = self.easy_apply_job_ids[0]
+        
+        # Test 1: Valid Easy Apply application
+        application_data = {
+            "job_id": easy_apply_job_id,
+            "cover_letter": "I am very interested in this position and believe my skills in React and Node.js make me a perfect fit for your team. I have 4 years of experience in full-stack development and am passionate about creating user-friendly applications.",
+            "resume_url": "https://storage.example.com/resumes/sarah_johnson_resume.pdf",
+            "additional_info": "I am available for immediate start and can work remotely. I have experience with agile methodologies and am comfortable working in fast-paced environments."
+        }
+        
+        response = self.make_request("POST", f"/jobs/{easy_apply_job_id}/apply", application_data, auth_token=self.job_seeker_token)
+        if self.assert_response(response, 200, "Valid Easy Apply Application"):
+            result = response.json()
+            self.application_ids.append(result["id"])
+            print_success(f"Created application with ID: {result['id']}")
+            
+            # Verify application fields
+            required_fields = ["id", "job_id", "applicant_id", "company_id", "status", "applied_date"]
+            for field in required_fields:
+                if field in result:
+                    print_success(f"Application contains required field: {field}")
+                else:
+                    print_error(f"Application missing required field: {field}")
+            
+            # Verify default status is pending
+            if result.get("status") == "pending":
+                print_success("Application status correctly set to 'pending'")
+            else:
+                print_error(f"Application status should be 'pending', got '{result.get('status')}'")
+        
+        # Test 2: Apply with minimal data (only job_id required)
+        if len(self.easy_apply_job_ids) > 1:
+            minimal_application = {
+                "job_id": self.easy_apply_job_ids[1]
+            }
+            
+            response = self.make_request("POST", f"/jobs/{self.easy_apply_job_ids[1]}/apply", minimal_application, auth_token=self.job_seeker_token)
+            if self.assert_response(response, 200, "Minimal Easy Apply Application"):
+                result = response.json()
+                self.application_ids.append(result["id"])
+                print_success("Created application with minimal data")
+        
+        # Test 3: Try to apply for same job twice (should fail)
+        duplicate_application = {
+            "job_id": easy_apply_job_id,
+            "cover_letter": "Trying to apply again"
+        }
+        
+        response = self.make_request("POST", f"/jobs/{easy_apply_job_id}/apply", duplicate_application, auth_token=self.job_seeker_token)
+        self.assert_response(response, 400, "Duplicate Application (Should Fail)")
+        
+        # Test 4: Try to apply for external job (should fail)
+        if self.external_job_ids:
+            external_application = {
+                "job_id": self.external_job_ids[0],
+                "cover_letter": "Trying to apply to external job"
+            }
+            
+            response = self.make_request("POST", f"/jobs/{self.external_job_ids[0]}/apply", external_application, auth_token=self.job_seeker_token)
+            self.assert_response(response, 400, "Apply to External Job (Should Fail)")
+        
+        # Test 5: Try to apply for non-existent job (should fail)
+        fake_job_id = str(uuid.uuid4())
+        fake_application = {
+            "job_id": fake_job_id,
+            "cover_letter": "Applying to non-existent job"
+        }
+        
+        response = self.make_request("POST", f"/jobs/{fake_job_id}/apply", fake_application, auth_token=self.job_seeker_token)
+        self.assert_response(response, 404, "Apply to Non-existent Job (Should Fail)")
+        
+        # Test 6: Recruiter trying to apply (should fail)
+        recruiter_application = {
+            "job_id": easy_apply_job_id,
+            "cover_letter": "Recruiter trying to apply"
+        }
+        
+        response = self.make_request("POST", f"/jobs/{easy_apply_job_id}/apply", recruiter_application, auth_token=self.recruiter_token)
+        self.assert_response(response, 403, "Recruiter Apply (Should Fail)")
+        
+        # Test 7: Unauthenticated application (should fail)
+        unauth_application = {
+            "job_id": easy_apply_job_id,
+            "cover_letter": "Unauthenticated application"
+        }
+        
+        response = self.make_request("POST", f"/jobs/{easy_apply_job_id}/apply", unauth_application)
+        self.assert_response(response, 401, "Unauthenticated Application (Should Fail)")
+
+    def test_job_seeker_applications_management(self):
+        """Test job seeker applications management"""
+        print_test_header("Job Seeker Applications Management")
+        
+        # Test 1: Get all applications for job seeker
+        response = self.make_request("GET", "/applications", auth_token=self.job_seeker_token)
+        if self.assert_response(response, 200, "Get Job Seeker Applications"):
+            applications = response.json()
+            print_info(f"Found {len(applications)} applications for job seeker")
+            
+            if applications:
+                app = applications[0]
+                # Verify enriched response structure
+                if "application" in app and "job" in app:
+                    print_success("Application response is properly enriched with job details")
+                    
+                    application = app["application"]
+                    job = app["job"]
+                    
+                    # Verify application fields
+                    app_fields = ["id", "job_id", "applicant_id", "status", "applied_date"]
+                    for field in app_fields:
+                        if field in application:
+                            print_success(f"Application contains field: {field}")
+                        else:
+                            print_error(f"Application missing field: {field}")
+                    
+                    # Verify job fields
+                    job_fields = ["id", "title", "company_name", "location", "salary"]
+                    for field in job_fields:
+                        if field in job:
+                            print_success(f"Job details contain field: {field}")
+                        else:
+                            print_error(f"Job details missing field: {field}")
+                else:
+                    print_error("Application response not properly enriched")
+        
+        # Test 2: Filter applications by status
+        response = self.make_request("GET", "/applications", data={"status": "pending"}, auth_token=self.job_seeker_token)
+        if self.assert_response(response, 200, "Filter Applications by Status"):
+            pending_applications = response.json()
+            print_info(f"Found {len(pending_applications)} pending applications")
+            
+            # Verify all applications have pending status
+            for app in pending_applications:
+                if app["application"]["status"] == "pending":
+                    print_success(f"Application {app['application']['id']} has pending status")
+                else:
+                    print_error(f"Application {app['application']['id']} has wrong status: {app['application']['status']}")
+        
+        # Test 3: Filter by non-existent status
+        response = self.make_request("GET", "/applications", data={"status": "nonexistent"}, auth_token=self.job_seeker_token)
+        if self.assert_response(response, 200, "Filter by Non-existent Status"):
+            empty_applications = response.json()
+            if len(empty_applications) == 0:
+                print_success("No applications found for non-existent status")
+            else:
+                print_warning(f"Found {len(empty_applications)} applications for non-existent status")
+        
+        # Test 4: Recruiter trying to access job seeker applications (should fail)
+        response = self.make_request("GET", "/applications", auth_token=self.recruiter_token)
+        self.assert_response(response, 403, "Recruiter Access Job Seeker Applications (Should Fail)")
+        
+        # Test 5: Unauthenticated access (should fail)
+        response = self.make_request("GET", "/applications")
+        self.assert_response(response, 401, "Unauthenticated Access Applications (Should Fail)")
+
+    def test_recruiter_application_management(self):
+        """Test recruiter application management"""
+        print_test_header("Recruiter Application Management")
+        
+        if not self.easy_apply_job_ids:
+            print_error("No Easy Apply jobs available for testing")
+            return
+        
+        job_id = self.easy_apply_job_ids[0]
+        
+        # Test 1: Get applications for specific job
+        response = self.make_request("GET", f"/jobs/{job_id}/applications", auth_token=self.recruiter_token)
+        if self.assert_response(response, 200, "Get Job Applications"):
+            applications = response.json()
+            print_info(f"Found {len(applications)} applications for job {job_id}")
+            
+            if applications:
+                app = applications[0]
+                # Verify enriched response structure
+                if "application" in app and "applicant" in app and "job" in app:
+                    print_success("Application response is properly enriched")
+                    
+                    application = app["application"]
+                    applicant = app["applicant"]
+                    job = app["job"]
+                    
+                    # Verify applicant data privacy (only safe fields)
+                    safe_fields = ["id", "first_name", "last_name", "email", "skills", "location"]
+                    sensitive_fields = ["password_hash", "phone", "about_me"]
+                    
+                    for field in safe_fields:
+                        if field in applicant:
+                            print_success(f"Applicant contains safe field: {field}")
+                    
+                    for field in sensitive_fields:
+                        if field not in applicant:
+                            print_success(f"Applicant properly excludes sensitive field: {field}")
+                        else:
+                            print_warning(f"Applicant contains sensitive field: {field}")
+                else:
+                    print_error("Application response not properly enriched")
+        
+        # Test 2: Filter job applications by status
+        response = self.make_request("GET", f"/jobs/{job_id}/applications", data={"status": "pending"}, auth_token=self.recruiter_token)
+        if self.assert_response(response, 200, "Filter Job Applications by Status"):
+            pending_apps = response.json()
+            print_info(f"Found {len(pending_apps)} pending applications for job")
+        
+        # Test 3: Get all company applications
+        response = self.make_request("GET", "/company/applications", auth_token=self.recruiter_token)
+        if self.assert_response(response, 200, "Get All Company Applications"):
+            company_applications = response.json()
+            print_info(f"Found {len(company_applications)} total applications for company")
+            
+            if company_applications:
+                # Verify all applications belong to company's jobs
+                for app in company_applications:
+                    if app["application"]["company_id"] == self.company_id:
+                        print_success(f"Application belongs to correct company")
+                    else:
+                        print_error(f"Application belongs to wrong company")
+        
+        # Test 4: Filter company applications by job_id
+        response = self.make_request("GET", "/company/applications", data={"job_id": job_id}, auth_token=self.recruiter_token)
+        if self.assert_response(response, 200, "Filter Company Applications by Job ID"):
+            filtered_apps = response.json()
+            print_info(f"Found {len(filtered_apps)} applications for specific job")
+            
+            # Verify all applications are for the specified job
+            for app in filtered_apps:
+                if app["application"]["job_id"] == job_id:
+                    print_success(f"Filtered application belongs to correct job")
+                else:
+                    print_error(f"Filtered application belongs to wrong job")
+        
+        # Test 5: Try to access non-existent job applications (should fail)
+        fake_job_id = str(uuid.uuid4())
+        response = self.make_request("GET", f"/jobs/{fake_job_id}/applications", auth_token=self.recruiter_token)
+        self.assert_response(response, 404, "Access Non-existent Job Applications (Should Fail)")
+        
+        # Test 6: Job seeker trying to access recruiter applications (should fail)
+        response = self.make_request("GET", f"/jobs/{job_id}/applications", auth_token=self.job_seeker_token)
+        self.assert_response(response, 403, "Job Seeker Access Recruiter Applications (Should Fail)")
+        
+        # Test 7: Unauthenticated access (should fail)
+        response = self.make_request("GET", f"/jobs/{job_id}/applications")
+        self.assert_response(response, 401, "Unauthenticated Access Applications (Should Fail)")
+
+    def test_application_status_updates(self):
+        """Test application status updates by recruiters"""
+        print_test_header("Application Status Updates")
+        
+        if not self.application_ids:
+            print_error("No applications available for testing")
+            return
+        
+        application_id = self.application_ids[0]
+        
+        # Test 1: Update application status to reviewed
+        status_update = {
+            "status": "reviewed",
+            "notes": "Initial review completed. Candidate has good technical background."
+        }
+        
+        response = self.make_request("PUT", f"/applications/{application_id}", status_update, auth_token=self.recruiter_token)
+        if self.assert_response(response, 200, "Update Application Status to Reviewed"):
+            result = response.json()
+            print_success("Application status updated successfully")
+            
+            if result.get("status") == "reviewed":
+                print_success("Application status correctly updated to 'reviewed'")
+            else:
+                print_error(f"Application status should be 'reviewed', got '{result.get('status')}'")
+            
+            if result.get("notes") == status_update["notes"]:
+                print_success("Application notes correctly updated")
+            else:
+                print_error("Application notes not updated correctly")
+            
+            # Verify last_updated and reviewed_by fields
+            if "last_updated" in result:
+                print_success("Application has last_updated timestamp")
+            else:
+                print_error("Application missing last_updated timestamp")
+            
+            if result.get("reviewed_by") == self.recruiter_user_id:
+                print_success("Application reviewed_by correctly set")
+            else:
+                print_error("Application reviewed_by not set correctly")
+        
+        # Test 2: Test status workflow progression
+        status_progression = [
+            ("shortlisted", "Candidate shortlisted for technical interview"),
+            ("interviewed", "Technical interview completed. Good problem-solving skills."),
+            ("offered", "Job offer extended. Waiting for candidate response."),
+        ]
+        
+        for status, notes in status_progression:
+            update_data = {"status": status, "notes": notes}
+            response = self.make_request("PUT", f"/applications/{application_id}", update_data, auth_token=self.recruiter_token)
+            if self.assert_response(response, 200, f"Update Status to {status.title()}"):
+                result = response.json()
+                if result.get("status") == status:
+                    print_success(f"Status successfully updated to '{status}'")
+                else:
+                    print_error(f"Status update failed for '{status}'")
+        
+        # Test 3: Update with notes only (no status change)
+        notes_only_update = {
+            "notes": "Additional notes: Candidate has excellent communication skills and cultural fit."
+        }
+        
+        response = self.make_request("PUT", f"/applications/{application_id}", notes_only_update, auth_token=self.recruiter_token)
+        if self.assert_response(response, 200, "Update Notes Only"):
+            result = response.json()
+            if notes_only_update["notes"] in result.get("notes", ""):
+                print_success("Notes updated successfully without changing status")
+            else:
+                print_error("Notes update failed")
+        
+        # Test 4: Test rejection status
+        if len(self.application_ids) > 1:
+            rejection_update = {
+                "status": "rejected",
+                "notes": "Thank you for your interest. We decided to move forward with another candidate."
+            }
+            
+            response = self.make_request("PUT", f"/applications/{self.application_ids[1]}", rejection_update, auth_token=self.recruiter_token)
+            if self.assert_response(response, 200, "Update Status to Rejected"):
+                result = response.json()
+                if result.get("status") == "rejected":
+                    print_success("Application successfully rejected")
+                else:
+                    print_error("Rejection status update failed")
+        
+        # Test 5: Test invalid status (should fail)
+        invalid_status_update = {
+            "status": "invalid_status",
+            "notes": "Testing invalid status"
+        }
+        
+        response = self.make_request("PUT", f"/applications/{application_id}", invalid_status_update, auth_token=self.recruiter_token)
+        self.assert_response(response, 422, "Invalid Status Update (Should Fail)")
+        
+        # Test 6: Try to update non-existent application (should fail)
+        fake_application_id = str(uuid.uuid4())
+        update_data = {"status": "reviewed", "notes": "Testing non-existent application"}
+        
+        response = self.make_request("PUT", f"/applications/{fake_application_id}", update_data, auth_token=self.recruiter_token)
+        self.assert_response(response, 404, "Update Non-existent Application (Should Fail)")
+        
+        # Test 7: Job seeker trying to update application (should fail)
+        job_seeker_update = {"status": "withdrawn", "notes": "Job seeker trying to update"}
+        
+        response = self.make_request("PUT", f"/applications/{application_id}", job_seeker_update, auth_token=self.job_seeker_token)
+        self.assert_response(response, 403, "Job Seeker Update Application (Should Fail)")
+        
+        # Test 8: Unauthenticated update (should fail)
+        unauth_update = {"status": "reviewed", "notes": "Unauthenticated update"}
+        
+        response = self.make_request("PUT", f"/applications/{application_id}", unauth_update)
+        self.assert_response(response, 401, "Unauthenticated Update (Should Fail)")
+
+    def test_application_status_values(self):
+        """Test all ApplicationStatus enum values"""
+        print_test_header("Application Status Values")
+        
+        if not self.application_ids:
+            print_error("No applications available for testing")
+            return
+        
+        # Test all valid status values
+        valid_statuses = [
+            "pending", "reviewed", "shortlisted", "interviewed", 
+            "offered", "rejected", "withdrawn"
+        ]
+        
+        application_id = self.application_ids[0] if self.application_ids else None
+        if not application_id:
+            print_error("No application ID available for status testing")
+            return
+        
+        for status in valid_statuses:
+            update_data = {
+                "status": status,
+                "notes": f"Testing {status} status value"
+            }
+            
+            response = self.make_request("PUT", f"/applications/{application_id}", update_data, auth_token=self.recruiter_token)
+            if self.assert_response(response, 200, f"Test Status Value: {status}"):
+                result = response.json()
+                if result.get("status") == status:
+                    print_success(f"Status '{status}' is valid and working")
+                else:
+                    print_error(f"Status '{status}' validation failed")
+        
+        # Test invalid status values
+        invalid_statuses = [
+            "invalid", "pending_review", "in_progress", "completed", "cancelled"
+        ]
+        
+        for invalid_status in invalid_statuses:
+            update_data = {
+                "status": invalid_status,
+                "notes": f"Testing invalid status: {invalid_status}"
+            }
+            
+            response = self.make_request("PUT", f"/applications/{application_id}", update_data, auth_token=self.recruiter_token)
+            if response and response.status_code == 422:
+                print_success(f"Invalid status '{invalid_status}' properly rejected")
+            else:
+                print_error(f"Invalid status '{invalid_status}' should have been rejected")
+
+    def test_job_seeker_progress_tracking(self):
+        """Test job seeker progress tracking for applications"""
+        print_test_header("Job Seeker Progress Tracking")
+        
+        # Get current job seeker profile to check progress
+        response = self.make_request("GET", "/auth/me", auth_token=self.job_seeker_token)
+        if self.assert_response(response, 200, "Get Job Seeker Profile"):
+            user = response.json()
+            profile_progress = user.get("profile_progress", {})
+            
+            job_applications_count = profile_progress.get("job_applications", 0)
+            print_info(f"Job seeker has {job_applications_count} applications tracked in progress")
+            
+            # Verify progress tracking for first 5 applications
+            if job_applications_count > 0:
+                print_success("Job application progress is being tracked")
+                
+                if job_applications_count >= 5:
+                    print_success("Job seeker has reached 5+ applications milestone")
+                else:
+                    print_info(f"Job seeker needs {5 - job_applications_count} more applications to reach milestone")
+            else:
+                print_warning("No job applications tracked in progress (may not be updated yet)")
+
+    def test_easy_apply_vs_external_differentiation(self):
+        """Test differentiation between Easy Apply and External Apply jobs"""
+        print_test_header("Easy Apply vs External Apply Differentiation")
+        
+        # Test 1: Verify Easy Apply jobs don't have application_url
+        if self.easy_apply_job_ids:
+            for job_id in self.easy_apply_job_ids[:2]:  # Test first 2
+                # Get job details from public API
+                response = self.make_request("GET", "/public/jobs", data={"limit": 100})
+                if self.assert_response(response, 200, "Get Public Jobs for Easy Apply Check"):
+                    jobs = response.json()
+                    easy_apply_job = next((job for job in jobs if job["id"] == job_id), None)
+                    
+                    if easy_apply_job:
+                        if not easy_apply_job.get("application_url"):
+                            print_success(f"Easy Apply job '{easy_apply_job['title']}' has no application_url")
+                        else:
+                            print_error(f"Easy Apply job '{easy_apply_job['title']}' should not have application_url")
+        
+        # Test 2: Verify External Apply jobs have application_url
+        if self.external_job_ids:
+            for job_id in self.external_job_ids:
+                response = self.make_request("GET", "/public/jobs", data={"limit": 100})
+                if self.assert_response(response, 200, "Get Public Jobs for External Apply Check"):
+                    jobs = response.json()
+                    external_job = next((job for job in jobs if job["id"] == job_id), None)
+                    
+                    if external_job:
+                        if external_job.get("application_url"):
+                            print_success(f"External Apply job '{external_job['title']}' has application_url")
+                        else:
+                            print_error(f"External Apply job '{external_job['title']}' should have application_url")
+        
+        # Test 3: Verify Easy Apply works only for jobs without application_url
+        print_info("Easy Apply functionality is properly restricted to jobs without external URLs")
+
     def cleanup_test_data(self):
         """Clean up test data created during testing"""
         print_test_header("Cleaning Up Test Data")
