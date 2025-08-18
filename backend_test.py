@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
-Backend Test Suite for Job Rocket Job Posting System
-Tests all job posting API endpoints including single job creation, bulk upload, and company access
+Backend Test Suite for Job Rocket Enhanced Job Posting System
+Tests enhanced job posting system with automatic expiry, archive functionality, and public API
 """
 
 import requests
