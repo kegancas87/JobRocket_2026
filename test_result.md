@@ -111,15 +111,18 @@ backend:
     file: "/app/backend/server.py"
     stuck_count: 0
     priority: "high"
-    needs_retesting: true
+    needs_retesting: false
     status_history:
         -working: true
         -agent: "main"
         -comment: "Basic invitation endpoints exist but email sending is TODO. Will implement core functionality without email first."
+        -working: true
+        -agent: "testing"
+        -comment: "Comprehensive testing completed. All core invitation endpoints working: POST /api/company/invite (create), GET /api/company/invitations (list), POST /api/company/invitations/{id}/cancel (cancel). Authentication, authorization, branch assignment, and role assignment all functioning correctly. Token generation and expiration logic working properly."
 
   - task: "Public invitation acceptance route"
-    implemented: false
-    working: "NA"
+    implemented: true
+    working: true
     file: "/app/backend/server.py"
     stuck_count: 0
     priority: "high"
@@ -128,10 +131,13 @@ backend:
         -working: "NA"
         -agent: "main"
         -comment: "Need to create public route for accepting invitations without authentication."
+        -working: true
+        -agent: "testing"
+        -comment: "Public invitation routes fully implemented and working: GET /api/public/invitations/{token} (get details) and POST /api/public/invitations/{token}/register (register new user). Both routes accessible without authentication as required. Token validation, expiration checking, and company/branch details retrieval all working correctly."
 
   - task: "Invitation registration flow for new users"
-    implemented: false
-    working: "NA" 
+    implemented: true
+    working: true
     file: "/app/backend/server.py"
     stuck_count: 0
     priority: "high"
@@ -140,6 +146,33 @@ backend:
         -working: "NA"
         -agent: "main"
         -comment: "Need route to allow invited users to create accounts using invitation tokens."
+        -working: true
+        -agent: "testing"
+        -comment: "Registration via invitation fully working. POST /api/public/invitations/{token}/register successfully creates new user accounts, validates email matches invitation, creates company membership, assigns roles and branches, marks invitation as accepted, and returns JWT token. Complete flow tested with unique emails."
+
+  - task: "Authenticated invitation acceptance for existing users"
+    implemented: true
+    working: true
+    file: "/app/backend/server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+        -working: true
+        -agent: "testing"
+        -comment: "POST /api/invitations/{token}/accept route working correctly for existing users. Validates invitation token, checks expiration, verifies email match, creates company membership, and marks invitation as accepted. Tested with existing demo users successfully."
+
+  - task: "Company member management endpoints"
+    implemented: true
+    working: true
+    file: "/app/backend/server.py"
+    stuck_count: 0
+    priority: "medium"
+    needs_retesting: false
+    status_history:
+        -working: true
+        -agent: "testing"
+        -comment: "Company member endpoints working: GET /api/company/members (list with user details and branches), PUT /api/company/members/{id} (update), DELETE /api/company/members/{id} (remove). All properly authenticated and authorized for company owners only."
 
 frontend:
   - task: "Team member invitation interface"
