@@ -216,7 +216,23 @@ const JobPosting = ({ user, onUpdateUser }) => {
     }
   };
 
-  const downloadTemplate = () => {
+  const handleRepostJob = async (jobId) => {
+    try {
+      setLoading(true);
+      await axios.put(`${API}/jobs/${jobId}/repost`, {}, getAuthHeaders());
+      
+      alert('Job reposted successfully! It will now be visible to job seekers for another 35 days.');
+      
+      // Refresh jobs
+      await fetchJobs();
+      
+    } catch (error) {
+      console.error('Error reposting job:', error);
+      alert(error.response?.data?.detail || 'Failed to repost job');
+    } finally {
+      setLoading(false);
+    }
+  };
     const template = `title,location,salary,job_type,work_type,industry,description,experience,qualifications,application_url,application_email
 Software Engineer,Cape Town,R50000 - R70000,Permanent,Hybrid,Technology,"We are looking for a talented Software Engineer to join our dynamic team...",2-3 years experience in software development,"Degree in Computer Science or related field, Experience with React and Python",https://company.com/apply,careers@company.com
 Marketing Manager,Johannesburg,R45000 - R60000,Permanent,Onsite,Marketing,"Join our marketing team as a Marketing Manager...",3-5 years marketing experience,"Marketing degree, Experience with digital marketing campaigns",,marketing@company.com`;
