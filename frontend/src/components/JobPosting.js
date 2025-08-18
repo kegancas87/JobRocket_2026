@@ -173,11 +173,16 @@ const JobPosting = ({ user, onUpdateUser }) => {
       
       // Refresh jobs list and user progress
       await fetchJobs();
+      await fetchUserPackages(); // Refresh packages to update credit count
       if (onUpdateUser) onUpdateUser();
       
     } catch (error) {
       console.error('Error posting job:', error);
-      alert(error.response?.data?.detail || 'Failed to post job');
+      if (error.response?.status === 402) {
+        alert('No job listing credits available. Please purchase a package to post jobs.');
+      } else {
+        alert(error.response?.data?.detail || 'Failed to post job');
+      }
     } finally {
       setLoading(false);
     }
