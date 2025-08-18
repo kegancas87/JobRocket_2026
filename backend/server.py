@@ -138,6 +138,27 @@ class ProfileProgress(BaseModel):
     email_alerts: bool = False     # 5 points
     total_points: int = 0
 
+class CompanyProfile(BaseModel):
+    company_name: Optional[str] = None
+    company_logo_url: Optional[str] = None
+    company_cover_image_url: Optional[str] = None
+    company_description: Optional[str] = None
+    company_website: Optional[str] = None
+    company_linkedin: Optional[str] = None
+    company_size: Optional[str] = None
+    company_industry: Optional[str] = None
+    company_location: Optional[str] = None
+
+class RecruiterProgress(BaseModel):
+    company_logo: bool = False         # 15 points
+    cover_image: bool = False          # 10 points
+    company_description: bool = False  # 20 points (100+ chars)
+    company_size: bool = False         # 10 points
+    website_link: bool = False         # 15 points
+    linkedin_link: bool = False        # 10 points
+    first_job_posted: bool = False     # 20 points
+    total_points: int = 0
+
 class User(BaseModel):
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
     email: EmailStr
@@ -146,7 +167,7 @@ class User(BaseModel):
     last_name: str
     role: UserRole = UserRole.JOB_SEEKER
     
-    # Profile fields
+    # Profile fields (for job seekers)
     profile_picture_url: Optional[str] = None
     about_me: Optional[str] = None
     phone: Optional[str] = None
@@ -159,8 +180,12 @@ class User(BaseModel):
     achievements: List[Achievement] = []
     intro_video_url: Optional[str] = None
     
+    # Company profile fields (for recruiters)
+    company_profile: Optional[CompanyProfile] = Field(default_factory=CompanyProfile)
+    
     # Gamification
-    profile_progress: ProfileProgress = Field(default_factory=ProfileProgress)
+    profile_progress: Optional[ProfileProgress] = Field(default_factory=ProfileProgress)
+    recruiter_progress: Optional[RecruiterProgress] = Field(default_factory=RecruiterProgress)
     
     # Timestamps
     created_at: datetime = Field(default_factory=datetime.utcnow)
@@ -178,6 +203,17 @@ class UserProfileUpdate(BaseModel):
     skills: Optional[List[str]] = None
     profile_picture_url: Optional[str] = None
     intro_video_url: Optional[str] = None
+
+class CompanyProfileUpdate(BaseModel):
+    company_name: Optional[str] = None
+    company_logo_url: Optional[str] = None
+    company_cover_image_url: Optional[str] = None
+    company_description: Optional[str] = None
+    company_website: Optional[str] = None
+    company_linkedin: Optional[str] = None
+    company_size: Optional[str] = None
+    company_industry: Optional[str] = None
+    company_location: Optional[str] = None
 
 
 # Authentication helpers
