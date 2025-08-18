@@ -1731,6 +1731,308 @@ async def get_accessible_companies(current_user: User = Depends(get_current_user
     return companies
 
 
+# Job Application Routes
+@api_router.post("/jobs/{job_id}/apply", response_model=JobApplication)
+async def apply_for_job(
+    job_id: str,
+    application_data: JobApplicationCreate,
+    current_user: User = Depends(get_current_user)
+):
+    """Apply for a job (Easy Apply functionality)"""
+    if current_user.role != UserRole.JOB_SEEKER:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only job seekers can apply for jobs"
+        )
+    
+    # Check if job exists and is active
+    job = await db.jobs.find_one({
+        "id": job_id,
+        "is_active": True,
+        "expiry_date": {"$gt": datetime.utcnow()}
+    })
+    
+    if not job:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Job not found or expired"
+        )
+    
+    # Check if job supports easy apply (no external application_url)
+    if job.get("application_url"):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="This job requires external application. Please use the company website."
+        )
+    
+    # Check if user already applied
+    existing_application = await db.job_applications.find_one({
+        "job_id": job_id,
+        "applicant_id": current_user.id
+    })
+    
+    if existing_application:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="You have already applied for this job"
+        )
+    
+    # Create application
+    application_dict = application_data.dict()
+    application_dict["applicant_id"] = current_user.id
+    application_dict["company_id"] = job["company_id"]
+    
+    application_obj = JobApplication(**application_dict)
+    await db.job_applications.insert_one(application_obj.dict())
+    
+    # Update job seeker progress (applications count)
+    current_applications = await db.job_applications.count_documents({
+        "applicant_id": current_user.id
+    })
+    
+    # Update profile progress if this is one of their first 5 applications
+    if current_applications <= 5:
+        await db.users.update_one(
+            {"id": current_user.id},
+            {"$set": {"profile_progress.job_applications": current_applications}}
+        )
+    
+    return application_obj
+
+@api_router.get("/applications", response_model=List[dict])
+async def get_my_applications(
+    status: Optional[str] = Query(None),
+    current_user: User = Depends(get_current_user)
+):
+    """Get job seeker's applications"""
+    if current_user.role != UserRole.JOB_SEEKER:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only job seekers can view their applications"
+        )
+    
+    query = {"applicant_id": current_user.id}
+    if status:
+        query["status"] = status
+    
+    applications = await db.job_applications.find(query).sort("applied_date", -1).to_list(1000)
+    
+    # Enrich with job details
+    result = []
+    for app in applications:
+        job = await db.jobs.find_one({"id": app["job_id"]})
+        if job:
+            if "_id" in job:
+                del job["_id"]
+            if "_id" in app:
+                del app["_id"]
+            
+            result.append({
+                "application": app,
+                "job": job
+            })
+    
+    return result
+
+@api_router.get("/jobs/{job_id}/applications", response_model=List[dict])
+async def get_job_applications(
+    job_id: str,
+    status: Optional[str] = Query(None),
+    current_user: User = Depends(get_current_user)
+):
+    """Get applications for a specific job (recruiters only)"""
+    if current_user.role != UserRole.RECRUITER:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only recruiters can view job applications"
+        )
+    
+    # Check if user has access to this job
+    job = await db.jobs.find_one({"id": job_id})
+    if not job:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Job not found"
+        )
+    
+    # Check permission
+    if job["company_id"] != current_user.id:
+        member = await db.company_members.find_one({
+            "user_id": current_user.id,
+            "company_id": job["company_id"],
+            "is_active": True
+        })
+        if not member:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="You don't have permission to view applications for this job"
+            )
+    
+    # Get applications
+    query = {"job_id": job_id}
+    if status:
+        query["status"] = status
+    
+    applications = await db.job_applications.find(query).sort("applied_date", -1).to_list(1000)
+    
+    # Enrich with applicant details
+    result = []
+    for app in applications:
+        applicant = await db.users.find_one({"id": app["applicant_id"]})
+        if applicant:
+            if "_id" in applicant:
+                del applicant["_id"]
+            if "_id" in app:
+                del app["_id"]
+            
+            # Remove sensitive information
+            applicant_safe = {
+                "id": applicant["id"],
+                "first_name": applicant["first_name"],
+                "last_name": applicant["last_name"],
+                "email": applicant["email"],
+                "profile_picture_url": applicant.get("profile_picture_url"),
+                "skills": applicant.get("skills", []),
+                "location": applicant.get("location"),
+                "work_experience": applicant.get("work_experience", []),
+                "education": applicant.get("education", []),
+                "profile_progress": applicant.get("profile_progress", {})
+            }
+            
+            result.append({
+                "application": app,
+                "applicant": applicant_safe,
+                "job": {"id": job["id"], "title": job["title"]}
+            })
+    
+    return result
+
+@api_router.put("/applications/{application_id}", response_model=JobApplication)
+async def update_application_status(
+    application_id: str,
+    application_update: JobApplicationUpdate,
+    current_user: User = Depends(get_current_user)
+):
+    """Update job application status (recruiters only)"""
+    if current_user.role != UserRole.RECRUITER:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only recruiters can update application status"
+        )
+    
+    # Get application
+    application = await db.job_applications.find_one({"id": application_id})
+    if not application:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Application not found"
+        )
+    
+    # Check permission
+    if application["company_id"] != current_user.id:
+        member = await db.company_members.find_one({
+            "user_id": current_user.id,
+            "company_id": application["company_id"],
+            "is_active": True
+        })
+        if not member:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="You don't have permission to update this application"
+            )
+    
+    # Update application
+    update_data = {k: v for k, v in application_update.dict().items() if v is not None}
+    update_data["last_updated"] = datetime.utcnow()
+    update_data["reviewed_by"] = current_user.id
+    
+    await db.job_applications.update_one(
+        {"id": application_id},
+        {"$set": update_data}
+    )
+    
+    # Get updated application
+    updated_application = await db.job_applications.find_one({"id": application_id})
+    if "_id" in updated_application:
+        del updated_application["_id"]
+    
+    return JobApplication(**updated_application)
+
+@api_router.get("/company/applications", response_model=List[dict])
+async def get_all_company_applications(
+    status: Optional[str] = Query(None),
+    job_id: Optional[str] = Query(None),
+    current_user: User = Depends(get_current_user)
+):
+    """Get all applications for recruiter's companies"""
+    if current_user.role != UserRole.RECRUITER:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only recruiters can view company applications"
+        )
+    
+    # Get accessible companies
+    accessible_companies = [current_user.id]
+    memberships = await db.company_members.find({
+        "user_id": current_user.id,
+        "is_active": True
+    }).to_list(1000)
+    
+    for membership in memberships:
+        accessible_companies.append(membership["company_id"])
+    
+    # Build query
+    query = {"company_id": {"$in": accessible_companies}}
+    if status:
+        query["status"] = status
+    if job_id:
+        query["job_id"] = job_id
+    
+    applications = await db.job_applications.find(query).sort("applied_date", -1).to_list(1000)
+    
+    # Enrich with job and applicant details
+    result = []
+    for app in applications:
+        # Get job details
+        job = await db.jobs.find_one({"id": app["job_id"]})
+        # Get applicant details
+        applicant = await db.users.find_one({"id": app["applicant_id"]})
+        
+        if job and applicant:
+            if "_id" in job:
+                del job["_id"]
+            if "_id" in applicant:
+                del applicant["_id"]
+            if "_id" in app:
+                del app["_id"]
+            
+            # Create safe applicant data
+            applicant_safe = {
+                "id": applicant["id"],
+                "first_name": applicant["first_name"],
+                "last_name": applicant["last_name"],
+                "email": applicant["email"],
+                "profile_picture_url": applicant.get("profile_picture_url"),
+                "skills": applicant.get("skills", []),
+                "location": applicant.get("location"),
+                "profile_progress": applicant.get("profile_progress", {})
+            }
+            
+            result.append({
+                "application": app,
+                "job": {
+                    "id": job["id"],
+                    "title": job["title"],
+                    "company_name": job["company_name"],
+                    "location": job["location"],
+                    "job_type": job["job_type"]
+                },
+                "applicant": applicant_safe
+            })
+    
+    return result
+
+
 # User Profile Routes (existing)
 @api_router.put("/profile", response_model=User)
 async def update_profile(
