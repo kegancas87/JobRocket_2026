@@ -214,6 +214,11 @@ async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(s
     user = await db.users.find_one({"id": user_id})
     if user is None:
         raise credentials_exception
+    
+    # Remove MongoDB _id field to avoid serialization issues
+    if "_id" in user:
+        del user["_id"]
+    
     return User(**user)
 
 def calculate_profile_progress(user: User) -> ProfileProgress:
