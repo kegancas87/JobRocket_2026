@@ -102,7 +102,7 @@
 # Testing Data - Main Agent and testing sub agent both should log testing data below this section
 #====================================================================================================
 
-user_problem_statement: Test the enhanced job posting system with automatic expiry and archive functionality including automatic 35-day expiry, public jobs API, enhanced recruiter job management, job reposting functionality, and job model enhancements.
+user_problem_statement: Test the complete Easy Apply job application system including Easy Apply functionality, job seeker applications management, recruiter application management, application status updates, and application status values.
 
 backend:
   - task: "Automatic Job Expiry (35 days)"
