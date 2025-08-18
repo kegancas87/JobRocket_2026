@@ -22,13 +22,15 @@ const TrophyProgress = ({ progress, showDetails = false, onComplete, userRole = 
   ];
 
   const recruiterTasks = [
+    { key: 'headquarters_setup', label: 'Setup Headquarters', points: 5, completed: progress?.headquarters_setup },
     { key: 'company_logo', label: 'Add Company Logo', points: 15, completed: progress?.company_logo },
     { key: 'cover_image', label: 'Add Cover Image', points: 10, completed: progress?.cover_image },
     { key: 'company_description', label: 'Company Description (100+ chars)', points: 20, completed: progress?.company_description },
     { key: 'company_size', label: 'Set Company Size', points: 10, completed: progress?.company_size },
     { key: 'website_link', label: 'Add Website Link', points: 15, completed: progress?.website_link },
     { key: 'linkedin_link', label: 'Add LinkedIn Link', points: 10, completed: progress?.linkedin_link },
-    { key: 'first_job_posted', label: 'Post First Job', points: 20, completed: progress?.first_job_posted }
+    { key: 'first_branch_added', label: 'Add First Branch', points: 10, completed: progress?.first_branch_added },
+    { key: 'first_team_member', label: 'Invite First Team Member', points: 15, completed: progress?.first_team_member }
   ];
 
   const tasks = userRole === 'recruiter' ? recruiterTasks : jobSeekerTasks;
