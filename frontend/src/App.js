@@ -241,7 +241,7 @@ const JobListingPage = ({ user, onLogout }) => {
       if (searchTerm) params.append('search', searchTerm);
       if (location) params.append('location', location);
       
-      const response = await axios.get(`${API}/jobs?${params.toString()}`);
+      const response = await axios.get(`${API}/public/jobs?${params.toString()}`);
       setJobs(response.data);
     } catch (error) {
       console.error('Error fetching jobs:', error);
