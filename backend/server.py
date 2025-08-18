@@ -2176,6 +2176,206 @@ async def get_all_company_applications(
     return result
 
 
+# Package and Payment Routes
+@api_router.get("/packages", response_model=List[Package])
+async def get_available_packages():
+    """Get all available packages for purchase"""
+    packages = await db.packages.find({"is_active": True}).to_list(1000)
+    
+    # If no packages exist, initialize default packages
+    if not packages:
+        print("Initializing default packages...")
+        for package_data in DEFAULT_PACKAGES:
+            package_obj = Package(**package_data)
+            await db.packages.insert_one(package_obj.dict())
+            packages.append(package_obj.dict())
+    
+    # Convert to Package objects and remove MongoDB _id
+    result = []
+    for package in packages:
+        if "_id" in package:
+            del package["_id"]
+        result.append(Package(**package))
+    
+    return result
+
+@api_router.get("/packages/{package_type}", response_model=Package)
+async def get_package_by_type(package_type: PackageType):
+    """Get specific package by type"""
+    package = await db.packages.find_one({
+        "package_type": package_type,
+        "is_active": True
+    })
+    
+    if not package:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Package not found"
+        )
+    
+    if "_id" in package:
+        del package["_id"]
+    
+    return Package(**package)
+
+@api_router.post("/payments/initiate")
+async def initiate_payment(
+    package_type: PackageType,
+    current_user: User = Depends(get_current_user)
+):
+    """Initiate payment for a package"""
+    if current_user.role != UserRole.RECRUITER:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only recruiters can purchase packages"
+        )
+    
+    # Get package details
+    package = await db.packages.find_one({
+        "package_type": package_type,
+        "is_active": True
+    })
+    
+    if not package:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Package not found"
+        )
+    
+    # Create payment record
+    payment_data = {
+        "user_id": current_user.id,
+        "package_id": package["id"],
+        "amount": package["price"],
+        "currency": "ZAR",
+        "payment_method": "payfast"
+    }
+    
+    payment_obj = Payment(**payment_data)
+    await db.payments.insert_one(payment_obj.dict())
+    
+    # Generate Payfast payment URL (mock for now - will need actual Payfast integration)
+    payfast_url = f"https://sandbox.payfast.co.za/eng/process?merchant_id=10000100&merchant_key=46f0cd694581a&amount={package['price']:.2f}&item_name={package['name']}&return_url=https://yoursite.com/payment/success&cancel_url=https://yoursite.com/payment/cancel&notify_url=https://yoursite.com/payment/notify&m_payment_id={payment_obj.id}"
+    
+    return {
+        "payment_id": payment_obj.id,
+        "payment_url": payfast_url,
+        "amount": package["price"],
+        "currency": "ZAR",
+        "package_name": package["name"]
+    }
+
+@api_router.post("/payments/{payment_id}/complete")
+async def complete_payment(
+    payment_id: str,
+    payment_reference: str,
+    current_user: User = Depends(get_current_user)
+):
+    """Complete payment and activate package"""
+    # Get payment
+    payment = await db.payments.find_one({"id": payment_id})
+    
+    if not payment:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Payment not found"
+        )
+    
+    # Verify payment belongs to current user
+    if payment["user_id"] != current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Payment does not belong to current user"
+        )
+    
+    # Get package details
+    package = await db.packages.find_one({"id": payment["package_id"]})
+    
+    if not package:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Package not found"
+        )
+    
+    # Update payment status
+    await db.payments.update_one(
+        {"id": payment_id},
+        {"$set": {
+            "status": PaymentStatus.COMPLETED,
+            "payment_reference": payment_reference,
+            "completed_date": datetime.utcnow()
+        }}
+    )
+    
+    # Create user package
+    user_package_data = {
+        "user_id": current_user.id,
+        "package_id": package["id"],
+        "package_type": package["package_type"],
+        "job_listings_remaining": package["job_listings_included"],
+        "cv_searches_remaining": package["cv_searches_included"]
+    }
+    
+    # Set expiry for subscriptions
+    if package["is_subscription"]:
+        user_package_data["expiry_date"] = datetime.utcnow() + timedelta(days=package["duration_days"])
+        user_package_data["subscription_status"] = SubscriptionStatus.ACTIVE
+    
+    user_package_obj = UserPackage(**user_package_data)
+    await db.user_packages.insert_one(user_package_obj.dict())
+    
+    return {
+        "message": "Payment completed successfully",
+        "package_activated": package["name"],
+        "job_listings_remaining": user_package_data["job_listings_remaining"],
+        "cv_searches_remaining": user_package_data["cv_searches_remaining"]
+    }
+
+@api_router.get("/my-packages", response_model=List[dict])
+async def get_my_packages(current_user: User = Depends(get_current_user)):
+    """Get user's purchased packages"""
+    if current_user.role != UserRole.RECRUITER:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only recruiters can view packages"
+        )
+    
+    # Get user packages
+    user_packages = await db.user_packages.find({
+        "user_id": current_user.id,
+        "is_active": True
+    }).sort("purchased_date", -1).to_list(1000)
+    
+    result = []
+    for user_package in user_packages:
+        # Get package details
+        package = await db.packages.find_one({"id": user_package["package_id"]})
+        
+        if package:
+            if "_id" in package:
+                del package["_id"]
+            if "_id" in user_package:
+                del user_package["_id"]
+            
+            # Check if subscription is expired
+            is_expired = False
+            if user_package.get("expiry_date") and datetime.utcnow() > user_package["expiry_date"]:
+                is_expired = True
+                # Update subscription status
+                await db.user_packages.update_one(
+                    {"id": user_package["id"]},
+                    {"$set": {"subscription_status": SubscriptionStatus.EXPIRED}}
+                )
+            
+            result.append({
+                "user_package": user_package,
+                "package": package,
+                "is_expired": is_expired
+            })
+    
+    return result
+
+
 # User Profile Routes (existing)
 @api_router.put("/profile", response_model=User)
 async def update_profile(
