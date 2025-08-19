@@ -76,7 +76,12 @@ class DiscountCodesTestSuite:
                 if files:
                     response = requests.post(url, headers=request_headers, files=files, data=data)
                 else:
-                    response = requests.post(url, json=data, headers=request_headers)
+                    # For POST requests, if data contains simple key-value pairs, use as params
+                    # Otherwise use as JSON body
+                    if data and all(isinstance(v, (str, int, float, bool)) for v in data.values()):
+                        response = requests.post(url, headers=request_headers, params=data)
+                    else:
+                        response = requests.post(url, json=data, headers=request_headers)
             elif method.upper() == "PUT":
                 response = requests.put(url, json=data, headers=request_headers)
             elif method.upper() == "DELETE":
