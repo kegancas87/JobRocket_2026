@@ -137,7 +137,7 @@ class PayfastTestSuite:
         
         # Login as recruiter
         login_data = {
-            "email": "lisa.martinez@techcorp.demo",
+            "email": "payfast.test@demo.com",
             "password": "demo123"
         }
         
