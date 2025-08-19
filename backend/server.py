@@ -132,6 +132,15 @@ class EducationLevel(str, Enum):
     PHD = "PhD"
     OTHER = "Other"
 
+class DiscountType(str, Enum):
+    PERCENTAGE = "percentage"
+    FIXED_AMOUNT = "fixed_amount"
+
+class DiscountStatus(str, Enum):
+    ACTIVE = "active"
+    INACTIVE = "inactive"
+    EXPIRED = "expired"
+
 
 # Authentication Models
 class UserLogin(BaseModel):
