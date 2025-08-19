@@ -178,20 +178,20 @@
 
 ```bash
 # Test beginner user login
-curl -X POST "https://rocket-ats.preview.emergentagent.com/api/auth/login" \
+curl -X POST "https://jobrocket.preview.emergentagent.com/api/auth/login" \
   -H "Content-Type: application/json" \
   -d '{"email": "sarah.johnson@demo.com", "password": "demo123"}'
 
 # Test advanced user profile
-curl -X POST "https://rocket-ats.preview.emergentagent.com/api/auth/login" \
+curl -X POST "https://jobrocket.preview.emergentagent.com/api/auth/login" \
   -H "Content-Type: application/json" \
   -d '{"email": "michael.chen@demo.com", "password": "demo123"}'
 
 # View all available jobs
-curl "https://rocket-ats.preview.emergentagent.com/api/jobs"
+curl "https://jobrocket.preview.emergentagent.com/api/jobs"
 
 # Check user profile progress
-curl -X GET "https://rocket-ats.preview.emergentagent.com/api/auth/me" \
+curl -X GET "https://jobrocket.preview.emergentagent.com/api/auth/me" \
   -H "Authorization: Bearer YOUR_TOKEN"
 ```
 
@@ -208,4 +208,4 @@ All demo users are set up with realistic data to showcase:
 - ✅ Role-based access control
 - ✅ Professional UI/UX design
 
-**Start testing by visiting:** https://rocket-ats.preview.emergentagent.com
+**Start testing by visiting:** https://jobrocket.preview.emergentagent.com

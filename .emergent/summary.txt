@@ -1,94 +1,96 @@
 <analysis>
-The AI engineer successfully established the core Job Rocket application, beginning with the UI based on user-provided mock-ups and then evolving its design to a tech-rocket theme. Following this, a comprehensive gamified onboarding and authentication system was implemented for job seekers, including detailed point tracking and visual progress indicators. The engineer then extended this gamification and role-based access to recruiters, developing a dedicated dashboard for company profiles. Currently, the work is focused on implementing the company structure and team management features for recruiters, involving backend model updates and frontend component creation. The trajectory shows a systematic approach, addressing one major feature at a time, testing frequently, and correcting issues such as the MongoDB ObjectId serialization problem.
+The AI engineer systematically built the Job Rocket application from an initial UI to a comprehensive platform. The progression began with establishing a tech-rocket themed UI and then implementing a gamified onboarding and authentication system for both job seekers and recruiters, including robust backend models and frontend progress indicators. Subsequent development focused on core functionalities: first, a detailed company structure and team management feature for recruiters (deferring email integration for later), then a comprehensive job listing and posting system for recruiters (including single and bulk uploads, auto-expiry, archiving, and reposting). The latest major addition was the Easy Apply job application system, pre-populating seeker data and enabling recruiter application management. Currently, the engineer is integrating a sophisticated pricing and payment system, using Payfast, with automatic package activation, demonstrating a pragmatic and iterative approach to feature delivery, prioritizing core functionality and addressing dependencies as needed.
 </analysis>
 
 <product_requirements>
-The Job Rocket application aims to be a full-stack platform connecting job seekers, recruiters/employers, and administrators. Its core features include a built-in Applicant Tracking System (ATS), a subscription model for unlimited job listings, and CV search for headhunting, with recruiters paying for services and job seekers having free access, utilizing Payfast for payments.
+The Job Rocket application aims to be a comprehensive platform connecting job seekers, recruiters, and administrators, featuring an Applicant Tracking System (ATS), subscription models for job listings and CV search, and payment processing via Payfast.
 
-So far, the application has:
-1.  **Job Listing UI**: An initial modern UI for displaying job listings, matching a provided screenshot.
-2.  **Tech-Rocket Theme**: The UI was enhanced with a techie, rocket feel using light/dark greys and blues, incorporating gradients, glassmorphism, and subtle animations.
-3.  **Job Seeker Gamified Onboarding**: A complete registration and login system for job seekers. This includes a gamified profile completion process with points (100 total): Profile Picture (5), About Me (10), Work History (10), Skills (20), Education with document upload (10), Achievements (10), Intro Video (20), Apply to 5 Jobs (10), Email Job Alert (5). A trophy icon with a circular progress indicator turns gold with a rocket launch animation upon 100 points.
-4.  **Recruiter/Employer Onboarding**: Users can choose their role (job seeker/recruiter) at registration, and the system remembers it. Recruiters also have a gamified onboarding for company profile completion (Company Logo, Cover Image, About Company, Number of Employees, Website Link, LinkedIn Link), with points divided appropriately.
-5.  **Company Structure (In Progress)**: Recruiters need to add a main company, with the ability to add branches (optional location/email) and invite team members, associating them with one or many branches.
+**Implemented Features and Current State:**
+1.  **Job Listing UI & Theme:** An initial modern UI evolved into a techie, rocket feel theme with dark greys, blues, gradients, glassmorphism, and animations.
+2.  **Gamified Onboarding (Job Seeker):** Full registration/login. Gamified profile completion (100 points: Profile Picture, About Me, Work History, Skills, Education, Achievements, Intro Video, Apply to 5 Jobs, Email Job Alert) with a visual trophy progress and rocket launch animation at 100 points.
+3.  **Gamified Onboarding (Recruiter):** Role selection at registration. Gamified company profile completion (Company Logo, Cover Image, About Company, Number of Employees, Website/LinkedIn links).
+4.  **Company Structure & Team Management:** Recruiters can add a main company, branches (optional location/email), and invite team members, associating them with branches. The invitation system stores invites but defers email sending.
+5.  **Job Listing & Posting:** Recruiters can post jobs (single or bulk CSV/Excel) with mandatory fields (Title, Location, Salary, Type, Work Type, Industry, Description) and optional (Experience, Qualifications, Company selection). Jobs automatically expire in 35 days, are hidden from seekers but archived for recruiters, and can be reposted. Display shows days/weeks since posted.
+6.  **Job Application System:** Optional external application link. If blank, Easy Apply allows job seekers to apply directly on Job Rocket via a modal pre-populated with their profile (name, surname, email, CV, skills, optional cover letter). Job seekers can track applications, and recruiters can view/manage them.
+7.  **Pricing & Payment Packages:** Defined packages: Two Listings (R2800 once-off, 30-day expiry), Unlimited Listings (R3899/month, 35-day expiry, 10 free CV searches), Five Listings (R4150 once-off). CV Search packages: 10 CVs" (R699 once-off), "20 CVs (R1299 once-off), Unlimited Searches (R2899/month). CV search functionality is pending, but packages are on the pricing page.
 </product_requirements>
 
 <key_technical_concepts>
 -   **Full-stack Architecture**: React (frontend), FastAPI (backend), MongoDB (database).
 -   **UI/UX**: Tailwind CSS, Shadcn UI components, Glassmorphism, CSS animations.
--   **Authentication**: JWT (JSON Web Tokens) for secure, role-based authentication.
--   **Database**: PyMongo/Motor for MongoDB interactions, UUIDs for IDs (not MongoDB ObjectIDs).
--   **Deployment**: Kubernetes container environment, Supervisor for process management.
--   **Development Workflow**: , , , .
+-   **Authentication**: JWT for role-based authentication.
+-   **Database**: PyMongo/Motor for MongoDB, UUIDs for IDs.
+-   **Payment Gateway**: Payfast integration (in progress).
+-   **Email Integration**: SendGrid (planned, credentials pending).
+-   **Data Processing**: Pandas for CSV/Excel bulk uploads.
 </key_technical_concepts>
 
 <code_architecture>
 The application follows a standard full-stack structure:
 
 
+
 **Key Files and Changes:**
 
 *   :
-    *   **Importance**: The core of the backend, defining API routes, database models, and business logic.
-    *   **Changes**: Initially set up job listing API. Significantly expanded to include user authentication (register, login, JWT handling, password hashing), user models (JobSeeker, Recruiter, Admin), Company models (main company, branches, team members), and associated CRUD operations. Crucially, it now includes logic for calculating gamification points for both job seekers and recruiters, and fixes for MongoDB ObjectId JSON serialization errors.
+    *   **Importance**: Core backend logic.
+    *   **Changes**: Extensive updates for user authentication (JobSeeker, Recruiter, Admin models, JWT), Company models (main, branches, team members), gamification logic, MongoDB ObjectId serialization fixes. Added API endpoints for company structure (invite, accept invite), job posting (single/bulk), job expiry/archive, job applications, and package/payment management. Includes , , , , ,  models.
 *   :
-    *   **Importance**: The main React application component, handling global state, routing, and conditional rendering of different pages/dashboards.
-    *   **Changes**: Initially displayed job listings. Updated to implement the tech-rocket theme. Now includes role-based routing (, , , ) and manages user authentication state, dynamically displaying either the job seeker or recruiter dashboard based on user role and profile completion.
-*    and :
-    *   **Importance**: Define the global and component-level styling, including the application's aesthetic theme and animations.
-    *   **Changes**: Fully redesigned to implement the tech-rocket theme, incorporating dark blues, greys, gradients, glassmorphism effects, and CSS animations for elements like the rocket launch and twinkling stars.
+    *   **Importance**: Main React component, handles global state, routing, and conditional rendering.
+    *   **Changes**: Implemented tech-rocket theme, role-based routing (, , , ), authentication state management. Added new routes for . Updated  to accept  prop and display enhanced job details.
 *   :
-    *   **Importance**: Provides the user interface for registration and login, including role selection.
-    *   **Changes**: Created to handle user registration (allowing selection of Job Seeker or Recruiter roles) and login, featuring the new space-themed visuals.
+    *   **Importance**: Manages company branches and team invitations for recruiters.
+    *   **Changes**: Modified to generate and display invitation links (instead of just success messages), preparing for external email sending.
 *   :
-    *   **Importance**: A reusable component for visualizing gamification progress with a trophy icon and a circular progress bar.
-    *   **Changes**: Created to dynamically display progress for both job seekers and recruiters, with logic for the grey-to-gold trophy transformation and rocket launch animation at 100 points.
+    *   **Importance**: New component for invited team members to accept invitations and register.
+    *   **Changes**: Created to handle the UI and logic for invitation acceptance flow.
 *   :
-    *   **Importance**: The main dashboard for job seekers, displaying their profile information and gamification progress.
-    *   **Changes**: Created to house the job seeker's profile completion sections (About Me, Work History, Skills, etc.) and integrate the  component.
+    *   **Importance**: Recruiter's central dashboard.
+    *   **Changes**: Integrated , , , and  via new tabs for enhanced functionality. Updated to manage company details and gamification.
 *   :
-    *   **Importance**: The main dashboard for recruiters, allowing them to manage their company profile and track gamification.
-    *   **Changes**: Created to provide sections for company information, branding (logo, cover image), social links, and integrate the  component specifically for recruiter gamification. Includes a Job Posting section that will likely be enabled after a certain profile completion.
+    *   **Importance**: Allows recruiters to create and manage job listings.
+    *   **Changes**: Created to support single and bulk job posting with all required fields. Enhanced to display active/archived jobs, show job expiry, and integrate repost functionality. Added credit display and checks for available packages.
 *   :
-    *   **Importance**: A newly created component within the Recruiter Dashboard for managing company branches and team members.
-    *   **Changes**: Initial creation to support the new company structure feature.
+    *   **Importance**: Handles the Easy Apply modal for job seekers.
+    *   **Changes**: Created to pre-populate job seeker's name, email, CV, and skills, with an optional cover letter input. Submits applications to the backend.
 *   :
-    *   **Importance**: A utility script for populating the database with test users and dummy data for different roles and profile completion levels.
-    *   **Changes**: Created to seed job seekers (beginner, advanced), recruiters, and an admin user, along with sample job data.
+    *   **Importance**: Displays a job seeker's submitted applications.
+    *   **Changes**: Created and integrated into  for application tracking.
 *   :
-    *   **Importance**: Provides clear documentation of the demo user credentials for testing.
-    *   **Changes**: Created to list all demo users (job seekers, recruiters, admin) with their emails and passwords.
+    *   **Importance**: Allows recruiters to view and manage job applications.
+    *   **Changes**: Created and integrated into .
+*   :
+    *   **Importance**: Displays different job listing and CV search packages.
+    *   **Changes**: Created to list all defined pricing packages.
+*   :
+    *   **Importance**: Shows a recruiter's purchased packages and available credits.
+    *   **Changes**: Created and integrated into  to display package details and credit usage.
 </code_architecture>
 
 <pending_tasks>
 -   Implementing the full Applicant Tracking System (ATS).
--   Integrating the Payfast payment gateway for recruiter subscriptions.
--   Developing the subscription model for unlimited listings and CV search for headhunting.
 -   Building the Admin Dashboard for platform management.
--   Completing the team member invitation flow and association with branches.
+-   Completing the team member invitation email flow (SendGrid integration).
+-   Developing the CV Search functionality.
 </pending_tasks>
 
 <current_work>
-The immediate focus is on developing the **Company Structure and Team Management features for Recruiters**.
+The immediate focus is on integrating the **Payfast payment system** in full, ensuring automatic package activation upon successful payment without human intervention.
 
-**Backend Work (Partially Complete):**
-The AI engineer has already initiated backend modifications to support this:
-*   **Model Updates**:  has been updated to include new data models for  and , allowing recruiters to define multiple branches for their main company.
-*   **Progress Calculation**: The recruiter gamification logic in  has been extended to include points related to completing the company structure.
-*   **API Endpoints**: New API endpoints have been added in  to allow recruiters to:
-    *   Add new company branches.
-    *   Manage company branches (though explicit details on update/delete are not shown, the foundation is laid).
-    *   Manage team members (invite, associate to branches).
+**Backend Work (In Progress):**
+*    has been updated with new  and  models.
+*   API endpoints for managing packages and processing payments have been added.
+*   The  endpoint now includes logic to check and consume package credits, ensuring a job can only be posted if a recruiter has available listings from purchased packages.
+*   The AI engineer has successfully obtained the Payfast integration playbook (Chat Message 269) and is now proceeding to implement the backend logic using the provided merchant ID, key, and passphrase to automate package activation.
 
-**Frontend Work (In Progress):**
-On the frontend, the following steps have been taken:
-*   **New Component**: A dedicated React component, , has been created to provide the UI for managing company branches and team members.
-*   **Dashboard Integration**: The  has been updated to include a new tab or section for Company Structure, making this functionality accessible to recruiters.
-*   **Gamification Integration**: The  component has been updated to reflect the new points associated with setting up the company structure, ensuring the gamified onboarding continues seamlessly for recruiters.
+**Frontend Work (Partially Complete):**
+*   A dedicated  component has been created to display the various job listing and CV search packages.
+*   A  component has been created and integrated into the  to show a recruiter's purchased packages and available job credits.
+*   The  component has been updated to display the recruiter's available credits and to prevent job submission if no credits are available.
 
-The last successful action was testing the addition of a company branch, confirming the backend endpoint is responsive and the new branch is being recognized (e.g., Johannesburg Office was added). The integration of team member invitation and management (especially the email invitation flow and associating team members with branches) is the next logical step within this feature.
+The last successful action was backend testing, confirming that the package management API works correctly, and all six packages are recognized and manageable. The next step is to integrate the actual Payfast payment processing and the automated package activation in .
 </current_work>
 
 <optional_next_step>
-Complete the Company Structure and Team Management features by implementing the team member invitation flow and the ability to associate team members with specific company branches.
+Implement the full Payfast integration on the backend using the provided merchant credentials to automate package activation upon successful payment.
 </optional_next_step>
