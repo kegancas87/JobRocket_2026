@@ -314,7 +314,7 @@ class PayfastTestSuite:
         # Generate valid signature
         webhook_data["signature"] = self.generate_payfast_signature(webhook_data, PAYFAST_PASSPHRASE)
         
-        response = self.make_request("POST", "/webhooks/payfast", webhook_data)
+        response = self.make_request("POST", "/webhooks/payfast", webhook_data, form_data=True)
         if self.assert_response(response, 200, "Valid Webhook with Correct Signature"):
             result = response.json()
             print_success("Webhook processed successfully with valid signature")
@@ -328,16 +328,30 @@ class PayfastTestSuite:
         invalid_webhook["signature"] = "invalid_signature_hash"
         invalid_webhook["m_payment_id"] = "test_payment_124"
         
-        response = self.make_request("POST", "/webhooks/payfast", invalid_webhook)
-        self.assert_response(response, 400, "Invalid Signature (Should Fail)")
+        response = self.make_request("POST", "/webhooks/payfast", invalid_webhook, form_data=True)
+        if response and response.status_code == 200:
+            result = response.json()
+            if result.get("status") == "error" and "signature" in result.get("reason", "").lower():
+                print_success("Invalid signature correctly rejected")
+            else:
+                print_error("Invalid signature should be rejected")
+        else:
+            self.assert_response(response, 400, "Invalid Signature (Should Fail)")
         
         # Test 3: Missing signature (should fail)
         missing_sig_webhook = webhook_data.copy()
         del missing_sig_webhook["signature"]
         missing_sig_webhook["m_payment_id"] = "test_payment_125"
         
-        response = self.make_request("POST", "/webhooks/payfast", missing_sig_webhook)
-        self.assert_response(response, 400, "Missing Signature (Should Fail)")
+        response = self.make_request("POST", "/webhooks/payfast", missing_sig_webhook, form_data=True)
+        if response and response.status_code == 200:
+            result = response.json()
+            if result.get("status") == "error" and "signature" in result.get("reason", "").lower():
+                print_success("Missing signature correctly rejected")
+            else:
+                print_error("Missing signature should be rejected")
+        else:
+            self.assert_response(response, 400, "Missing Signature (Should Fail)")
         
         # Test 4: Webhook with incomplete payment status
         incomplete_webhook = webhook_data.copy()
@@ -345,7 +359,7 @@ class PayfastTestSuite:
         incomplete_webhook["m_payment_id"] = "test_payment_126"
         incomplete_webhook["signature"] = self.generate_payfast_signature(incomplete_webhook, PAYFAST_PASSPHRASE)
         
-        response = self.make_request("POST", "/webhooks/payfast", incomplete_webhook)
+        response = self.make_request("POST", "/webhooks/payfast", incomplete_webhook, form_data=True)
         if self.assert_response(response, 200, "Webhook with Pending Status"):
             result = response.json()
             if result.get("message") and "not complete" in result["message"].lower():
