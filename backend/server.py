@@ -815,6 +815,77 @@ class StatusCheckCreate(BaseModel):
     client_name: str
 
 
+async def validate_discount_code(code: str, user_id: str, package_type: PackageType, package_price: float):
+    """
+    Validate discount code and calculate discount amount
+    Returns dict with validation result and discount details
+    """
+    if not code:
+        return {"valid": False, "error": "No discount code provided"}
+    
+    # Get discount code from database
+    discount_doc = await db.discount_codes.find_one({"code": code.upper()})
+    if not discount_doc:
+        return {"valid": False, "error": "Invalid discount code"}
+    
+    if "_id" in discount_doc:
+        del discount_doc["_id"]
+    
+    discount = DiscountCode(**discount_doc)
+    
+    # Check if discount code is active
+    if discount.status != DiscountStatus.ACTIVE:
+        return {"valid": False, "error": "Discount code is inactive"}
+    
+    # Check validity dates
+    now = datetime.utcnow()
+    if discount.valid_from > now:
+        return {"valid": False, "error": "Discount code is not yet valid"}
+    
+    if discount.valid_until and discount.valid_until < now:
+        return {"valid": False, "error": "Discount code has expired"}
+    
+    # Check usage limits
+    if discount.usage_limit and discount.usage_count >= discount.usage_limit:
+        return {"valid": False, "error": "Discount code usage limit exceeded"}
+    
+    # Check user-specific usage limit
+    if discount.user_limit:
+        user_usage_count = await db.payments.count_documents({
+            "user_id": user_id,
+            "discount_code": code.upper(),
+            "status": PaymentStatus.COMPLETED
+        })
+        if user_usage_count >= discount.user_limit:
+            return {"valid": False, "error": "Personal usage limit for this discount code exceeded"}
+    
+    # Check if package is applicable
+    if discount.applicable_packages and package_type not in discount.applicable_packages:
+        return {"valid": False, "error": "Discount code not applicable to this package"}
+    
+    # Check minimum amount requirement
+    if discount.minimum_amount and package_price < discount.minimum_amount:
+        return {"valid": False, "error": f"Minimum purchase amount of R{discount.minimum_amount:.2f} required"}
+    
+    # Calculate discount amount
+    if discount.discount_type == DiscountType.PERCENTAGE:
+        discount_amount = package_price * (discount.discount_value / 100)
+        if discount.maximum_discount:
+            discount_amount = min(discount_amount, discount.maximum_discount)
+    else:  # FIXED_AMOUNT
+        discount_amount = min(discount.discount_value, package_price)
+    
+    # Ensure discount doesn't exceed package price
+    discount_amount = min(discount_amount, package_price)
+    
+    return {
+        "valid": True,
+        "discount": discount,
+        "discount_amount": discount_amount,
+        "final_price": package_price - discount_amount
+    }
+
+
 # Authentication Routes
 @api_router.post("/auth/register", response_model=Token)
 async def register(user_data: UserRegister):
