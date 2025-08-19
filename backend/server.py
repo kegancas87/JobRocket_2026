@@ -674,6 +674,53 @@ class Payment(BaseModel):
     completed_date: Optional[datetime] = None
     failure_reason: Optional[str] = None
 
+class DiscountCode(BaseModel):
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    code: str  # The discount code (e.g., "WELCOME20")
+    name: str  # Human-friendly name (e.g., "Welcome 20% Off")
+    description: Optional[str] = None
+    discount_type: DiscountType  # percentage or fixed_amount
+    discount_value: float  # 20 (for 20%) or 500 (for R500 off)
+    minimum_amount: Optional[float] = None  # Minimum purchase amount
+    maximum_discount: Optional[float] = None  # Max discount for percentage types
+    usage_limit: Optional[int] = None  # Total usage limit (None = unlimited)
+    usage_count: int = 0  # Current usage count
+    user_limit: Optional[int] = None  # Usage limit per user (None = unlimited)
+    valid_from: datetime = Field(default_factory=datetime.utcnow)
+    valid_until: Optional[datetime] = None  # Expiry date (None = no expiry)
+    applicable_packages: Optional[List[PackageType]] = None  # Specific packages (None = all)
+    status: DiscountStatus = DiscountStatus.ACTIVE
+    created_by: str  # Admin user ID
+    created_date: datetime = Field(default_factory=datetime.utcnow)
+    updated_date: Optional[datetime] = None
+
+class DiscountCodeCreate(BaseModel):
+    code: str
+    name: str
+    description: Optional[str] = None
+    discount_type: DiscountType
+    discount_value: float
+    minimum_amount: Optional[float] = None
+    maximum_discount: Optional[float] = None
+    usage_limit: Optional[int] = None
+    user_limit: Optional[int] = None
+    valid_from: Optional[datetime] = None
+    valid_until: Optional[datetime] = None
+    applicable_packages: Optional[List[PackageType]] = None
+
+class DiscountCodeUpdate(BaseModel):
+    name: Optional[str] = None
+    description: Optional[str] = None
+    discount_value: Optional[float] = None
+    minimum_amount: Optional[float] = None
+    maximum_discount: Optional[float] = None
+    usage_limit: Optional[int] = None
+    user_limit: Optional[int] = None
+    valid_from: Optional[datetime] = None
+    valid_until: Optional[datetime] = None
+    applicable_packages: Optional[List[PackageType]] = None
+    status: Optional[DiscountStatus] = None
+
 class BulkJobCreate(BaseModel):
     jobs: List[JobCreate]
     company_id: Optional[str] = None  # Can override individual job company_id
