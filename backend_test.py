@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
-Backend Test Suite for Job Rocket Enhanced Job Posting System
-Tests enhanced job posting system with automatic expiry, archive functionality, and public API
+Backend Test Suite for Job Rocket Discount Codes System and Payfast Sandbox Mode
+Tests discount codes system, admin management, payment integration, and Payfast sandbox configuration
 """
 
 import requests
@@ -13,7 +13,7 @@ import io
 import csv
 
 # Configuration
-BASE_URL = "https://jobrocket.preview.emergentagent.com/api"
+BASE_URL = "https://2f81706c-76db-49e4-a24b-38ca4e94e2e2.preview.emergentagent.com/api"
 HEADERS = {"Content-Type": "application/json"}
 
 class Colors:
