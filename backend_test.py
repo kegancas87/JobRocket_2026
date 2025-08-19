@@ -207,7 +207,7 @@ class DiscountCodesTestSuite:
                 "package_type": package["package_type"]
             }
             
-            response = self.make_request("POST", "/payments/initiate", data=payment_params, auth_token=self.recruiter_token)
+            response = self.make_request("POST", "/payments/initiate", data=payment_params, auth_token=self.recruiter_token, use_params=True)
             if self.assert_response(response, 200, f"Sandbox Payment for {package['name']}"):
                 result = response.json()
                 payment_url = result.get("payment_url", "")
