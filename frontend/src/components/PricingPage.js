@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Button } from "./ui/button";
+import { Input } from "./ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "./ui/card";
 import { Badge } from "./ui/badge";
 import { 
@@ -13,7 +14,11 @@ import {
   CreditCard,
   Star,
   ArrowRight,
-  Sparkles
+  Sparkles,
+  Tag,
+  AlertCircle,
+  CheckCircle,
+  X
 } from "lucide-react";
 import axios from 'axios';
 
@@ -24,6 +29,11 @@ const PricingPage = ({ user, onClose }) => {
   const [packages, setPackages] = useState([]);
   const [loading, setLoading] = useState(true);
   const [purchasing, setPurchasing] = useState(null);
+  const [selectedPackage, setSelectedPackage] = useState(null);
+  const [discountCode, setDiscountCode] = useState('');
+  const [discountValidation, setDiscountValidation] = useState(null);
+  const [validatingDiscount, setValidatingDiscount] = useState(false);
+  const [showCheckout, setShowCheckout] = useState(false);
 
   const getAuthHeaders = () => {
     const token = localStorage.getItem('token');
