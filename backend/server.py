@@ -2463,9 +2463,10 @@ async def get_package_by_type(package_type: PackageType):
 @api_router.post("/payments/initiate")
 async def initiate_payment(
     package_type: PackageType,
+    discount_code: Optional[str] = None,
     current_user: User = Depends(get_current_user)
 ):
-    """Initiate payment for a package"""
+    """Initiate payment for a package with optional discount code"""
     if current_user.role != UserRole.RECRUITER:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
@@ -2484,11 +2485,43 @@ async def initiate_payment(
             detail="Package not found"
         )
     
+    original_amount = package["price"]
+    discount_amount = 0.0
+    final_amount = original_amount
+    discount_info = None
+    
+    # Validate and apply discount code if provided
+    if discount_code:
+        validation_result = await validate_discount_code(
+            discount_code, 
+            current_user.id, 
+            package_type, 
+            original_amount
+        )
+        
+        if not validation_result["valid"]:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=validation_result["error"]
+            )
+        
+        discount_amount = validation_result["discount_amount"]
+        final_amount = validation_result["final_price"]
+        discount_info = {
+            "code": discount_code.upper(),
+            "type": validation_result["discount"]["discount_type"],
+            "value": validation_result["discount"]["discount_value"],
+            "amount": discount_amount
+        }
+    
     # Create payment record
     payment_data = {
         "user_id": current_user.id,
         "package_id": package["id"],
-        "amount": package["price"],
+        "amount": original_amount,
+        "discount_code": discount_code.upper() if discount_code else None,
+        "discount_amount": discount_amount,
+        "final_amount": final_amount,
         "currency": "ZAR",
         "payment_method": "payfast"
     }
