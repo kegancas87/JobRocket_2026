@@ -665,7 +665,10 @@ class Payment(BaseModel):
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
     user_id: str
     package_id: str
-    amount: float
+    amount: float  # Original package amount
+    discount_code: Optional[str] = None  # Applied discount code
+    discount_amount: float = 0.0  # Discount amount applied
+    final_amount: float  # Final amount after discount
     currency: str = "ZAR"
     payment_method: str = "payfast"
     payment_reference: Optional[str] = None  # Payfast payment reference
