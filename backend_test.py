@@ -201,11 +201,11 @@ class DiscountCodesTestSuite:
         # Test 2: Verify sandbox environment variables are working
         # This is implicit in the URL test above, but we can test multiple packages
         for i, package in enumerate(packages[:3]):  # Test first 3 packages
-            payment_data = {
+            payment_params = {
                 "package_type": package["package_type"]
             }
             
-            response = self.make_request("POST", "/payments/initiate", payment_data, auth_token=self.recruiter_token)
+            response = self.make_request("POST", "/payments/initiate", data=payment_params, auth_token=self.recruiter_token)
             if self.assert_response(response, 200, f"Sandbox Payment for {package['name']}"):
                 result = response.json()
                 payment_url = result.get("payment_url", "")
