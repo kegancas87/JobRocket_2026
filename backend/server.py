@@ -2470,6 +2470,98 @@ async def complete_payment(
         "cv_searches_remaining": user_package_data["cv_searches_remaining"]
     }
 
+@api_router.post("/webhooks/payfast")
+async def payfast_webhook(request: Request):
+    """Handle PayFast webhook notifications for automatic package activation"""
+    try:
+        # Get form data from PayFast
+        form_data = await request.form()
+        data = dict(form_data)
+        
+        # Log the webhook data for debugging
+        logging.info(f"PayFast webhook received: {data}")
+        
+        # Verify signature
+        if not verify_payfast_signature(data, PAYFAST_PASSPHRASE):
+            logging.error("PayFast webhook signature verification failed")
+            raise HTTPException(status_code=400, detail="Invalid signature")
+        
+        # Extract payment information
+        payment_status = data.get('payment_status')
+        custom_str1 = data.get('custom_str1')  # Payment ID
+        custom_str2 = data.get('custom_str2')  # User ID
+        pf_payment_id = data.get('pf_payment_id')
+        amount_gross = float(data.get('amount_gross', 0))
+        
+        # Only process completed payments
+        if payment_status != 'COMPLETE':
+            logging.info(f"PayFast payment not complete: {payment_status}")
+            return {"status": "ignored", "reason": f"Payment status: {payment_status}"}
+        
+        if not custom_str1:
+            logging.error("PayFast webhook missing payment ID")
+            return {"status": "error", "reason": "Missing payment ID"}
+        
+        # Get payment record
+        payment = await db.payments.find_one({"id": custom_str1})
+        if not payment:
+            logging.error(f"PayFast webhook: Payment not found: {custom_str1}")
+            return {"status": "error", "reason": "Payment not found"}
+        
+        # Check if payment is already completed
+        if payment.get("status") == PaymentStatus.COMPLETED:
+            logging.info(f"PayFast webhook: Payment already completed: {custom_str1}")
+            return {"status": "success", "reason": "Payment already processed"}
+        
+        # Verify amount matches
+        if abs(payment["amount"] - amount_gross) > 0.01:  # Allow small floating point differences
+            logging.error(f"PayFast webhook: Amount mismatch. Expected: {payment['amount']}, Received: {amount_gross}")
+            return {"status": "error", "reason": "Amount mismatch"}
+        
+        # Get package details
+        package = await db.packages.find_one({"id": payment["package_id"]})
+        if not package:
+            logging.error(f"PayFast webhook: Package not found: {payment['package_id']}")
+            return {"status": "error", "reason": "Package not found"}
+        
+        # Update payment status
+        await db.payments.update_one(
+            {"id": custom_str1},
+            {"$set": {
+                "status": PaymentStatus.COMPLETED,
+                "payment_reference": pf_payment_id,
+                "completed_date": datetime.utcnow(),
+                "webhook_data": data
+            }}
+        )
+        
+        # Create/activate user package
+        user_package_data = {
+            "user_id": payment["user_id"],
+            "package_id": package["id"],
+            "package_type": package["package_type"],
+            "purchased_date": datetime.utcnow(),
+            "is_active": True,
+            "job_listings_remaining": package["job_listings"],
+            "cv_searches_remaining": package["cv_searches"]
+        }
+        
+        # Set expiry date for subscription packages
+        if package["subscription_period_days"]:
+            user_package_data["expiry_date"] = datetime.utcnow() + timedelta(days=package["subscription_period_days"])
+            user_package_data["subscription_status"] = SubscriptionStatus.ACTIVE
+        
+        user_package = UserPackage(**user_package_data)
+        await db.user_packages.insert_one(user_package.dict())
+        
+        logging.info(f"PayFast webhook: Successfully activated package {package['name']} for user {payment['user_id']}")
+        
+        return {"status": "success", "message": "Package activated successfully"}
+        
+    except Exception as e:
+        logging.error(f"PayFast webhook error: {str(e)}")
+        return {"status": "error", "reason": str(e)}
+
 @api_router.get("/my-packages", response_model=List[dict])
 async def get_my_packages(current_user: User = Depends(get_current_user)):
     """Get user's purchased packages"""
