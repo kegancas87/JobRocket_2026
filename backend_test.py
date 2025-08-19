@@ -439,7 +439,7 @@ class DiscountCodesTestSuite:
             "discount_code": active_discount["code"]
         }
         
-        response = self.make_request("POST", "/payments/initiate", data=payment_params, auth_token=self.recruiter_token)
+        response = self.make_request("POST", "/payments/initiate", data=payment_params, auth_token=self.recruiter_token, use_params=True)
         if self.assert_response(response, 200, "Payment with Valid Discount Code"):
             result = response.json()
             
