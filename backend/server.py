@@ -2536,7 +2536,7 @@ async def initiate_payment(
         'return_url': f"{BASE_URL}/payment/success",
         'cancel_url': f"{BASE_URL}/payment/cancel",
         'notify_url': f"{BASE_URL}/api/webhooks/payfast",
-        'amount': f"{package['price']:.2f}",
+        'amount': f"{final_amount:.2f}",
         'item_name': package['name'],
         'item_description': package.get('description', package['name']),
         'custom_str1': payment_obj.id,  # Payment ID for tracking
@@ -2544,6 +2544,10 @@ async def initiate_payment(
         'email_confirmation': '1',
         'confirmation_address': current_user.email
     }
+    
+    # Add discount information to description if applicable
+    if discount_info:
+        payfast_data['item_description'] += f" (Discount: {discount_info['code']})"
     
     # Generate signature
     signature = generate_payfast_signature(payfast_data, PAYFAST_PASSPHRASE)
@@ -2559,13 +2563,20 @@ async def initiate_payment(
     param_string = '&'.join([f"{k}={urllib.parse.quote_plus(str(v))}" for k, v in payfast_data.items()])
     payfast_url = f"{payfast_base_url}?{param_string}"
     
-    return {
+    response_data = {
         "payment_id": payment_obj.id,
         "payment_url": payfast_url,
-        "amount": package["price"],
+        "original_amount": original_amount,
+        "final_amount": final_amount,
         "currency": "ZAR",
         "package_name": package["name"]
     }
+    
+    # Add discount information to response if applicable
+    if discount_info:
+        response_data["discount"] = discount_info
+    
+    return response_data
 
 @api_router.post("/payments/{payment_id}/complete")
 async def complete_payment(
