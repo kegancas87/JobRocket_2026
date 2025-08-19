@@ -111,31 +111,6 @@ const PricingPage = ({ user, onClose }) => {
     setDiscountValidation(null);
   };
 
-  const handlePurchase = async () => {
-    if (!selectedPackage) return;
-    
-    setPurchasing(selectedPackage.package_type);
-    
-    try {
-      const payload = {
-        package_type: selectedPackage.package_type
-      };
-      
-      if (discountCode.trim()) {
-        payload.discount_code = discountCode.trim();
-      }
-      
-      const response = await axios.post(`${API}/payments/initiate`, payload, getAuthHeaders());
-      
-      // Redirect to Payfast
-      window.location.href = response.data.payment_url;
-    } catch (error) {
-      console.error('Error initiating payment:', error);
-      alert(error.response?.data?.detail || 'Error processing payment');
-    } finally {
-      setPurchasing(null);
-    }
-  };
 
   const formatCurrency = (amount) => {
     return new Intl.NumberFormat('en-ZA', {
