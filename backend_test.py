@@ -432,12 +432,12 @@ class DiscountCodesTestSuite:
         test_package = self.packages[0]  # Use first package
         
         # Test 1: Initiate payment with valid discount code
-        payment_data = {
+        payment_params = {
             "package_type": test_package["package_type"],
             "discount_code": active_discount["code"]
         }
         
-        response = self.make_request("POST", "/payments/initiate", payment_data, auth_token=self.recruiter_token)
+        response = self.make_request("POST", "/payments/initiate", data=payment_params, auth_token=self.recruiter_token)
         if self.assert_response(response, 200, "Payment with Valid Discount Code"):
             result = response.json()
             
