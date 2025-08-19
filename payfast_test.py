@@ -282,20 +282,12 @@ class PayfastTestSuite:
                         print_error("Webhook URL missing from payment")
         
         # Test unauthorized payment initiation (should fail)
-        payment_data = {
-            "package_type": "two_listings"
-        }
-        
-        response = self.make_request("POST", "/payments/initiate", payment_data)
+        response = self.make_request("POST", "/payments/initiate?package_type=two_listings", None)
         self.assert_response(response, 401, "Unauthorized Payment Initiation (Should Fail)")
         
         # Test invalid package type (should fail)
-        invalid_payment = {
-            "package_type": "invalid_package"
-        }
-        
-        response = self.make_request("POST", "/payments/initiate", invalid_payment, auth_token=self.recruiter_token)
-        self.assert_response(response, 400, "Invalid Package Type (Should Fail)")
+        response = self.make_request("POST", "/payments/initiate?package_type=invalid_package", None, auth_token=self.recruiter_token)
+        self.assert_response(response, 422, "Invalid Package Type (Should Fail)")
         
         return len(self.payment_ids) > 0
 
