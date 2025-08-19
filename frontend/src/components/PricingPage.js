@@ -61,6 +61,96 @@ const PricingPage = ({ user, onClose }) => {
     }
   };
 
+  const validateDiscountCode = async (code, packageType) => {
+    if (!code.trim()) {
+      setDiscountValidation(null);
+      return;
+    }
+
+    setValidatingDiscount(true);
+    try {
+      const response = await axios.post(`${API}/discount-codes/validate`, {
+        code: code.trim(),
+        package_type: packageType
+      });
+      
+      setDiscountValidation({
+        valid: true,
+        ...response.data
+      });
+    } catch (error) {
+      setDiscountValidation({
+        valid: false,
+        error: error.response?.data?.error || 'Invalid discount code'
+      });
+    } finally {
+      setValidatingDiscount(false);
+    }
+  };
+
+  const handleDiscountCodeChange = (value) => {
+    setDiscountCode(value);
+    
+    // Clear previous validation
+    setDiscountValidation(null);
+    
+    // Validate after a short delay
+    if (selectedPackage && value.trim()) {
+      const timeoutId = setTimeout(() => {
+        validateDiscountCode(value, selectedPackage.package_type);
+      }, 500);
+      
+      return () => clearTimeout(timeoutId);
+    }
+  };
+
+  const handleSelectPackage = (pkg) => {
+    setSelectedPackage(pkg);
+    setShowCheckout(true);
+    setDiscountCode('');
+    setDiscountValidation(null);
+  };
+
+  const handlePurchase = async () => {
+    if (!selectedPackage) return;
+    
+    setPurchasing(selectedPackage.package_type);
+    
+    try {
+      const payload = {
+        package_type: selectedPackage.package_type
+      };
+      
+      if (discountCode.trim()) {
+        payload.discount_code = discountCode.trim();
+      }
+      
+      const response = await axios.post(`${API}/payments/initiate`, payload, getAuthHeaders());
+      
+      // Redirect to Payfast
+      window.location.href = response.data.payment_url;
+    } catch (error) {
+      console.error('Error initiating payment:', error);
+      alert(error.response?.data?.detail || 'Error processing payment');
+    } finally {
+      setPurchasing(null);
+    }
+  };
+
+  const formatCurrency = (amount) => {
+    return new Intl.NumberFormat('en-ZA', {
+      style: 'currency',
+      currency: 'ZAR'
+    }).format(amount);
+  };
+
+  const closeCheckout = () => {
+    setShowCheckout(false);
+    setSelectedPackage(null);
+    setDiscountCode('');
+    setDiscountValidation(null);
+  };
+
   const handlePurchase = async (packageType) => {
     try {
       setPurchasing(packageType);
