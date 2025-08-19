@@ -311,7 +311,7 @@ const PricingPage = ({ user, onClose }) => {
                   </div>
                   
                   <Button 
-                    onClick={() => handlePurchase(pkg.package_type)}
+                    onClick={() => handleSelectPackage(pkg)}
                     disabled={purchasing === pkg.package_type}
                     className={`w-full py-3 text-lg font-semibold transition-all duration-200 ${
                       isPopular(pkg.package_type)
@@ -327,7 +327,7 @@ const PricingPage = ({ user, onClose }) => {
                     ) : (
                       <div className="flex items-center justify-center space-x-2">
                         <CreditCard className="w-5 h-5" />
-                        <span>Purchase Now</span>
+                        <span>Select Package</span>
                         <ArrowRight className="w-4 h-4" />
                       </div>
                     )}
