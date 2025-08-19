@@ -419,7 +419,7 @@ class PayfastTestSuite:
             # Generate valid signature
             webhook_data["signature"] = self.generate_payfast_signature(webhook_data, PAYFAST_PASSPHRASE)
             
-            response = self.make_request("POST", "/webhooks/payfast", webhook_data)
+            response = self.make_request("POST", "/webhooks/payfast", webhook_data, form_data=True)
             if self.assert_response(response, 200, f"Activate {test_package['item_name']}"):
                 result = response.json()
                 
