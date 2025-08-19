@@ -646,12 +646,12 @@ metadata:
 
 test_plan:
   current_focus: 
-    - "Payfast Sandbox Mode Configuration - NEEDS TESTING"
-    - "Discount Codes System - Admin Management - NEEDS TESTING"  
-    - "Discount Codes System - Payment Integration - NEEDS TESTING"
-    - "Discount Codes System - Public Validation - NEEDS TESTING"
+    - "Frontend JavaScript Errors - CRITICAL ISSUE"
+    - "Discount Codes Frontend Implementation - MISSING COMPLETELY"
   stuck_tasks: 
-    - "Minor: HTTP status codes 403 vs 401 for unauthenticated requests (acceptable difference)"
+    - "Discount Codes System - Admin Management - Frontend missing"
+    - "Discount Codes System - Payment Integration - Frontend missing"  
+    - "Discount Codes System - Public Validation - Frontend missing"
   test_all: false
   test_priority: "high_first"
 
