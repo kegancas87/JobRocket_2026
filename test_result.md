@@ -189,6 +189,18 @@ backend:
         -agent: "testing"
         -comment: "Package Scenarios working excellently. Multiple package purchase and activation tested successfully. CV Search package (10 searches) activated correctly. Subscription vs one-time package differentiation working. Package expiry and status management verified. Bulk job creation with package restrictions working. Mixed package types (job listings + CV searches) handled properly. Package status management across different scenarios working correctly."
 
+  - task: "Payfast Integration with Real Credentials"
+    implemented: true
+    working: "NA"
+    file: "/app/backend/server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+        -working: "NA"
+        -agent: "main"
+        -comment: "Implemented full Payfast integration with real merchant credentials. Added signature generation/verification functions, updated payment initiation with actual Payfast URLs and parameters, created webhook endpoint /api/webhooks/payfast for automatic package activation. Includes security verification, idempotency handling, comprehensive error handling. Ready for testing."
+
   - task: "Automatic Job Expiry (35 days)"
     implemented: true
     working: true
