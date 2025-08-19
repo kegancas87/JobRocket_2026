@@ -30,6 +30,13 @@ ACCESS_TOKEN_EXPIRE_MINUTES = 30 * 24 * 60  # 30 days
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 security = HTTPBearer()
 
+# Payfast Configuration
+PAYFAST_MERCHANT_ID = os.environ.get('PAYFAST_MERCHANT_ID')
+PAYFAST_MERCHANT_KEY = os.environ.get('PAYFAST_MERCHANT_KEY')
+PAYFAST_PASSPHRASE = os.environ.get('PAYFAST_PASSPHRASE')
+PAYFAST_SANDBOX = os.environ.get('PAYFAST_SANDBOX', 'False').lower() == 'true'
+BASE_URL = os.environ.get('BASE_URL', 'https://jobrocket.preview.emergentagent.com')
+
 # MongoDB connection
 mongo_url = os.environ['MONGO_URL']
 client = AsyncIOMotorClient(mongo_url)
