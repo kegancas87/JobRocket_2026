@@ -645,10 +645,16 @@ function App() {
                 user={user} 
                 onUpdateUser={handleUpdateUser}
               />
+            ) : user.role === 'admin' ? (
+              <AdminDashboard 
+                user={user}
+                onLogout={handleLogout}
+              />
             ) : (
               <ProfileDashboard 
                 user={user} 
                 onUpdateUser={handleUpdateUser}
+                onLogout={handleLogout}
               />
             )
           } />
