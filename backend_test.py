@@ -134,7 +134,7 @@ class DiscountCodesTestSuite:
         
         # Login as recruiter for payment tests
         recruiter_login_data = {
-            "email": "lisa.martinez@techcorp.demo",
+            "email": "demo.recruiter@test.com",
             "password": "demo123"
         }
         
