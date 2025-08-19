@@ -3202,56 +3202,61 @@ async def seed_data():
 # Public discount code validation endpoint
 @api_router.post("/discount-codes/validate")
 async def validate_discount_code_endpoint(
-    code: str,
-    package_type: PackageType,
-    current_user: User = Depends(get_current_user)
+    validation_request: DiscountValidationRequest
 ):
-    """Validate a discount code for a specific package (Public endpoint for logged-in users)"""
+    """Validate a discount code for a specific package (Public endpoint - no auth required)"""
+    code = validation_request.code
+    package_type = validation_request.package_type
+    package_price = validation_request.package_price
+    
     if not code or not code.strip():
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Discount code is required"
-        )
+        return {
+            "valid": False,
+            "error": "Discount code is required"
+        }
     
-    # Get package details to get the price
-    package = await db.packages.find_one({
-        "package_type": package_type,
-        "is_active": True
-    })
+    # Get package details to get the price if not provided
+    if package_price is None:
+        package = await db.packages.find_one({
+            "package_type": package_type,
+            "is_active": True
+        })
+        
+        if not package:
+            return {
+                "valid": False,
+                "error": "Package not found"
+            }
+        package_price = package["price"]
     
-    if not package:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Package not found"
-        )
-    
+    # Use a dummy user ID for public validation (we'll use "public" as user_id)
     validation_result = await validate_discount_code(
         code.strip(), 
-        current_user.id, 
+        "public",  # Use dummy user ID for public validation
         package_type, 
-        package["price"]
+        package_price
     )
     
     if not validation_result["valid"]:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=validation_result["error"]
-        )
+        return {
+            "valid": False,
+            "error": validation_result["error"]
+        }
     
     discount_info = validation_result["discount"]
     
     return {
         "valid": True,
-        "discount": {
+        "discount_details": {
             "code": code.upper(),
             "name": discount_info.name,
             "description": discount_info.description,
             "discount_type": discount_info.discount_type,
-            "discount_value": discount_info.discount_value,
-            "discount_amount": validation_result["discount_amount"],
-            "original_price": package["price"],
-            "final_price": validation_result["final_price"]
-        }
+            "discount_value": discount_info.discount_value
+        },
+        "original_price": package_price,
+        "discount_amount": validation_result["discount_amount"],
+        "final_price": validation_result["final_price"]
     }
 
 # Admin Routes for Discount Codes
