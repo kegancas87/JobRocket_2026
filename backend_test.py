@@ -54,7 +54,7 @@ class DiscountCodesTestSuite:
             "errors": []
         }
 
-    def make_request(self, method, endpoint, data=None, headers=None, auth_token=None, files=None):
+    def make_request(self, method, endpoint, data=None, headers=None, auth_token=None, files=None, use_params=False):
         """Make HTTP request with proper error handling"""
         url = f"{BASE_URL}{endpoint}"
         request_headers = {}
@@ -75,13 +75,10 @@ class DiscountCodesTestSuite:
             elif method.upper() == "POST":
                 if files:
                     response = requests.post(url, headers=request_headers, files=files, data=data)
+                elif use_params:
+                    response = requests.post(url, headers=request_headers, params=data)
                 else:
-                    # For POST requests, if data contains simple key-value pairs, use as params
-                    # Otherwise use as JSON body
-                    if data and all(isinstance(v, (str, int, float, bool)) for v in data.values()):
-                        response = requests.post(url, headers=request_headers, params=data)
-                    else:
-                        response = requests.post(url, json=data, headers=request_headers)
+                    response = requests.post(url, json=data, headers=request_headers)
             elif method.upper() == "PUT":
                 response = requests.put(url, json=data, headers=request_headers)
             elif method.upper() == "DELETE":
