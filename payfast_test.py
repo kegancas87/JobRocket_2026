@@ -413,7 +413,8 @@ class PayfastTestSuite:
                 "amount_fee": str(float(test_package["amount"]) * 0.05),  # 5% fee
                 "amount_net": str(float(test_package["amount"]) * 0.95),
                 "merchant_id": PAYFAST_MERCHANT_ID,
-                "custom_str1": self.recruiter_user_id
+                "custom_str1": test_package["payment_id"],  # Payment ID
+                "custom_str2": self.recruiter_user_id  # User ID
             }
             
             # Generate valid signature
