@@ -215,39 +215,48 @@ backend:
 
   - task: "Discount Codes System - Admin Management"
     implemented: true
-    working: "NA"
+    working: false
     file: "/app/backend/server.py"
-    stuck_count: 0
+    stuck_count: 1
     priority: "high"
-    needs_retesting: true
+    needs_retesting: false
     status_history:
         -working: "NA"
         -agent: "main"
         -comment: "Implemented comprehensive discount codes system with admin management endpoints: CREATE /admin/discount-codes, LIST /admin/discount-codes, GET /admin/discount-codes/{id}, UPDATE /admin/discount-codes/{id}, DELETE /admin/discount-codes/{id}, DEACTIVATE /admin/discount-codes/{id}/deactivate, USAGE STATS /admin/discount-codes/stats/usage. Supports percentage and fixed amount discounts with usage limits, expiry dates, and package restrictions."
+        -working: false
+        -agent: "testing"
+        -comment: "CRITICAL ISSUE: Frontend admin interface for discount code management is completely missing. Backend endpoints exist but there's no UI for admins to create, view, update, or manage discount codes. Admin login works but no discount management interface is accessible. Application also has JavaScript errors (FileText is not defined) preventing proper functionality. Frontend implementation required for complete discount code system."
 
   - task: "Discount Codes System - Payment Integration"
     implemented: true
-    working: "NA"
+    working: false
     file: "/app/backend/server.py"
-    stuck_count: 0
+    stuck_count: 1
     priority: "high"
-    needs_retesting: true
+    needs_retesting: false
     status_history:
         -working: "NA"
         -agent: "main"
         -comment: "Integrated discount codes into payment system. Updated payment initiation endpoint to accept discount_code parameter, validate codes, calculate discounts, and apply to final payment amount. Updated Payment model to track original amount, discount amount, and final amount. Updated webhook to verify final amount and increment discount usage count."
+        -working: false
+        -agent: "testing"
+        -comment: "CRITICAL ISSUE: Frontend payment integration for discount codes is completely missing. No discount code input field in pricing/packages page, no discount validation UI, no price calculation display with discounts. Backend integration exists but frontend UI is not implemented. Recruiters cannot apply discount codes during checkout as there's no input field or validation interface."
 
   - task: "Discount Codes System - Public Validation"
     implemented: true
-    working: "NA"
+    working: false
     file: "/app/backend/server.py"
-    stuck_count: 0
+    stuck_count: 1
     priority: "high"
-    needs_retesting: true
+    needs_retesting: false
     status_history:
         -working: "NA"
         -agent: "main"
         -comment: "Added public endpoint POST /discount-codes/validate for frontend to validate discount codes before payment. Returns discount details, original price, discount amount, and final price. Includes comprehensive validation logic for code status, expiry dates, usage limits, package applicability, and minimum amounts."
+        -working: false
+        -agent: "testing"
+        -comment: "CRITICAL ISSUE: Frontend discount code validation UI is completely missing. Backend validation endpoint exists but no frontend interface to validate codes, show discount amounts, or display error messages. No real-time validation, no price updates when codes are applied. Complete frontend implementation needed to utilize backend validation functionality."
 
   - task: "Automatic Job Expiry (35 days)"
     implemented: true
