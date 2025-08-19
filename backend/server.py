@@ -2542,13 +2542,13 @@ async def payfast_webhook(request: Request):
             "package_type": package["package_type"],
             "purchased_date": datetime.utcnow(),
             "is_active": True,
-            "job_listings_remaining": package["job_listings"],
-            "cv_searches_remaining": package["cv_searches"]
+            "job_listings_remaining": package["job_listings_included"],
+            "cv_searches_remaining": package["cv_searches_included"]
         }
         
         # Set expiry date for subscription packages
-        if package["subscription_period_days"]:
-            user_package_data["expiry_date"] = datetime.utcnow() + timedelta(days=package["subscription_period_days"])
+        if package.get("duration_days"):
+            user_package_data["expiry_date"] = datetime.utcnow() + timedelta(days=package["duration_days"])
             user_package_data["subscription_status"] = SubscriptionStatus.ACTIVE
         
         user_package = UserPackage(**user_package_data)
