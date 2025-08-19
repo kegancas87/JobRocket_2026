@@ -540,6 +540,9 @@ function App() {
       } else {
         setCurrentPage('jobs'); // or recruiter dashboard
       }
+    } else if (userData.role === 'admin') {
+      // For admins, go to admin dashboard
+      setCurrentPage('admin-dashboard');
     } else {
       // For job seekers, check if profile needs completion
       const totalPoints = userData.profile_progress?.total_points || 0;
