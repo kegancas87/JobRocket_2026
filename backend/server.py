@@ -728,6 +728,11 @@ class BulkJobCreate(BaseModel):
     jobs: List[JobCreate]
     company_id: Optional[str] = None  # Can override individual job company_id
 
+class DiscountValidationRequest(BaseModel):
+    code: str
+    package_type: PackageType
+    package_price: Optional[float] = None
+
 # Initialize default packages
 DEFAULT_PACKAGES = [
     {
