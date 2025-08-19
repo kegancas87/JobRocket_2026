@@ -59,7 +59,7 @@ class PayfastTestSuite:
             "errors": []
         }
 
-    def make_request(self, method, endpoint, data=None, headers=None, auth_token=None):
+    def make_request(self, method, endpoint, data=None, headers=None, auth_token=None, form_data=False):
         """Make HTTP request with proper error handling"""
         url = f"{BASE_URL}{endpoint}"
         request_headers = {}
@@ -70,14 +70,17 @@ class PayfastTestSuite:
         if auth_token:
             request_headers["Authorization"] = f"Bearer {auth_token}"
         
-        if method.upper() in ["POST", "PUT"]:
+        if method.upper() in ["POST", "PUT"] and not form_data:
             request_headers["Content-Type"] = "application/json"
         
         try:
             if method.upper() == "GET":
                 response = requests.get(url, headers=request_headers, params=data)
             elif method.upper() == "POST":
-                response = requests.post(url, json=data, headers=request_headers)
+                if form_data:
+                    response = requests.post(url, data=data, headers=request_headers)
+                else:
+                    response = requests.post(url, json=data, headers=request_headers)
             elif method.upper() == "PUT":
                 response = requests.put(url, json=data, headers=request_headers)
             elif method.upper() == "DELETE":
