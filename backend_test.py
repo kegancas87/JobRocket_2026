@@ -473,12 +473,12 @@ class DiscountCodesTestSuite:
                 self.payment_ids.append(result["payment_id"])
         
         # Test 2: Initiate payment with invalid discount code
-        invalid_payment_data = {
+        invalid_payment_params = {
             "package_type": test_package["package_type"],
             "discount_code": "INVALID_CODE"
         }
         
-        response = self.make_request("POST", "/payments/initiate", invalid_payment_data, auth_token=self.recruiter_token)
+        response = self.make_request("POST", "/payments/initiate", data=invalid_payment_params, auth_token=self.recruiter_token)
         self.assert_response(response, 400, "Payment with Invalid Discount Code (Should Fail)")
 
     def test_discount_codes_public_validation(self):
