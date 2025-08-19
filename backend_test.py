@@ -170,11 +170,11 @@ class DiscountCodesTestSuite:
         test_package = packages[0]  # Use first package for testing
         
         # Test 1: Initiate payment and verify sandbox URL
-        payment_data = {
+        payment_params = {
             "package_type": test_package["package_type"]
         }
         
-        response = self.make_request("POST", "/payments/initiate", payment_data, auth_token=self.recruiter_token)
+        response = self.make_request("POST", "/payments/initiate", data=payment_params, auth_token=self.recruiter_token)
         if self.assert_response(response, 200, "Initiate Payment in Sandbox Mode"):
             result = response.json()
             payment_url = result.get("payment_url", "")
