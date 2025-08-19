@@ -155,14 +155,23 @@ const PricingPage = ({ user, onClose }) => {
     try {
       setPurchasing(packageType);
       
-      const response = await axios.post(`${API}/payments/initiate`, {
-        package_type: packageType
-      }, getAuthHeaders());
+      // If we have a selected package from checkout modal, use that instead
+      const targetPackage = selectedPackage || packages.find(p => p.package_type === packageType);
+      if (!targetPackage) return;
+      
+      const payload = {
+        package_type: targetPackage.package_type
+      };
+      
+      // Add discount code if applied
+      if (discountCode.trim()) {
+        payload.discount_code = discountCode.trim();
+      }
+      
+      const response = await axios.post(`${API}/payments/initiate`, payload, getAuthHeaders());
 
       // Redirect to payment URL
-      window.open(response.data.payment_url, '_blank');
-      
-      alert('You will be redirected to Payfast to complete your payment. Please complete the payment and return to this page.');
+      window.location.href = response.data.payment_url;
       
     } catch (error) {
       console.error('Error initiating payment:', error);
