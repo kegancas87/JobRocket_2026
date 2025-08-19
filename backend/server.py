@@ -3205,6 +3205,61 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Public discount code validation endpoint
+@api_router.post("/discount-codes/validate")
+async def validate_discount_code_endpoint(
+    code: str,
+    package_type: PackageType,
+    current_user: User = Depends(get_current_user)
+):
+    """Validate a discount code for a specific package (Public endpoint for logged-in users)"""
+    if not code or not code.strip():
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Discount code is required"
+        )
+    
+    # Get package details to get the price
+    package = await db.packages.find_one({
+        "package_type": package_type,
+        "is_active": True
+    })
+    
+    if not package:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Package not found"
+        )
+    
+    validation_result = await validate_discount_code(
+        code.strip(), 
+        current_user.id, 
+        package_type, 
+        package["price"]
+    )
+    
+    if not validation_result["valid"]:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=validation_result["error"]
+        )
+    
+    discount_info = validation_result["discount"]
+    
+    return {
+        "valid": True,
+        "discount": {
+            "code": code.upper(),
+            "name": discount_info.name,
+            "description": discount_info.description,
+            "discount_type": discount_info.discount_type,
+            "discount_value": discount_info.discount_value,
+            "discount_amount": validation_result["discount_amount"],
+            "original_price": package["price"],
+            "final_price": validation_result["final_price"]
+        }
+    }
+
 # Admin Routes for Discount Codes
 async def verify_admin_user(current_user: User = Depends(get_current_user)):
     """Verify that the current user is an admin"""
