@@ -637,7 +637,10 @@ metadata:
 
 test_plan:
   current_focus: 
-    - "All major backend functionality tested and working"
+    - "Payfast Sandbox Mode Configuration - NEEDS TESTING"
+    - "Discount Codes System - Admin Management - NEEDS TESTING"  
+    - "Discount Codes System - Payment Integration - NEEDS TESTING"
+    - "Discount Codes System - Public Validation - NEEDS TESTING"
   stuck_tasks: 
     - "Minor: HTTP status codes 403 vs 401 for unauthenticated requests (acceptable difference)"
   test_all: false
