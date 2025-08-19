@@ -2366,8 +2366,35 @@ async def initiate_payment(
     payment_obj = Payment(**payment_data)
     await db.payments.insert_one(payment_obj.dict())
     
-    # Generate Payfast payment URL (mock for now - will need actual Payfast integration)
-    payfast_url = f"https://sandbox.payfast.co.za/eng/process?merchant_id=10000100&merchant_key=46f0cd694581a&amount={package['price']:.2f}&item_name={package['name']}&return_url=https://yoursite.com/payment/success&cancel_url=https://yoursite.com/payment/cancel&notify_url=https://yoursite.com/payment/notify&m_payment_id={payment_obj.id}"
+    # Prepare Payfast payment parameters
+    payfast_data = {
+        'merchant_id': PAYFAST_MERCHANT_ID,
+        'merchant_key': PAYFAST_MERCHANT_KEY,
+        'return_url': f"{BASE_URL}/payment/success",
+        'cancel_url': f"{BASE_URL}/payment/cancel",
+        'notify_url': f"{BASE_URL}/api/webhooks/payfast",
+        'amount': f"{package['price']:.2f}",
+        'item_name': package['name'],
+        'item_description': package.get('description', package['name']),
+        'custom_str1': payment_obj.id,  # Payment ID for tracking
+        'custom_str2': current_user.id,  # User ID for tracking
+        'email_confirmation': '1',
+        'confirmation_address': current_user.email
+    }
+    
+    # Generate signature
+    signature = generate_payfast_signature(payfast_data, PAYFAST_PASSPHRASE)
+    payfast_data['signature'] = signature
+    
+    # Determine Payfast URL based on environment
+    if PAYFAST_SANDBOX:
+        payfast_base_url = "https://sandbox.payfast.co.za/eng/process"
+    else:
+        payfast_base_url = "https://www.payfast.co.za/eng/process"
+    
+    # Create payment URL with parameters
+    param_string = '&'.join([f"{k}={urllib.parse.quote_plus(str(v))}" for k, v in payfast_data.items()])
+    payfast_url = f"{payfast_base_url}?{param_string}"
     
     return {
         "payment_id": payment_obj.id,
