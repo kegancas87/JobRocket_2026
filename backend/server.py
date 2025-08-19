@@ -51,6 +51,43 @@ app = FastAPI(title="Job Rocket API", version="1.0.0")
 api_router = APIRouter(prefix="/api")
 
 
+# Payfast utility functions
+def generate_payfast_signature(data: dict, passphrase: str = None) -> str:
+    """
+    Generate PayFast signature for payment requests
+    """
+    # Remove empty values and signature field if it exists
+    filtered_data = {k: str(v) for k, v in data.items() if v is not None and v != '' and k != 'signature'}
+    
+    # Sort parameters alphabetically
+    sorted_params = sorted(filtered_data.items())
+    
+    # Create parameter string
+    param_string = '&'.join([f"{k}={urllib.parse.quote_plus(str(v))}" for k, v in sorted_params])
+    
+    # Add passphrase if provided
+    if passphrase:
+        param_string += f"&passphrase={urllib.parse.quote_plus(passphrase)}"
+    
+    # Generate MD5 hash
+    signature = hashlib.md5(param_string.encode('utf-8')).hexdigest()
+    
+    return signature
+
+
+def verify_payfast_signature(data: dict, passphrase: str = None) -> bool:
+    """
+    Verify PayFast signature for webhook notifications
+    """
+    if 'signature' not in data:
+        return False
+    
+    received_signature = data['signature']
+    calculated_signature = generate_payfast_signature(data, passphrase)
+    
+    return received_signature == calculated_signature
+
+
 # Enums for job-related data
 class JobType(str, Enum):
     PERMANENT = "Permanent"
