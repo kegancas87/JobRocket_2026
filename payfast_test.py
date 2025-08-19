@@ -204,11 +204,8 @@ class PayfastTestSuite:
         for package in self.packages:
             package_type = package["package_type"]
             
-            payment_data = {
-                "package_type": package_type
-            }
-            
-            response = self.make_request("POST", "/payments/initiate", payment_data, auth_token=self.recruiter_token)
+            # Use query parameters instead of request body
+            response = self.make_request("POST", f"/payments/initiate?package_type={package_type}", None, auth_token=self.recruiter_token)
             if self.assert_response(response, 200, f"Initiate Payment for {package['name']}"):
                 result = response.json()
                 self.payment_ids.append(result["payment_id"])
