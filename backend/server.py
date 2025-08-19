@@ -2687,9 +2687,10 @@ async def payfast_webhook(request: Request):
             logging.info(f"PayFast webhook: Payment already completed: {custom_str1}")
             return {"status": "success", "reason": "Payment already processed"}
         
-        # Verify amount matches
-        if abs(payment["amount"] - amount_gross) > 0.01:  # Allow small floating point differences
-            logging.error(f"PayFast webhook: Amount mismatch. Expected: {payment['amount']}, Received: {amount_gross}")
+        # Verify amount matches (should match final_amount after discount)
+        expected_amount = payment.get("final_amount", payment["amount"])
+        if abs(expected_amount - amount_gross) > 0.01:  # Allow small floating point differences
+            logging.error(f"PayFast webhook: Amount mismatch. Expected: {expected_amount}, Received: {amount_gross}")
             return {"status": "error", "reason": "Amount mismatch"}
         
         # Get package details
@@ -2708,6 +2709,13 @@ async def payfast_webhook(request: Request):
                 "webhook_data": data
             }}
         )
+        
+        # Update discount code usage count if discount was applied
+        if payment.get("discount_code"):
+            await db.discount_codes.update_one(
+                {"code": payment["discount_code"]},
+                {"$inc": {"usage_count": 1}}
+            )
         
         # Create/activate user package
         user_package_data = {
