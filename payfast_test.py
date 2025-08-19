@@ -386,7 +386,7 @@ class PayfastTestSuite:
                 "expected_cv_searches": 0
             },
             {
-                "payment_id": "test_payment_unlimited",
+                "payment_id": self.payment_ids[2] if len(self.payment_ids) > 2 else "test_payment_unlimited",
                 "package_type": "unlimited_listings", 
                 "item_name": "Unlimited Listings Package",
                 "amount": "3899.00",
@@ -394,7 +394,7 @@ class PayfastTestSuite:
                 "expected_cv_searches": 10
             },
             {
-                "payment_id": "test_payment_cv_search",
+                "payment_id": self.payment_ids[3] if len(self.payment_ids) > 3 else "test_payment_cv_search",
                 "package_type": "cv_search_10",
                 "item_name": "10 CV Searches",
                 "amount": "699.00",
