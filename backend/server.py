@@ -3197,6 +3197,218 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Admin Routes for Discount Codes
+async def verify_admin_user(current_user: User = Depends(get_current_user)):
+    """Verify that the current user is an admin"""
+    if current_user.role != UserRole.ADMIN:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Admin access required"
+        )
+    return current_user
+
+@api_router.post("/admin/discount-codes", response_model=DiscountCode)
+async def create_discount_code(
+    discount_data: DiscountCodeCreate,
+    admin_user: User = Depends(verify_admin_user)
+):
+    """Create a new discount code (Admin only)"""
+    # Check if code already exists
+    existing_code = await db.discount_codes.find_one({"code": discount_data.code.upper()})
+    if existing_code:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Discount code already exists"
+        )
+    
+    # Validate discount value
+    if discount_data.discount_value <= 0:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Discount value must be greater than 0"
+        )
+    
+    if discount_data.discount_type == DiscountType.PERCENTAGE and discount_data.discount_value > 100:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Percentage discount cannot exceed 100%"
+        )
+    
+    # Create discount code
+    discount_code_data = discount_data.dict()
+    discount_code_data["code"] = discount_data.code.upper()
+    discount_code_data["created_by"] = admin_user.id
+    discount_code_data["status"] = DiscountStatus.ACTIVE
+    
+    # Set valid_from to now if not provided
+    if not discount_code_data.get("valid_from"):
+        discount_code_data["valid_from"] = datetime.utcnow()
+    
+    discount_code = DiscountCode(**discount_code_data)
+    await db.discount_codes.insert_one(discount_code.dict())
+    
+    return discount_code
+
+@api_router.get("/admin/discount-codes", response_model=List[DiscountCode])
+async def list_discount_codes(
+    status_filter: Optional[DiscountStatus] = None,
+    admin_user: User = Depends(verify_admin_user)
+):
+    """List all discount codes (Admin only)"""
+    query = {}
+    if status_filter:
+        query["status"] = status_filter
+    
+    discount_codes = await db.discount_codes.find(query).sort("created_date", -1).to_list(1000)
+    
+    result = []
+    for code_doc in discount_codes:
+        if "_id" in code_doc:
+            del code_doc["_id"]
+        result.append(DiscountCode(**code_doc))
+    
+    return result
+
+@api_router.get("/admin/discount-codes/{code_id}", response_model=DiscountCode)
+async def get_discount_code(
+    code_id: str,
+    admin_user: User = Depends(verify_admin_user)
+):
+    """Get a specific discount code (Admin only)"""
+    discount_code = await db.discount_codes.find_one({"id": code_id})
+    if not discount_code:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Discount code not found"
+        )
+    
+    if "_id" in discount_code:
+        del discount_code["_id"]
+    
+    return DiscountCode(**discount_code)
+
+@api_router.put("/admin/discount-codes/{code_id}", response_model=DiscountCode)
+async def update_discount_code(
+    code_id: str,
+    discount_update: DiscountCodeUpdate,
+    admin_user: User = Depends(verify_admin_user)
+):
+    """Update a discount code (Admin only)"""
+    # Check if discount code exists
+    existing_code = await db.discount_codes.find_one({"id": code_id})
+    if not existing_code:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Discount code not found"
+        )
+    
+    # Validate discount value if provided
+    update_data = {k: v for k, v in discount_update.dict().items() if v is not None}
+    
+    if "discount_value" in update_data:
+        if update_data["discount_value"] <= 0:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Discount value must be greater than 0"
+            )
+        
+        # Check percentage limit
+        current_type = existing_code.get("discount_type", DiscountType.PERCENTAGE)
+        if current_type == DiscountType.PERCENTAGE and update_data["discount_value"] > 100:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Percentage discount cannot exceed 100%"
+            )
+    
+    update_data["updated_date"] = datetime.utcnow()
+    
+    # Update the discount code
+    await db.discount_codes.update_one(
+        {"id": code_id},
+        {"$set": update_data}
+    )
+    
+    # Get updated discount code
+    updated_code = await db.discount_codes.find_one({"id": code_id})
+    if "_id" in updated_code:
+        del updated_code["_id"]
+    
+    return DiscountCode(**updated_code)
+
+@api_router.delete("/admin/discount-codes/{code_id}")
+async def delete_discount_code(
+    code_id: str,
+    admin_user: User = Depends(verify_admin_user)
+):
+    """Delete a discount code (Admin only)"""
+    result = await db.discount_codes.delete_one({"id": code_id})
+    
+    if result.deleted_count == 0:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Discount code not found"
+        )
+    
+    return {"message": "Discount code deleted successfully"}
+
+@api_router.post("/admin/discount-codes/{code_id}/deactivate")
+async def deactivate_discount_code(
+    code_id: str,
+    admin_user: User = Depends(verify_admin_user)
+):
+    """Deactivate a discount code (Admin only)"""
+    result = await db.discount_codes.update_one(
+        {"id": code_id},
+        {"$set": {
+            "status": DiscountStatus.INACTIVE,
+            "updated_date": datetime.utcnow()
+        }}
+    )
+    
+    if result.matched_count == 0:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Discount code not found"
+        )
+    
+    return {"message": "Discount code deactivated successfully"}
+
+@api_router.get("/admin/discount-codes/stats/usage")
+async def get_discount_code_usage_stats(
+    admin_user: User = Depends(verify_admin_user)
+):
+    """Get discount code usage statistics (Admin only)"""
+    # Get total discount codes
+    total_codes = await db.discount_codes.count_documents({})
+    active_codes = await db.discount_codes.count_documents({"status": DiscountStatus.ACTIVE})
+    
+    # Get usage statistics from payments
+    pipeline = [
+        {"$match": {"discount_code": {"$ne": None}, "status": PaymentStatus.COMPLETED}},
+        {"$group": {
+            "_id": "$discount_code",
+            "usage_count": {"$sum": 1},
+            "total_discount_amount": {"$sum": "$discount_amount"},
+            "total_original_amount": {"$sum": "$amount"},
+            "total_final_amount": {"$sum": "$final_amount"}
+        }},
+        {"$sort": {"usage_count": -1}}
+    ]
+    
+    usage_stats = await db.payments.aggregate(pipeline).to_list(1000)
+    
+    # Calculate total savings
+    total_savings = sum(stat["total_discount_amount"] for stat in usage_stats)
+    total_transactions = sum(stat["usage_count"] for stat in usage_stats)
+    
+    return {
+        "total_codes": total_codes,
+        "active_codes": active_codes,
+        "total_transactions_with_discounts": total_transactions,
+        "total_savings": total_savings,
+        "code_usage": usage_stats
+    }
+
 # Configure logging
 logging.basicConfig(
     level=logging.INFO,
