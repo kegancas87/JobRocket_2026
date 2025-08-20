@@ -302,6 +302,11 @@ const JobListingPage = ({ user, onLogout }) => {
     }
   };
 
+  const handleJobClick = (job) => {
+    setSelectedJob(job);
+    setShowJobDetails(true);
+  };
+
   const filteredJobs = jobs.filter(job => {
     const matchesSearch = job.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
                          job.company_name.toLowerCase().includes(searchTerm.toLowerCase());
