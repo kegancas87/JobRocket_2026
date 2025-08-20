@@ -307,6 +307,17 @@ const JobListingPage = ({ user, onLogout }) => {
     setShowJobDetails(true);
   };
 
+  const handleCloseJobDetails = () => {
+    setShowJobDetails(false);
+    setSelectedJob(null);
+  };
+
+  const handleApplicationSuccess = (applicationData) => {
+    console.log('Application submitted:', applicationData);
+    // You can add any success handling here
+    handleCloseJobDetails();
+  };
+
   const filteredJobs = jobs.filter(job => {
     const matchesSearch = job.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
                          job.company_name.toLowerCase().includes(searchTerm.toLowerCase());
