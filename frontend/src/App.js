@@ -602,22 +602,6 @@ function App() {
     localStorage.setItem('user', JSON.stringify(updatedUser));
   };
 
-  const handleJobClick = (job) => {
-    setSelectedJob(job);
-    setShowJobDetails(true);
-  };
-
-  const handleCloseJobDetails = () => {
-    setShowJobDetails(false);
-    setSelectedJob(null);
-  };
-
-  const handleApplicationSuccess = (applicationData) => {
-    console.log('Application submitted:', applicationData);
-    // You can add any success handling here
-    handleCloseJobDetails();
-  };
-
   if (loading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-slate-100 flex items-center justify-center">
