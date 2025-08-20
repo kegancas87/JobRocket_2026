@@ -28,9 +28,12 @@ const EasyApplyModal = ({ job, isOpen, onClose, onSuccess, user }) => {
   const [step, setStep] = useState(1);
   const [applicationData, setApplicationData] = useState({
     cover_letter: '',
+    resume_file: null,
     resume_url: '',
     additional_info: ''
   });
+  const [uploadedFileName, setUploadedFileName] = useState('');
+  const [uploadError, setUploadError] = useState('');
 
   // Pre-populate form when modal opens and user data is available
   useEffect(() => {
@@ -42,6 +45,8 @@ const EasyApplyModal = ({ job, isOpen, onClose, onSuccess, user }) => {
           ? `Skills: ${user.skills.join(', ')}\n\n`
           : ''
       }));
+      setUploadedFileName('');
+      setUploadError('');
     }
   }, [isOpen, user]);
 
