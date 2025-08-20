@@ -2,45 +2,53 @@
 
 ## 📋 Complete Demo User Credentials
 
+### 👑 ADMIN USER
+
+#### **ADMIN ACCOUNT**
+- **Email:** `admin@jobrocket.com`  
+- **Password:** `admin123`
+- **Name:** Admin User
+- **Role:** Platform Administrator
+- **Access:** Full admin dashboard, discount code management, usage statistics
+
+---
+
 ### 👤 JOB SEEKERS
 
-#### 1. **BEGINNER USER** (0-20 Points)
-- **Email:** `sarah.johnson@demo.com`  
+#### 1. **BEGINNER USER** (25 Points)
+- **Email:** `sarah.beginner@demo.com`  
 - **Password:** `demo123`
 - **Name:** Sarah Johnson
 - **Location:** Cape Town, South Africa
-- **Profile Status:** Basic information only
-- **Skills:** Python, HTML, CSS (only 3 skills)
-- **About Me:** Short description (not enough for points)
-- **Gamification:** Low completion score to demonstrate gamification
+- **Profile Status:** Basic information, recent graduate
+- **Skills:** HTML, CSS, JavaScript (3 skills)
+- **Education:** Bachelor of Computer Science from UCT
+- **Experience:** Recent graduate, no work history
+- **Gamification:** Low completion score (25 points)
 
-#### 2. **INTERMEDIATE USER** (50-60 Points)  
-- **Email:** `alex.rodriguez@demo.com`
+#### 2. **INTERMEDIATE USER** (65 Points)  
+- **Email:** `alex.intermediate@demo.com`
 - **Password:** `demo123`
 - **Name:** Alex Rodriguez
-- **Location:** Johannesburg, Gauteng
-- **Profile Status:** Moderate completion
-- **Skills:** JavaScript, React, Node.js, Python, Git, SQL (6 skills)
-- **Work Experience:** 1 previous role at WebTech Solutions
-- **About Me:** Comprehensive description (150+ characters)
-- **Gamification:** Mid-level completion for testing progress
+- **Location:** Johannesburg, South Africa
+- **Profile Status:** Mid-level developer profile
+- **Skills:** React, Node.js, Python, MongoDB, Express, JavaScript, TypeScript (7 skills)
+- **Education:** Bachelor of Science in IT from Wits University
+- **Experience:** 2 years at StartupCo as Junior Developer
+- **Achievements:** Employee of the Month, Hackathon Winner
+- **Gamification:** Intermediate completion (65 points)
 
-#### 3. **ADVANCED USER** (90-100 Points)
-- **Email:** `michael.chen@demo.com`
-- **Password:** `demo123`  
-- **Name:** Michael Chen
-- **Location:** Durban, KwaZulu-Natal
-- **Profile Status:** Near-complete or fully complete
-- **Skills:** React, Node.js, Python, TypeScript, AWS, Docker, MongoDB, PostgreSQL, GraphQL, Jest (10+ skills)
-- **Work Experience:** Senior Full-Stack Developer at Digital Innovations Ltd
-- **Education:** BSc Computer Science from University of Cape Town (with document)
-- **Achievements:** AWS Certified Developer
-- **Profile Picture:** Professional headshot
-- **Intro Video:** Demo video uploaded
-- **Job Applications:** 5 applications tracked
-- **Email Alerts:** Enabled
-- **Salary Range:** Current R60k-80k, Desired R80k-120k
-- **Gamification:** Maximum points to demonstrate rocket launch celebration
+#### 3. **SENIOR USER** (100 Points)
+- **Email:** `mike.senior@demo.com`
+- **Password:** `demo123`
+- **Name:** Mike Thompson
+- **Location:** Durban, South Africa
+- **Profile Status:** Complete senior developer profile
+- **Skills:** React, Python, Django, AWS, Docker, Kubernetes, PostgreSQL, Redux, TypeScript, GraphQL (10+ skills)
+- **Education:** Bachelor of Engineering from Stellenbosch University
+- **Experience:** 5+ years across TechCorp and DevStudio
+- **Achievements:** AWS Certified, Scrum Master Certified, Tech Lead of the Year
+- **Gamification:** Complete profile (100 points)
 
 ---
 
@@ -54,17 +62,172 @@
 - **Role:** Senior Talent Acquisition Specialist
 - **Industry:** Technology Consulting
 - **Posted Jobs:** Senior React Developer, Junior Frontend Developer
+- **Profile Status:** Complete company profile (100 points)
 
 #### 2. **DIGITAL AGENCY RECRUITER**  
 - **Email:** `david.wilson@innovate.demo`
 - **Password:** `demo123`
 - **Name:** David Wilson
-- **Company:** Innovate Digital
+- **Company:** Innovate Digital Agency
 - **Role:** Head of Human Resources
 - **Industry:** Digital Marketing & Development
-- **Posted Jobs:** Product Manager, UX/UI Designer
+- **Posted Jobs:** UX/UI Designer, Product Manager
+- **Profile Status:** Complete company profile (100 points)
+
+#### 3. **DATA ANALYTICS RECRUITER**
+- **Email:** `emma.davis@dataflow.demo`
+- **Password:** `demo123`
+- **Name:** Emma Davis
+- **Company:** DataFlow Analytics
+- **Role:** Talent Acquisition Manager
+- **Industry:** Data Science & Analytics
+- **Posted Jobs:** Data Scientist
+- **Profile Status:** Complete company profile (100 points)
 
 ---
+
+## 🏢 DEMO COMPANIES
+
+### 1. **TechCorp Solutions**
+- **Industry:** Technology Consulting
+- **Size:** 50-200 employees
+- **Location:** Cape Town, South Africa
+- **Description:** Leading technology consulting firm specializing in digital transformation
+- **Jobs Posted:** Senior React Developer, Junior Frontend Developer
+
+### 2. **Innovate Digital Agency**
+- **Industry:** Digital Marketing & Development
+- **Size:** 10-50 employees
+- **Location:** Johannesburg, South Africa
+- **Description:** Creative digital agency focused on cutting-edge web development
+- **Jobs Posted:** UX/UI Designer, Product Manager
+
+### 3. **DataFlow Analytics**
+- **Industry:** Data Science & Analytics
+- **Size:** 20-100 employees
+- **Location:** Durban, South Africa
+- **Description:** Data science company helping businesses make data-driven decisions
+- **Jobs Posted:** Data Scientist
+
+---
+
+## 💼 SAMPLE JOBS CREATED
+
+### **Active Job Listings:**
+1. **Senior React Developer** - TechCorp Solutions (R450k-R650k)
+2. **UX/UI Designer** - Innovate Digital Agency (R300k-R450k)
+3. **Data Scientist** - DataFlow Analytics (R400k-R600k)
+4. **Junior Frontend Developer** - TechCorp Solutions (R250k-R350k)
+5. **Product Manager** - Innovate Digital Agency (R500k-R700k)
+
+### **Job Features:**
+- All jobs have detailed descriptions and requirements
+- Mix of experience levels (entry, mid, senior)
+- Different work types (hybrid, on-site, remote)
+- Realistic South African salary ranges
+- Sample applications from job seekers
+
+---
+
+## 🏷️ DEMO DISCOUNT CODES
+
+### **Active Codes:**
+1. **WELCOME20** - 20% off (min R1000 purchase, max R1000 discount)
+2. **NEWUSER15** - 15% off (min R500 purchase)
+3. **SAVE500** - R500 fixed discount (min R2000 purchase)
+
+### **Test Codes:**
+4. **EXPIRED10** - 10% off (EXPIRED - for testing validation)
+
+---
+
+## 📝 SAMPLE APPLICATION DATA
+
+### **Job Applications Created:**
+- Mike Thompson applied for Senior React Developer (reviewed)
+- Alex Rodriguez applied for Senior React Developer (pending)
+- Sarah Johnson applied for Junior Frontend Developer (pending)
+- Alex Rodriguez applied for Junior Frontend Developer (shortlisted)
+- Mike Thompson applied for Data Scientist (interviewed)
+
+### **Application Features:**
+- Different application statuses for testing
+- Cover letters and applicant snapshots
+- Application date tracking
+- Recruiter application management
+
+---
+
+## 🧪 TESTING SCENARIOS
+
+### **Job Seeker Testing:**
+1. **Profile Completion:** Test gamification with Sarah (25 points), Alex (65 points), Mike (100 points)
+2. **Job Applications:** Apply to jobs and track application status
+3. **Profile Updates:** Update skills, experience, and see progress changes
+
+### **Recruiter Testing:**
+1. **Job Posting:** Create new jobs and manage existing ones
+2. **Application Management:** Review applications, update statuses
+3. **Package Purchase:** Test discount codes and payment flow
+4. **Company Management:** Update company profiles and team structure
+
+### **Admin Testing:**
+1. **Discount Management:** Create, edit, deactivate discount codes
+2. **Usage Analytics:** View discount code usage statistics
+3. **Platform Overview:** Monitor overall platform activity
+
+### **Payment Testing:**
+1. **Discount Validation:** Test all discount codes including expired ones
+2. **Payment Flow:** Complete Payfast sandbox payments
+3. **Package Activation:** Verify automatic package activation after payment
+
+---
+
+## 💳 PAYMENT TESTING
+
+### **Payfast Integration:**
+- **Mode:** Sandbox (safe for testing)
+- **Merchant ID:** 14208372
+- **Test Environment:** https://sandbox.payfast.co.za
+- **Package Types:** Two Listings (R2800), Five Listings (R4150), Unlimited (R3899/month)
+
+### **Discount Testing:**
+- Apply codes during checkout
+- Verify price calculations
+- Test validation for expired/invalid codes
+- Check usage limits and restrictions
+
+---
+
+## 🔧 TECHNICAL NOTES
+
+### **Database Collections:**
+- **users:** All user accounts (job seekers, recruiters, admin)
+- **companies:** Company profiles and information
+- **jobs:** Job listings with full details
+- **job_applications:** Application tracking and management
+- **discount_codes:** Promotional codes and usage tracking
+- **packages:** Available job listing packages
+- **payments:** Payment processing and history
+
+### **Authentication:**
+- JWT-based authentication
+- Role-based access control
+- Session management and security
+
+### **Features Implemented:**
+- ✅ User registration and login
+- ✅ Profile completion gamification
+- ✅ Job posting and management
+- ✅ Application tracking system
+- ✅ Discount codes system
+- ✅ Payment processing (Payfast)
+- ✅ Admin dashboard
+- ✅ Package management
+
+---
+
+**🚀 Ready to test the complete Job Rocket platform with realistic demo data!**
 
 ### 🔧 ADMINISTRATORS
 
