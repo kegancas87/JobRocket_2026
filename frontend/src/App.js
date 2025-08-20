@@ -30,6 +30,7 @@ import {
   DollarSign,
   Users,
   Zap,
+  Settings,
   LogOut
 } from "lucide-react";
 
