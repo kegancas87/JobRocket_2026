@@ -546,10 +546,6 @@ function App() {
   const [authPage, setAuthPage] = useState('login'); // 'login' or 'register'
   const [currentPage, setCurrentPage] = useState('jobs'); // 'jobs' or 'profile'
   const [loading, setLoading] = useState(true);
-  
-  // Job details modal state
-  const [selectedJob, setSelectedJob] = useState(null);
-  const [showJobDetails, setShowJobDetails] = useState(false);
 
   useEffect(() => {
     // Check if user is already logged in
