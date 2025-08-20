@@ -243,6 +243,10 @@ const JobListingPage = ({ user, onLogout }) => {
       banking: false
     }
   });
+  
+  // Job details modal state
+  const [selectedJob, setSelectedJob] = useState(null);
+  const [showJobDetails, setShowJobDetails] = useState(false);
 
   const getAuthHeaders = () => {
     const token = localStorage.getItem('token');
