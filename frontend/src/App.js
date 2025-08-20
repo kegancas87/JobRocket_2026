@@ -556,6 +556,15 @@ const JobListingPage = ({ user, onLogout }) => {
           </div>
         </div>
       </div>
+      
+      {/* Job Details Modal */}
+      <JobDetailsModal
+        job={selectedJob}
+        user={user}
+        isOpen={showJobDetails}
+        onClose={handleCloseJobDetails}
+        onApplicationSuccess={handleApplicationSuccess}
+      />
     </div>
   );
 };
