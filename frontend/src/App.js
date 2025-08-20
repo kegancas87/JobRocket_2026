@@ -652,6 +652,25 @@ function App() {
               />
             )
           } />
+          
+          <Route path="/admin" element={
+            user && user.role === 'admin' ? (
+              <AdminDashboard 
+                user={user}
+                onLogout={handleLogout}
+              />
+            ) : (
+              <div className="min-h-screen bg-slate-900 flex items-center justify-center">
+                <div className="text-center">
+                  <h1 className="text-2xl font-bold text-white mb-4">Access Denied</h1>
+                  <p className="text-slate-400 mb-4">You need admin privileges to access this page.</p>
+                  <Button onClick={() => window.location.href = '/'} className="bg-blue-600 hover:bg-blue-700">
+                    Return to Home
+                  </Button>
+                </div>
+              </div>
+            )
+          } />
           <Route path="/jobs" element={
             <JobListingPage 
               user={user} 
