@@ -333,6 +333,16 @@ const JobListingPage = ({ user, onLogout }) => {
                 <span>My Jobs</span>
                 <ChevronDown className="w-4 h-4" />
               </Button>
+              {user && user.role === 'admin' && (
+                <Button 
+                  variant="ghost" 
+                  onClick={() => window.location.href = '/admin'}
+                  className="flex items-center space-x-2 hover:bg-orange-50 text-orange-700 hover:text-orange-800 font-semibold px-6"
+                >
+                  <Settings className="w-5 h-5" />
+                  <span>Admin Panel</span>
+                </Button>
+              )}
               {user && (
                 <div className="flex items-center space-x-4">
                   <Button variant="ghost" className="flex items-center space-x-2 hover:bg-slate-50 font-semibold px-6">
