@@ -26,7 +26,7 @@ import {
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
 
-const AdminDashboard = ({ user, onLogout }) => {
+const AdminDashboard = ({ user, onLogout, onNavigateToJobs }) => {
   const [activeTab, setActiveTab] = useState('discount-codes');
   const [discountCodes, setDiscountCodes] = useState([]);
   const [usageStats, setUsageStats] = useState({});
