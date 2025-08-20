@@ -223,6 +223,13 @@ const AdminDashboard = ({ user, onLogout, onNavigateToJobs }) => {
               </div>
             </div>
             <div className="flex items-center space-x-4">
+              <Button 
+                variant="outline" 
+                onClick={() => window.location.href = '/'}
+                className="border-slate-600 text-slate-300 hover:bg-slate-700"
+              >
+                🚀 View Job Platform
+              </Button>
               <span className="text-slate-300">Welcome, {user.first_name}</span>
               <Button 
                 variant="outline" 
