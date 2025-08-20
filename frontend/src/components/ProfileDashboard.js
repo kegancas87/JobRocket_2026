@@ -26,7 +26,8 @@ import {
   Calendar,
   Building2,
   Target,
-  Zap
+  Zap,
+  FileText
 } from "lucide-react";
 import axios from 'axios';
 
