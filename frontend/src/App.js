@@ -626,11 +626,6 @@ function App() {
                   onLogout={handleLogout}
                 />
               )
-            ) : currentPage === 'admin-dashboard' ? (
-              <AdminDashboard 
-                user={user}
-                onLogout={handleLogout}
-              />
             ) : (
               <JobListingPage 
                 user={user} 
