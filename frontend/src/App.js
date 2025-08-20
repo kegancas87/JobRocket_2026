@@ -538,16 +538,15 @@ function App() {
       if (totalPoints < 50) {
         setCurrentPage('profile');
       } else {
-        setCurrentPage('jobs'); // or recruiter dashboard
+        setCurrentPage('dashboard');
       }
-    } else if (userData.role === 'admin') {
-      // For admins, go to admin dashboard
-      setCurrentPage('admin-dashboard');
     } else {
-      // For job seekers, check if profile needs completion
-      const totalPoints = userData.profile_progress?.total_points || 0;
-      if (totalPoints < 50) {
+      // For job seekers and admins, check if profile needs completion
+      const totalPoints = userData.job_seeker_progress?.total_points || 0;
+      if (totalPoints < 100 && userData.role !== 'admin') {
         setCurrentPage('profile');
+      } else {
+        setCurrentPage('dashboard');
       }
     }
   };
