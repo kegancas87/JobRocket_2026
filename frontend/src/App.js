@@ -506,6 +506,7 @@ const JobListingPage = ({ user, onLogout }) => {
                   user={user}
                   onSave={handleSaveJob}
                   onApply={handleApplyToJob}
+                  onJobClick={handleJobClick}
                 />
               ))}
             </div>
