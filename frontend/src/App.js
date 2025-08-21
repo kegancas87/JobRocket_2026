@@ -485,7 +485,7 @@ const JobListingPage = ({ user, onLogout }) => {
               </div>
             </div>
 
-            <div className="space-y-6">
+            <div className="grid grid-cols-1 gap-6 lg:gap-8">
               {filteredJobs.map((job) => (
                 <JobCard 
                   key={job.id} 
