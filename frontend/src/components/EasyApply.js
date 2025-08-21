@@ -339,20 +339,81 @@ const EasyApplyModal = ({ job, isOpen, onClose, onSuccess, user }) => {
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="resume_url">Resume/CV URL (Optional)</Label>
-                  <div className="relative">
-                    <FileText className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400 w-4 h-4" />
-                    <Input
-                      id="resume_url"
-                      type="url"
-                      value={applicationData.resume_url}
-                      onChange={(e) => handleInputChange('resume_url', e.target.value)}
-                      placeholder="https://your-resume-link.com"
-                      className="pl-10"
-                    />
+                  <Label htmlFor="resume_file">Upload Resume/CV</Label>
+                  <div className="space-y-3">
+                    {/* File Upload Input */}
+                    <div className="relative">
+                      <input
+                        id="resume_file"
+                        type="file"
+                        accept=".pdf,.doc,.docx"
+                        onChange={handleFileUpload}
+                        className="hidden"
+                      />
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={() => document.getElementById('resume_file').click()}
+                        className="w-full justify-start"
+                      >
+                        <Upload className="w-4 h-4 mr-2" />
+                        {uploadedFileName ? 'Change File' : 'Choose File'}
+                      </Button>
+                    </div>
+
+                    {/* Uploaded File Display */}
+                    {uploadedFileName && (
+                      <div className="flex items-center justify-between bg-green-50 border border-green-200 rounded-lg p-3">
+                        <div className="flex items-center space-x-2">
+                          <FileText className="w-4 h-4 text-green-600" />
+                          <span className="text-sm font-medium text-green-800">{uploadedFileName}</span>
+                        </div>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          onClick={removeUploadedFile}
+                          className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                        >
+                          <X className="w-4 h-4" />
+                        </Button>
+                      </div>
+                    )}
+
+                    {/* Upload Error */}
+                    {uploadError && (
+                      <div className="flex items-center space-x-2 text-red-600 bg-red-50 border border-red-200 rounded-lg p-3">
+                        <AlertCircle className="w-4 h-4" />
+                        <span className="text-sm">{uploadError}</span>
+                      </div>
+                    )}
+
+                    {/* OR divider */}
+                    <div className="relative">
+                      <div className="absolute inset-0 flex items-center">
+                        <div className="w-full border-t border-slate-200"></div>
+                      </div>
+                      <div className="relative flex justify-center text-sm">
+                        <span className="px-2 bg-white text-slate-500">OR</span>
+                      </div>
+                    </div>
+
+                    {/* URL Input as fallback */}
+                    <div className="relative">
+                      <FileText className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400 w-4 h-4" />
+                      <Input
+                        id="resume_url"
+                        type="url"
+                        value={applicationData.resume_url}
+                        onChange={(e) => handleInputChange('resume_url', e.target.value)}
+                        placeholder="https://your-resume-link.com"
+                        className="pl-10"
+                        disabled={!!uploadedFileName}
+                      />
+                    </div>
                   </div>
                   <p className="text-sm text-slate-500">
-                    Link to your resume on Google Drive, Dropbox, or portfolio website
+                    Upload a file (PDF, DOC, DOCX - max 5MB) or provide a link to your resume
                   </p>
                 </div>
 
