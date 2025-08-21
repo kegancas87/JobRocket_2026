@@ -3590,7 +3590,7 @@ async def upload_image(
         
         # Return file URL
         base_url = os.getenv('BASE_URL', 'http://localhost:8001')
-        file_url = f"{base_url}/uploads/images/{unique_filename}"
+        file_url = f"{base_url}/api/uploads/images/{unique_filename}"
         
         return {
             "message": f"{image_type.title()} image uploaded successfully",
