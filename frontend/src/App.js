@@ -559,9 +559,24 @@ const JobListingPage = ({ user, onLogout }) => {
           {/* Filters Sidebar */}
           <div className="w-full lg:w-96 lg:flex-shrink-0">
             <div className="bg-white/80 backdrop-blur-sm rounded-3xl shadow-xl p-4 sm:p-8 lg:sticky lg:top-32 border border-slate-200/50">
-              <div className="flex items-center space-x-3 mb-6 lg:mb-8">
-                <Filter className="w-5 h-5 sm:w-6 sm:h-6 text-blue-600" />
-                <h3 className="text-xl sm:text-2xl font-bold text-slate-800">Filters</h3>
+              <div className="flex items-center justify-between mb-6 lg:mb-8">
+                <div className="flex items-center space-x-3">
+                  <Filter className="w-5 h-5 sm:w-6 sm:h-6 text-blue-600" />
+                  <h3 className="text-xl sm:text-2xl font-bold text-slate-800">Filters</h3>
+                </div>
+                <Button 
+                  variant="ghost" 
+                  size="sm"
+                  onClick={() => setFilters({
+                    datePosted: { newJobs: false, lastWeek: false },
+                    workFromHome: { partiallyRemote: false, fullyRemote: false },
+                    applicationMethod: { onCompanyWebsite: false, easyApply: false },
+                    functions: { engineering: false, production: false, it: false, sales: false, accounting: false, banking: false }
+                  })}
+                  className="text-slate-500 hover:text-slate-700"
+                >
+                  Clear All
+                </Button>
               </div>
 
               <FilterSection title="Date Posted" defaultExpanded={true}>
