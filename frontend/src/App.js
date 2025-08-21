@@ -779,6 +779,12 @@ function App() {
                   <Navigate to="/" replace />
                 )
               } />
+
+              <Route path="/notifications" element={
+                <NotificationsPage 
+                  user={user}
+                />
+              } />
               
               <Route path="/admin" element={
                 user && user.role === 'admin' ? (
