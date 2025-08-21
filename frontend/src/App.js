@@ -235,13 +235,13 @@ const FilterOption = ({ label, count, selected, onChange }) => (
     <div className="flex items-center space-x-3">
       <input
         type="checkbox"
-        checked={selected}
-        onChange={onChange}
+        checked={selected || false}
+        onChange={(e) => onChange(e.target.checked)}
         className="w-5 h-5 rounded border-2 border-slate-300 text-blue-600 focus:ring-blue-500 focus:ring-2"
       />
       <span className="font-medium text-slate-700">{label}</span>
     </div>
-    {count && (
+    {count !== undefined && (
       <span className="text-xs text-slate-500 bg-slate-100 px-2 py-1 rounded-full font-semibold">
         {count}
       </span>
