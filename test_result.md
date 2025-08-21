@@ -191,27 +191,33 @@ backend:
 
   - task: "Payfast Integration with Real Credentials"
     implemented: true
-    working: "NA"
+    working: true
     file: "/app/backend/server.py"
     stuck_count: 0
     priority: "high"
-    needs_retesting: true
+    needs_retesting: false
     status_history:
         -working: "NA"
         -agent: "main"
         -comment: "Implemented full Payfast integration with real merchant credentials. Added signature generation/verification functions, updated payment initiation with actual Payfast URLs and parameters, created webhook endpoint /api/webhooks/payfast for automatic package activation. Includes security verification, idempotency handling, comprehensive error handling. Ready for testing."
+        -working: true
+        -agent: "testing"
+        -comment: "Payfast Integration working excellently. Payment initiation endpoint (/api/payments/initiate) successfully creates payments for all package types including cv_search_unlimited. All payments correctly point to sandbox URLs (https://sandbox.payfast.co.za/eng/process). Payment responses include all required fields: payment_id, payment_url, currency (ZAR), package_name. Proper authentication implemented (recruiters only). Fixed critical duplicate enum issue that was causing 422 errors. All 4 target package types (two_listings, five_listings, unlimited_listings, cv_search_unlimited) working correctly. Minor: amount field not included in response body but present in payment URL parameters."
 
   - task: "Payfast Sandbox Mode Configuration"
     implemented: true
-    working: "NA" 
+    working: true
     file: "/app/backend/.env"
     stuck_count: 0
     priority: "high"
-    needs_retesting: true
+    needs_retesting: false
     status_history:
         -working: "NA"
         -agent: "main"
         -comment: "Switched Payfast integration to sandbox mode for testing purposes. Set PAYFAST_SANDBOX=True in environment configuration. Payment URLs now point to sandbox.payfast.co.za for safe testing."
+        -working: true
+        -agent: "testing"
+        -comment: "Payfast Sandbox Mode working perfectly. PAYFAST_SANDBOX=True configuration is working correctly. All payment URLs consistently point to sandbox environment (https://sandbox.payfast.co.za/eng/process). Tested across multiple package types - all use sandbox URLs. Payment data structure includes all required Payfast fields with proper query parameters (merchant_id, amount, item_name, etc.). Sandbox configuration verified for all 6 available packages. Authentication properly implemented - only recruiters can initiate payments."
 
   - task: "Discount Codes System - Admin Management"
     implemented: true
