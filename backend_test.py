@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
-Backend Test Suite for Job Rocket Discount Codes System and Payfast Sandbox Mode
-Tests discount codes system, admin management, payment integration, and Payfast sandbox configuration
+Backend Test Suite for Job Rocket Payfast Payment Initiation
+Tests Payfast payment initiation functionality in sandbox mode with focus on package validation
 """
 
 import requests
