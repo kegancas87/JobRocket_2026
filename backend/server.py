@@ -1802,8 +1802,30 @@ async def create_jobs_bulk(
         contents = await file.read()
         
         if file.filename.lower().endswith('.csv'):
-            df = pd.read_csv(io.StringIO(contents.decode('utf-8')))
+            # Try multiple encodings for CSV files
+            df = None
+            encodings_to_try = ['utf-8', 'utf-8-sig', 'windows-1252', 'iso-8859-1', 'cp1252']
+            
+            for encoding in encodings_to_try:
+                try:
+                    text_content = contents.decode(encoding)
+                    df = pd.read_csv(io.StringIO(text_content))
+                    break
+                except (UnicodeDecodeError, UnicodeError):
+                    continue
+            
+            if df is None:
+                # If all encodings fail, try with error handling
+                try:
+                    text_content = contents.decode('utf-8', errors='replace')
+                    df = pd.read_csv(io.StringIO(text_content))
+                except Exception:
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail="Unable to read CSV file. Please ensure it's properly encoded (UTF-8 recommended)"
+                    )
         else:
+            # Excel files are binary, no encoding issues
             df = pd.read_excel(io.BytesIO(contents))
         
         # Validate required columns
