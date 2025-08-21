@@ -78,6 +78,61 @@ const RecruiterDashboard = ({ user, onUpdateUser }) => {
     }
   };
 
+  const handleImageUpload = async (file, imageType) => {
+    if (!file) return;
+
+    // Validate file type
+    const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'];
+    if (!allowedTypes.includes(file.type)) {
+      alert('Please upload a JPEG, PNG, or WebP image file.');
+      return;
+    }
+
+    // Validate file size (10MB max)
+    if (file.size > 10 * 1024 * 1024) {
+      alert('File size must be less than 10MB.');
+      return;
+    }
+
+    try {
+      setUploadingImage(imageType);
+      
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('image_type', imageType);
+
+      const response = await axios.post(`${API}/upload-image`, formData, {
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('token')}`,
+          'Content-Type': 'multipart/form-data'
+        }
+      });
+
+      // Update the appropriate field based on image type
+      const fieldMap = {
+        'logo': 'company_logo_url',
+        'cover': 'company_cover_image_url'
+      };
+
+      const fieldName = fieldMap[imageType];
+      if (fieldName) {
+        setCompanyForm(prev => ({
+          ...prev,
+          [fieldName]: response.data.file_url
+        }));
+
+        // Auto-save the uploaded image
+        await updateCompanyProfile({ [fieldName]: response.data.file_url });
+      }
+
+    } catch (error) {
+      console.error('Error uploading image:', error);
+      alert(error.response?.data?.detail || 'Failed to upload image');
+    } finally {
+      setUploadingImage(null);
+    }
+  };
+
   const updateCompanyProfile = async (updates) => {
     try {
       setLoading(true);
