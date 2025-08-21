@@ -113,9 +113,9 @@ const JobCard = ({ job, user, onSave, onApply, onJobClick }) => {
       )}
       
       <CardContent className="p-4 sm:p-6 lg:p-8 relative z-10">
-        <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
-          <div className="flex items-start space-x-3 sm:space-x-6 flex-1">
-            <div className="w-12 h-12 sm:w-16 sm:h-16 lg:w-20 lg:h-20 rounded-xl lg:rounded-2xl overflow-hidden bg-gradient-to-br from-slate-100 to-slate-200 flex-shrink-0 shadow-lg ring-2 ring-slate-200/50">
+        <div className="flex items-start justify-between">
+          <div className="flex items-start space-x-4 sm:space-x-6 flex-1">
+            <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-2xl overflow-hidden bg-gradient-to-br from-slate-100 to-slate-200 flex-shrink-0 shadow-lg ring-2 ring-slate-200/50">
               <img 
                 src={getImageUrl(job.logo_url) || 'https://customer-assets.emergentagent.com/job_career-launchpad-16/artifacts/a6w1unn9_Leonardo_Phoenix_A_modern_sleek_logo_featuring_a_stylized_rock_2.jpg'} 
                 alt={`${job.company_name} logo`}
@@ -126,53 +126,53 @@ const JobCard = ({ job, user, onSave, onApply, onJobClick }) => {
               />
             </div>
             <div className="flex-1 min-w-0">
-              <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between mb-2 sm:mb-3 gap-2">
+              <div className="flex items-start justify-between mb-3">
                 <h3 
-                  className="text-lg sm:text-xl lg:text-2xl font-bold text-slate-800 group-hover:text-blue-700 transition-colors leading-tight cursor-pointer hover:underline"
+                  className="text-xl sm:text-2xl font-bold text-slate-800 group-hover:text-blue-700 transition-colors leading-tight cursor-pointer hover:underline pr-4"
                   onClick={handleJobTitleClick}
                 >
                   {job.title}
                 </h3>
                 {job.featured && (
-                  <div className="flex items-center space-x-1 bg-gradient-to-r from-blue-600 to-slate-700 text-white px-2 py-1 rounded-full text-xs font-semibold self-start">
+                  <div className="flex items-center space-x-1 bg-gradient-to-r from-blue-600 to-slate-700 text-white px-3 py-1 rounded-full text-xs font-semibold flex-shrink-0">
                     <Star className="w-3 h-3 fill-current" />
                     <span>Featured</span>
                   </div>
                 )}
               </div>
               
-              <div className="flex flex-col sm:flex-row sm:items-center sm:space-x-6 text-slate-600 mb-3 sm:mb-4 space-y-1 sm:space-y-0">
+              <div className="flex flex-wrap items-center gap-4 text-slate-600 mb-4">
                 <div className="flex items-center space-x-2">
-                  <Building2 className="w-4 h-4 sm:w-5 sm:h-5 text-slate-500 flex-shrink-0" />
-                  <span className="font-medium text-sm sm:text-base">{job.company_name}</span>
+                  <Building2 className="w-5 h-5 text-slate-500" />
+                  <span className="font-medium">{job.company_name}</span>
                 </div>
                 <div className="flex items-center space-x-2">
-                  <MapPin className="w-4 h-4 sm:w-5 sm:h-5 text-slate-500 flex-shrink-0" />
-                  <span className="text-sm sm:text-base">{job.location}</span>
+                  <MapPin className="w-5 h-5 text-slate-500" />
+                  <span>{job.location}</span>
                 </div>
                 <div className="flex items-center space-x-2">
-                  <Clock className="w-4 h-4 sm:w-5 sm:h-5 text-slate-500 flex-shrink-0" />
-                  <span className="text-sm sm:text-base">{formatPostedDate(job.posted_date)}</span>
+                  <Clock className="w-4 h-4 text-slate-500" />
+                  <span className="text-sm">{formatPostedDate(job.posted_date)}</span>
                 </div>
               </div>
               
               {job.salary && (
-                <div className="flex items-center space-x-2 text-emerald-700 font-bold mb-3 sm:mb-4 bg-emerald-50 px-2 py-1 sm:px-3 sm:py-2 rounded-lg w-fit">
-                  <Banknote className="w-3 h-3 sm:w-4 sm:h-4" />
-                  <span className="text-sm sm:text-base">{job.salary}</span>
+                <div className="flex items-center space-x-2 text-emerald-700 font-bold mb-4 bg-emerald-50 px-3 py-2 rounded-lg w-fit">
+                  <Banknote className="w-4 h-4" />
+                  <span>{job.salary}</span>
                 </div>
               )}
               
-              <p className="text-slate-700 mb-4 sm:mb-6 leading-relaxed line-clamp-2 text-sm sm:text-base">
+              <p className="text-slate-700 mb-6 leading-relaxed line-clamp-2">
                 {job.description}
               </p>
               
-              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-                <div className="flex flex-wrap items-center gap-2">
-                  <Badge variant="secondary" className="bg-slate-100 text-slate-700 hover:bg-slate-200 px-2 py-1 font-medium text-xs">
+              <div className="flex items-center justify-between">
+                <div className="flex flex-wrap items-center gap-3">
+                  <Badge variant="secondary" className="bg-slate-100 text-slate-700 hover:bg-slate-200 px-3 py-1 font-medium">
                     {job.job_type}
                   </Badge>
-                  <Badge className={`px-2 py-1 font-medium border-0 text-xs ${
+                  <Badge className={`px-3 py-1 font-medium border-0 ${
                     job.work_type === 'Remote' ? 'bg-blue-100 text-blue-700 hover:bg-blue-200' :
                     job.work_type === 'Hybrid' ? 'bg-purple-100 text-purple-700 hover:bg-purple-200' :
                     'bg-green-100 text-green-700 hover:bg-green-200'
@@ -180,30 +180,28 @@ const JobCard = ({ job, user, onSave, onApply, onJobClick }) => {
                     {job.work_type === 'Remote' && <Zap className="w-3 h-3 mr-1" />}
                     {job.work_type}
                   </Badge>
-                  <Badge variant="outline" className="border-slate-300 text-slate-600 px-2 py-1 font-medium text-xs">
+                  <Badge variant="outline" className="border-slate-300 text-slate-600 px-3 py-1 font-medium">
                     {job.industry}
                   </Badge>
                 </div>
-                <div className="flex items-center space-x-2">
+                <div className="flex items-center space-x-2 ml-4">
                   <ApplyButton 
                     job={job}
                     user={user}
                     onApplicationSuccess={(applicationData) => {
                       console.log('Application submitted:', applicationData);
-                      // You can add any success handling here
                     }}
-                    className="flex-1 sm:flex-none"
                   />
                   <Button
                     variant="ghost"
                     size="sm"
                     onClick={(e) => {
                       e.stopPropagation();
-                      onSave(job.id);
+                      onSave && onSave(job.id);
                     }}
-                    className="hover:bg-red-50 hover:text-red-600 rounded-full p-2 transition-all duration-300 flex-shrink-0"
+                    className="hover:bg-red-50 hover:text-red-600 rounded-full p-2 transition-all duration-300"
                   >
-                    <Heart className={`w-4 h-4 sm:w-5 sm:h-5 ${job.saved ? 'fill-red-500 text-red-500' : 'text-slate-400'}`} />
+                    <Heart className={`w-5 h-5 ${job.saved ? 'fill-red-500 text-red-500' : 'text-slate-400'}`} />
                   </Button>
                 </div>
               </div>
