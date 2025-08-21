@@ -1941,7 +1941,7 @@ async def upload_cv(
         
         # Return file URL for use in applications
         base_url = os.getenv('BASE_URL', 'http://localhost:8001')
-        file_url = f"{base_url}/uploads/cvs/{unique_filename}"
+        file_url = f"{base_url}/api/uploads/cvs/{unique_filename}"
         
         return {
             "message": "CV uploaded successfully",
