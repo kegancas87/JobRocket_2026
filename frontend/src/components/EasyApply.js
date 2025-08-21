@@ -132,9 +132,12 @@ const EasyApplyModal = ({ job, isOpen, onClose, onSuccess, user }) => {
     setStep(1);
     setApplicationData({
       cover_letter: '',
+      resume_file: null,
       resume_url: '',
       additional_info: ''
     });
+    setUploadedFileName('');
+    setUploadError('');
   };
 
   const handleClose = () => {
