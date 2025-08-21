@@ -243,9 +243,12 @@ const RecruiterDashboard = ({ user, onUpdateUser }) => {
                     <div className="w-24 h-24 bg-gradient-to-br from-blue-100 to-slate-200 rounded-2xl flex items-center justify-center overflow-hidden">
                       {companyForm.company_logo_url ? (
                         <img 
-                          src={companyForm.company_logo_url} 
+                          src={getImageUrl(companyForm.company_logo_url)} 
                           alt="Company Logo" 
                           className="w-full h-full object-cover"
+                          onError={(e) => {
+                            e.target.style.display = 'none';
+                          }}
                         />
                       ) : (
                         <Building2 className="w-12 h-12 text-slate-400" />
