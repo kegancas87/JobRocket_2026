@@ -151,7 +151,23 @@ const PricingPage = ({ user, onClose }) => {
       
     } catch (error) {
       console.error('Error initiating payment:', error);
-      alert(error.response?.data?.detail || 'Failed to initiate payment');
+      let errorMessage = 'Failed to initiate payment';
+      
+      if (error.response?.data) {
+        if (typeof error.response.data === 'string') {
+          errorMessage = error.response.data;
+        } else if (error.response.data.detail) {
+          errorMessage = error.response.data.detail;
+        } else if (error.response.data.error) {
+          errorMessage = error.response.data.error;
+        } else if (error.response.data.message) {
+          errorMessage = error.response.data.message;
+        }
+      } else if (error.message) {
+        errorMessage = error.message;
+      }
+      
+      alert(errorMessage);
     } finally {
       setPurchasing(null);
     }
