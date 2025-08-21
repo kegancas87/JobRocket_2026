@@ -42,6 +42,7 @@ const RecruiterDashboard = ({ user, onUpdateUser }) => {
   const [loading, setLoading] = useState(false);
   const [activeTab, setActiveTab] = useState('overview');
   const [progress, setProgress] = useState(user.recruiter_progress || {});
+  const [uploadingImage, setUploadingImage] = useState(null);
   
   // Form states
   const [companyForm, setCompanyForm] = useState({
