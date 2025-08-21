@@ -475,23 +475,44 @@ const RecruiterDashboard = ({ user, onUpdateUser }) => {
                             <Building2 className="w-10 h-10 text-slate-400" />
                           )}
                         </div>
-                        <div className="flex-1">
-                          <Input
-                            id="company_logo"
-                            value={companyForm.company_logo_url}
-                            onChange={(e) => setCompanyForm(prev => ({ ...prev, company_logo_url: e.target.value }))}
-                            placeholder="Enter logo URL or upload"
-                            className="h-12"
-                          />
+                        <div className="flex-1 space-y-3">
+                          <div className="flex space-x-2">
+                            <Input
+                              id="company_logo"
+                              value={companyForm.company_logo_url}
+                              onChange={(e) => setCompanyForm(prev => ({ ...prev, company_logo_url: e.target.value }))}
+                              placeholder="Enter logo URL or upload file"
+                              className="h-12"
+                            />
+                            <Button 
+                              type="button" 
+                              variant="outline"
+                              onClick={() => document.getElementById('logo-upload-branding').click()}
+                              disabled={uploadingImage === 'logo'}
+                            >
+                              {uploadingImage === 'logo' ? (
+                                <div className="w-4 h-4 border-2 border-blue-600 border-t-transparent rounded-full animate-spin" />
+                              ) : (
+                                <Upload className="w-4 h-4" />
+                              )}
+                            </Button>
+                          </div>
                           <Button 
                             type="button" 
                             variant="outline" 
-                            className="mt-2"
                             onClick={() => updateCompanyProfile({ company_logo_url: companyForm.company_logo_url })}
+                            className="w-full"
                           >
-                            <Upload className="w-4 h-4 mr-2" />
-                            Update Logo
+                            <Save className="w-4 h-4 mr-2" />
+                            Update Logo URL
                           </Button>
+                          <input
+                            id="logo-upload-branding"
+                            type="file"
+                            accept="image/*"
+                            onChange={(e) => e.target.files[0] && handleImageUpload(e.target.files[0], 'logo')}
+                            className="hidden"
+                          />
                         </div>
                       </div>
                     </div>
