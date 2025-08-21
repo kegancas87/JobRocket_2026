@@ -440,7 +440,7 @@ const EasyApplyModal = ({ job, isOpen, onClose, onSuccess, user }) => {
                   </Button>
                   <Button 
                     onClick={handleSubmitApplication}
-                    disabled={loading || !applicationData.cover_letter.trim()}
+                    disabled={loading}
                   >
                     {loading ? (
                       <div className="flex items-center space-x-2">
