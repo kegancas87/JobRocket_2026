@@ -102,7 +102,7 @@
 # Testing Data - Main Agent and testing sub agent both should log testing data below this section
 #====================================================================================================
 
-user_problem_statement: Test the complete Package and Payment system for Job Rocket including package management, payment initiation, payment completion, user package management, job posting with package credits, and package credit management.
+user_problem_statement: Test the complete Package and Payment system for Job Rocket including package management, payment initiation, payment completion, user package management, job posting with package credits, and package credit management. PLUS: Test the new Easy Apply enhancements - Cover letter made optional and CV file upload functionality with local storage.
 
 backend:
   - task: "Package Management API"
