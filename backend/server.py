@@ -1872,8 +1872,9 @@ async def upload_cv(
         )
     
     try:
-        # Create uploads directory if it doesn't exist
-        uploads_dir = Path("uploads/cvs")
+        # Create uploads directory if it doesn't exist (relative to backend directory)
+        backend_dir = Path(__file__).parent
+        uploads_dir = backend_dir / "uploads" / "cvs"
         uploads_dir.mkdir(parents=True, exist_ok=True)
         
         # Generate unique filename
