@@ -3541,6 +3541,68 @@ async def deactivate_discount_code(
     
     return {"message": "Discount code deactivated successfully"}
 
+@api_router.post("/upload-image")
+async def upload_image(
+    file: UploadFile = File(...),
+    image_type: str = Form(...),  # 'profile', 'cover', or 'logo'
+    current_user: User = Depends(get_current_user)
+):
+    """Upload profile, cover, or logo images"""
+    
+    # Validate file type
+    allowed_types = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp']
+    if file.content_type not in allowed_types:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Only JPEG, PNG, and WebP images are allowed"
+        )
+    
+    # Validate file size (max 10MB for images)
+    if file.size > 10 * 1024 * 1024:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="File size must be less than 10MB"
+        )
+    
+    # Validate image type
+    if image_type not in ['profile', 'cover', 'logo']:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Image type must be 'profile', 'cover', or 'logo'"
+        )
+    
+    try:
+        # Create uploads directory if it doesn't exist
+        backend_dir = Path(__file__).parent
+        uploads_dir = backend_dir / "uploads" / "images"
+        uploads_dir.mkdir(parents=True, exist_ok=True)
+        
+        # Generate unique filename
+        file_extension = file.filename.split('.')[-1] if '.' in file.filename else 'jpg'
+        unique_filename = f"{current_user.id}_{image_type}_{uuid.uuid4()}.{file_extension}"
+        file_path = uploads_dir / unique_filename
+        
+        # Save file
+        with open(file_path, "wb") as buffer:
+            content = await file.read()
+            buffer.write(content)
+        
+        # Return file URL
+        file_url = f"/uploads/images/{unique_filename}"
+        
+        return {
+            "message": f"{image_type.title()} image uploaded successfully",
+            "file_url": file_url,
+            "filename": file.filename,
+            "image_type": image_type
+        }
+        
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error uploading image: {str(e)}"
+        )
+
 @api_router.get("/admin/discount-codes/stats/usage")
 async def get_discount_code_usage_stats(
     admin_user: User = Depends(verify_admin_user)
