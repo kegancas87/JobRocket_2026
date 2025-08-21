@@ -82,7 +82,7 @@ const PricingPage = ({ user, onClose }) => {
     } catch (error) {
       setDiscountValidation({
         valid: false,
-        error: error.response?.data?.error || 'Invalid discount code'
+        error: error.response?.data?.detail || error.response?.data?.error || error.message || 'Invalid discount code'
       });
     } finally {
       setValidatingDiscount(false);
