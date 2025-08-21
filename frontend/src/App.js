@@ -565,27 +565,122 @@ const JobListingPage = ({ user, onLogout }) => {
               </div>
 
               <FilterSection title="Date Posted" defaultExpanded={true}>
-                <FilterOption label="New jobs" count="14" />
-                <FilterOption label="Last week" count="147" />
+                <FilterOption 
+                  label="New jobs" 
+                  count={jobs.filter(job => {
+                    const daysDiff = Math.floor((new Date() - new Date(job.posted_date)) / (1000 * 60 * 60 * 24));
+                    return daysDiff <= 1;
+                  }).length}
+                  selected={filters.datePosted.newJobs}
+                  onChange={(checked) => handleFilterChange('datePosted', 'newJobs', checked)}
+                />
+                <FilterOption 
+                  label="Last week" 
+                  count={jobs.filter(job => {
+                    const daysDiff = Math.floor((new Date() - new Date(job.posted_date)) / (1000 * 60 * 60 * 24));
+                    return daysDiff <= 7;
+                  }).length}
+                  selected={filters.datePosted.lastWeek}
+                  onChange={(checked) => handleFilterChange('datePosted', 'lastWeek', checked)}
+                />
               </FilterSection>
 
               <FilterSection title="Work From Home" defaultExpanded={true}>
-                <FilterOption label="Partially remote" count="17" />
-                <FilterOption label="Fully remote" count="4" />
+                <FilterOption 
+                  label="Partially remote" 
+                  count={jobs.filter(job => job.work_type?.toLowerCase().includes('hybrid')).length}
+                  selected={filters.workFromHome.partiallyRemote}
+                  onChange={(checked) => handleFilterChange('workFromHome', 'partiallyRemote', checked)}
+                />
+                <FilterOption 
+                  label="Fully remote" 
+                  count={jobs.filter(job => job.work_type?.toLowerCase().includes('remote')).length}
+                  selected={filters.workFromHome.fullyRemote}
+                  onChange={(checked) => handleFilterChange('workFromHome', 'fullyRemote', checked)}
+                />
               </FilterSection>
 
               <FilterSection title="Application Method" defaultExpanded={true}>
-                <FilterOption label="On company website" count="220" />
-                <FilterOption label="Easy Apply" count="130" />
+                <FilterOption 
+                  label="On company website" 
+                  count={jobs.filter(job => job.external_url).length}
+                  selected={filters.applicationMethod.onCompanyWebsite}
+                  onChange={(checked) => handleFilterChange('applicationMethod', 'onCompanyWebsite', checked)}
+                />
+                <FilterOption 
+                  label="Easy Apply" 
+                  count={jobs.length}
+                  selected={filters.applicationMethod.easyApply}
+                  onChange={(checked) => handleFilterChange('applicationMethod', 'easyApply', checked)}
+                />
               </FilterSection>
 
               <FilterSection title="Functions" defaultExpanded={true}>
-                <FilterOption label="Engineering, Technical" count="100" />
-                <FilterOption label="Production & Manufacturing" />
-                <FilterOption label="IT & Telecommunications" count="47" />
-                <FilterOption label="Sales & Purchasing" count="36" />
-                <FilterOption label="Accounting, Auditing" count="33" />
-                <FilterOption label="Banking, Finance" count="26" />
+                <FilterOption 
+                  label="Engineering, Technical" 
+                  count={jobs.filter(job => {
+                    const industry = job.industry?.toLowerCase() || '';
+                    const title = job.title?.toLowerCase() || '';
+                    return industry.includes('technology') || industry.includes('engineering') || 
+                           title.includes('engineer') || title.includes('developer') || title.includes('technical');
+                  }).length}
+                  selected={filters.functions.engineering}
+                  onChange={(checked) => handleFilterChange('functions', 'engineering', checked)}
+                />
+                <FilterOption 
+                  label="Production & Manufacturing" 
+                  count={jobs.filter(job => {
+                    const industry = job.industry?.toLowerCase() || '';
+                    const title = job.title?.toLowerCase() || '';
+                    return industry.includes('manufacturing') || industry.includes('production') ||
+                           title.includes('production') || title.includes('manufacturing');
+                  }).length}
+                  selected={filters.functions.production}
+                  onChange={(checked) => handleFilterChange('functions', 'production', checked)}
+                />
+                <FilterOption 
+                  label="IT & Telecommunications" 
+                  count={jobs.filter(job => {
+                    const industry = job.industry?.toLowerCase() || '';
+                    const title = job.title?.toLowerCase() || '';
+                    return industry.includes('technology') || industry.includes('software') || 
+                           industry.includes('it') || title.includes('it ') || title.includes('software');
+                  }).length}
+                  selected={filters.functions.it}
+                  onChange={(checked) => handleFilterChange('functions', 'it', checked)}
+                />
+                <FilterOption 
+                  label="Sales & Purchasing" 
+                  count={jobs.filter(job => {
+                    const industry = job.industry?.toLowerCase() || '';
+                    const title = job.title?.toLowerCase() || '';
+                    return industry.includes('sales') || title.includes('sales') || title.includes('marketing');
+                  }).length}
+                  selected={filters.functions.sales}
+                  onChange={(checked) => handleFilterChange('functions', 'sales', checked)}
+                />
+                <FilterOption 
+                  label="Accounting, Auditing" 
+                  count={jobs.filter(job => {
+                    const industry = job.industry?.toLowerCase() || '';
+                    const title = job.title?.toLowerCase() || '';
+                    return industry.includes('finance') || industry.includes('accounting') ||
+                           title.includes('accountant') || title.includes('finance');
+                  }).length}
+                  selected={filters.functions.accounting}
+                  onChange={(checked) => handleFilterChange('functions', 'accounting', checked)}
+                />
+                <FilterOption 
+                  label="Banking, Finance" 
+                  count={jobs.filter(job => {
+                    const industry = job.industry?.toLowerCase() || '';
+                    const title = job.title?.toLowerCase() || '';
+                    return industry.includes('banking') || industry.includes('financial') ||
+                           title.includes('bank') || title.includes('financial');
+                  }).length}
+                  selected={filters.functions.banking}
+                  onChange={(checked) => handleFilterChange('functions', 'banking', checked)}
+                />
               </FilterSection>
             </div>
           </div>
