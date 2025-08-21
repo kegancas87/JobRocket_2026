@@ -53,7 +53,10 @@ const getImageUrl = (imageUrl) => {
     return imageUrl; // Already a full URL
   }
   if (imageUrl.startsWith('/uploads/')) {
-    return `${BACKEND_URL}${imageUrl}`; // Prepend backend URL to relative paths
+    return `${BACKEND_URL}/api${imageUrl}`; // Convert old URLs to new API path
+  }
+  if (imageUrl.startsWith('/api/uploads/')) {
+    return `${BACKEND_URL}${imageUrl}`; // New API URLs
   }
   return imageUrl; // Return as-is for other cases
 };
