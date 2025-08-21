@@ -3644,10 +3644,10 @@ async def get_discount_code_usage_stats(
 # Include the router in the main app
 app.include_router(api_router)
 
-# Mount static files for uploaded CVs (using absolute path)
+# Mount static files for uploaded files (using /api prefix for proper routing)
 backend_dir = Path(__file__).parent
 uploads_path = backend_dir / "uploads"
-app.mount("/uploads", StaticFiles(directory=str(uploads_path)), name="uploads")
+app.mount("/api/uploads", StaticFiles(directory=str(uploads_path)), name="uploads")
 
 app.add_middleware(
     CORSMiddleware,
