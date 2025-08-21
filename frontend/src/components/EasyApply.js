@@ -64,6 +64,41 @@ const EasyApplyModal = ({ job, isOpen, onClose, onSuccess, user }) => {
     setApplicationData(prev => ({ ...prev, [field]: value }));
   };
 
+  const handleFileUpload = (event) => {
+    const file = event.target.files[0];
+    setUploadError('');
+    
+    if (file) {
+      // Validate file type (PDF, DOC, DOCX)
+      const allowedTypes = ['application/pdf', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'];
+      if (!allowedTypes.includes(file.type)) {
+        setUploadError('Please upload a PDF, DOC, or DOCX file');
+        return;
+      }
+      
+      // Validate file size (max 5MB)
+      if (file.size > 5 * 1024 * 1024) {
+        setUploadError('File size must be less than 5MB');
+        return;
+      }
+      
+      setApplicationData(prev => ({ ...prev, resume_file: file }));
+      setUploadedFileName(file.name);
+      
+      // Clear the URL field since we're using file upload instead
+      setApplicationData(prev => ({ ...prev, resume_url: '' }));
+    }
+  };
+
+  const removeUploadedFile = () => {
+    setApplicationData(prev => ({ ...prev, resume_file: null }));
+    setUploadedFileName('');
+    setUploadError('');
+    // Reset the file input
+    const fileInput = document.getElementById('resume_file');
+    if (fileInput) fileInput.value = '';
+  };
+
   const handleSubmitApplication = async () => {
     try {
       setLoading(true);
