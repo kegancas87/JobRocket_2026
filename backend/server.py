@@ -675,6 +675,7 @@ class PackageType(str, Enum):
     CV_SEARCH_10 = "cv_search_10"
     CV_SEARCH_20 = "cv_search_20"
     CV_SEARCH_UNLIMITED = "cv_search_unlimited"
+    CV_SEARCH_UNLIMITED = "cv_search_unlimited"
 
 class PaymentStatus(str, Enum):
     PENDING = "pending"
