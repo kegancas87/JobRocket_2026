@@ -36,7 +36,7 @@ import {
   Rocket,
   Star,
   Clock,
-  DollarSign,
+  Banknote,
   Users,
   Zap,
   Settings,
