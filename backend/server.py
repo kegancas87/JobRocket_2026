@@ -3527,6 +3527,9 @@ async def get_discount_code_usage_stats(
 # Include the router in the main app
 app.include_router(api_router)
 
+# Mount static files for uploaded CVs
+app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")
+
 app.add_middleware(
     CORSMiddleware,
     allow_credentials=True,
