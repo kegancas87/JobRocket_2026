@@ -1848,6 +1848,58 @@ async def create_jobs_bulk(
             detail=f"Error processing file: {str(e)}"
         )
 
+@api_router.post("/upload-cv")
+async def upload_cv(
+    file: UploadFile = File(...),
+    current_user: User = Depends(get_current_user)
+):
+    """Upload CV/Resume file for job applications"""
+    
+    # Validate file type
+    allowed_types = ['application/pdf', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document']
+    if file.content_type not in allowed_types:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Only PDF, DOC, and DOCX files are allowed"
+        )
+    
+    # Validate file size (max 5MB)
+    if file.size > 5 * 1024 * 1024:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="File size must be less than 5MB"
+        )
+    
+    try:
+        # Create uploads directory if it doesn't exist
+        uploads_dir = Path("uploads/cvs")
+        uploads_dir.mkdir(parents=True, exist_ok=True)
+        
+        # Generate unique filename
+        file_extension = file.filename.split('.')[-1] if '.' in file.filename else 'pdf'
+        unique_filename = f"{current_user.id}_{uuid.uuid4()}.{file_extension}"
+        file_path = uploads_dir / unique_filename
+        
+        # Save file
+        with open(file_path, "wb") as buffer:
+            content = await file.read()
+            buffer.write(content)
+        
+        # Return file URL for use in applications
+        file_url = f"/uploads/cvs/{unique_filename}"
+        
+        return {
+            "message": "CV uploaded successfully",
+            "file_url": file_url,
+            "filename": file.filename
+        }
+        
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error uploading file: {str(e)}"
+        )
+
 @api_router.get("/jobs", response_model=List[Job])
 async def get_jobs(
     company_id: Optional[str] = Query(None),
