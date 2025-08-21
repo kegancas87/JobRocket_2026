@@ -692,8 +692,10 @@ metadata:
 
 test_plan:
   current_focus: 
-    - "Frontend JavaScript Errors - CRITICAL ISSUE"
-    - "Discount Codes Frontend Implementation - MISSING COMPLETELY"
+    - "CV File Upload API Endpoint"
+    - "Static File Serving for CV Files"
+    - "Easy Apply Cover Letter Optional"
+    - "Easy Apply CV File Upload UI"
   stuck_tasks: 
     - "Discount Codes System - Admin Management - Frontend missing"
     - "Discount Codes System - Payment Integration - Frontend missing"  
