@@ -629,24 +629,29 @@ function App() {
           <main className="flex-1">
             <Routes>
               <Route path="/" element={
-                currentPage === 'profile' ? (
-                  user.role === 'recruiter' ? (
-                    <RecruiterDashboard 
-                      user={user} 
-                      onUpdateUser={handleUpdateUser}
-                    />
-                  ) : (
+                user.role === 'recruiter' ? (
+                  <RecruiterDashboard 
+                    user={user} 
+                    onUpdateUser={handleUpdateUser}
+                  />
+                ) : user.role === 'admin' ? (
+                  <AdminDashboard 
+                    user={user}
+                    onLogout={handleLogout}
+                  />
+                ) : (
+                  currentPage === 'profile' ? (
                     <ProfileDashboard 
                       user={user} 
                       onUpdateUser={handleUpdateUser}
                       onLogout={handleLogout}
                     />
+                  ) : (
+                    <JobListingPage 
+                      user={user} 
+                      onLogout={handleLogout}
+                    />
                   )
-                ) : (
-                  <JobListingPage 
-                    user={user} 
-                    onLogout={handleLogout}
-                  />
                 )
               } />
               
