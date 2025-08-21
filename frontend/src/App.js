@@ -117,7 +117,7 @@ const JobCard = ({ job, user, onSave, onApply, onJobClick }) => {
           <div className="flex items-start space-x-6 flex-1">
             <div className="w-20 h-20 rounded-2xl overflow-hidden bg-gradient-to-br from-slate-100 to-slate-200 flex-shrink-0 shadow-lg ring-2 ring-slate-200/50">
               <img 
-                src={getImageUrl(job.logo_url)} 
+                src={getImageUrl(job.logo_url) || 'https://images.unsplash.com/photo-1606211105533-0439bfecce21?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NTY2NzZ8MHwxfHNlYXJjaHw0fHxtb2Rlcm4lMjB0ZWNobm9sb2d5fGVufDB8fHx8MTc1NTM1MzYzMXww&ixlib=rb-4.1.0&q=85&w=80&h=80'} 
                 alt={`${job.company_name} logo`}
                 className="w-full h-full object-cover"
                 onError={(e) => {
