@@ -80,9 +80,33 @@ const PricingPage = ({ user, onClose }) => {
         ...response.data
       });
     } catch (error) {
+      let errorMessage = 'Invalid discount code';
+      
+      try {
+        if (error.response?.data) {
+          const data = error.response.data;
+          if (typeof data === 'string') {
+            errorMessage = data;
+          } else if (data.detail) {
+            errorMessage = typeof data.detail === 'string' ? data.detail : JSON.stringify(data.detail);
+          } else if (data.error) {
+            errorMessage = typeof data.error === 'string' ? data.error : JSON.stringify(data.error);
+          } else if (data.message) {
+            errorMessage = typeof data.message === 'string' ? data.message : JSON.stringify(data.message);
+          } else {
+            errorMessage = `Discount validation error: ${JSON.stringify(data)}`;
+          }
+        } else if (error.message) {
+          errorMessage = error.message;
+        }
+      } catch (parseError) {
+        console.error('Error parsing discount validation error:', parseError);
+        errorMessage = 'Unable to validate discount code';
+      }
+      
       setDiscountValidation({
         valid: false,
-        error: error.response?.data?.detail || error.response?.data?.error || error.message || 'Invalid discount code'
+        error: errorMessage
       });
     } finally {
       setValidatingDiscount(false);
