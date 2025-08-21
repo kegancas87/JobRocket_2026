@@ -403,22 +403,22 @@ class PayfastPaymentTestSuite:
             return
         
         test_package = self.packages[0]
-        payment_data = {
+        payment_params = {
             "package_type": test_package["package_type"]
         }
         
         # Test 1: No authentication (should fail)
-        response = self.make_request("POST", "/payments/initiate", data=payment_data)
+        response = self.make_request("POST", "/payments/initiate", data=payment_params, use_params=True)
         if self.assert_response(response, 401, "Payment Without Authentication (Should Fail)"):
             print_success("✅ Payment initiation correctly requires authentication")
         
         # Test 2: Invalid token (should fail)
-        response = self.make_request("POST", "/payments/initiate", data=payment_data, auth_token="invalid_token")
+        response = self.make_request("POST", "/payments/initiate", data=payment_params, auth_token="invalid_token", use_params=True)
         if self.assert_response(response, 401, "Payment With Invalid Token (Should Fail)"):
             print_success("✅ Payment initiation correctly validates authentication token")
         
         # Test 3: Valid recruiter token (should succeed)
-        response = self.make_request("POST", "/payments/initiate", data=payment_data, auth_token=self.recruiter_token)
+        response = self.make_request("POST", "/payments/initiate", data=payment_params, auth_token=self.recruiter_token, use_params=True)
         if self.assert_response(response, 200, "Payment With Valid Recruiter Token"):
             print_success("✅ Payment initiation works with valid recruiter authentication")
 
