@@ -152,6 +152,9 @@ backend:
         -working: true
         -agent: "testing"
         -comment: "User Package Management working perfectly. GET /api/my-packages returns user's purchased packages with complete structure: user_package details, package information, and expiry status. Subscription packages show expiry dates and status (active). One-time packages correctly show no expiry. Credit tracking working: job_listings_remaining and cv_searches_remaining properly displayed. Package status management working with is_expired flag. Access control implemented (recruiters only)."
+        -working: true
+        -agent: "testing"
+        -comment: "SPECIFIC USER TESTING COMPLETED ✅ Tested /api/my-packages endpoint specifically for lisa.martinez@techcorp.demo as requested. ISSUE RESOLVED: User initially had no packages because the add_unlimited_packages.py script created user_packages records with incorrect structure (wrong package_id references). Fixed by: 1) Running add_unlimited_packages.py script to create user packages 2) Correcting package_id field to reference actual unlimited package ID (9ae07ca2-733c-4e14-81fc-f082c6f4f867) 3) Adding proper UserPackage model fields (is_active, job_listings_remaining=None for unlimited, cv_searches_remaining=10). VERIFICATION RESULTS: ✅ Login successful with lisa.martinez@techcorp.demo/demo123 ✅ GET /api/my-packages returns 1 unlimited package ✅ Package structure correct: user_package + package + is_expired fields ✅ Unlimited package shows job_listings_remaining=None (unlimited) and cv_searches_remaining=10 ✅ Package is active and not expired. The query was working correctly - the issue was missing/malformed user_packages records in database."
 
   - task: "Job Posting with Package Credits"
     implemented: true
