@@ -11,7 +11,7 @@ from datetime import datetime, timedelta
 import uuid
 
 # Configuration
-BASE_URL = "https://2f81706c-76db-49e4-a24b-38ca4e94e2e2.preview.emergentagent.com/api"
+BASE_URL = "https://career-launchpad-16.preview.emergentagent.com/api"
 HEADERS = {"Content-Type": "application/json"}
 
 class Colors:

@@ -1,18 +1,25 @@
 <analysis>
-The AI engineer systematically built the Job Rocket application from an initial UI to a comprehensive platform. The progression began with establishing a tech-rocket themed UI and then implementing a gamified onboarding and authentication system for both job seekers and recruiters, including robust backend models and frontend progress indicators. Subsequent development focused on core functionalities: first, a detailed company structure and team management feature for recruiters (deferring email integration for later), then a comprehensive job listing and posting system for recruiters (including single and bulk uploads, auto-expiry, archiving, and reposting). The latest major addition was the Easy Apply job application system, pre-populating seeker data and enabling recruiter application management. Currently, the engineer is integrating a sophisticated pricing and payment system, using Payfast, with automatic package activation, demonstrating a pragmatic and iterative approach to feature delivery, prioritizing core functionality and addressing dependencies as needed.
+The AI engineer successfully transformed the Job Rocket application from an MVP into a more robust platform. Initially, the focus was on completing the Payfast integration, transitioning from mock data to a production-ready system with automated package activation and a functional webhook. Subsequently, two new critical features were implemented: a comprehensive discount code system for administrators (supporting both percentage and fixed-value discounts) and a redesigned frontend navigation to allow seamless access between the main application and the new admin dashboard. Throughout this process, the engineer adeptly debugged and resolved various backend issues, including missing environment variables and routing misconfigurations, as well as significant frontend UI/UX problems related to job display, modal functionality, and component imports. The work culminated in establishing a well-populated demo environment and addressing the user's explicit UI concerns, leading into the current task of enhancing the job application process.
 </analysis>
 
 <product_requirements>
 The Job Rocket application aims to be a comprehensive platform connecting job seekers, recruiters, and administrators, featuring an Applicant Tracking System (ATS), subscription models for job listings and CV search, and payment processing via Payfast.
 
-**Implemented Features and Current State:**
-1.  **Job Listing UI & Theme:** An initial modern UI evolved into a techie, rocket feel theme with dark greys, blues, gradients, glassmorphism, and animations.
-2.  **Gamified Onboarding (Job Seeker):** Full registration/login. Gamified profile completion (100 points: Profile Picture, About Me, Work History, Skills, Education, Achievements, Intro Video, Apply to 5 Jobs, Email Job Alert) with a visual trophy progress and rocket launch animation at 100 points.
-3.  **Gamified Onboarding (Recruiter):** Role selection at registration. Gamified company profile completion (Company Logo, Cover Image, About Company, Number of Employees, Website/LinkedIn links).
-4.  **Company Structure & Team Management:** Recruiters can add a main company, branches (optional location/email), and invite team members, associating them with branches. The invitation system stores invites but defers email sending.
-5.  **Job Listing & Posting:** Recruiters can post jobs (single or bulk CSV/Excel) with mandatory fields (Title, Location, Salary, Type, Work Type, Industry, Description) and optional (Experience, Qualifications, Company selection). Jobs automatically expire in 35 days, are hidden from seekers but archived for recruiters, and can be reposted. Display shows days/weeks since posted.
-6.  **Job Application System:** Optional external application link. If blank, Easy Apply allows job seekers to apply directly on Job Rocket via a modal pre-populated with their profile (name, surname, email, CV, skills, optional cover letter). Job seekers can track applications, and recruiters can view/manage them.
-7.  **Pricing & Payment Packages:** Defined packages: Two Listings (R2800 once-off, 30-day expiry), Unlimited Listings (R3899/month, 35-day expiry, 10 free CV searches), Five Listings (R4150 once-off). CV Search packages: 10 CVs" (R699 once-off), "20 CVs (R1299 once-off), Unlimited Searches (R2899/month). CV search functionality is pending, but packages are on the pricing page.
+**Core Features & Implemented State:**
+1.  **UI & Theme:** Modern techie, rocket feel UI with dark greys, blues, gradients, glassmorphism, and animations.
+2.  **Gamified Onboarding:** Full registration/login for Job Seekers (profile completion with points, visual trophy progress) and Recruiters (company profile completion).
+3.  **Company Structure & Team Management:** Recruiters can manage main company, branches, and invite team members (email deferral).
+4.  **Job Listing & Posting:** Recruiters can post jobs (single/bulk), with mandatory fields (Title, Location, Salary, Type, Work Type, Industry, Description) and optional ones. Jobs auto-expire in 35 days, are archived, and can be reposted.
+5.  **Job Application System:** Easy Apply modal pre-populates job seeker data (name, email, CV, skills, optional cover letter). Job seekers track applications, recruiters manage them.
+6.  **Pricing & Payment Packages:** Defined packages for job listings and CV search are displayed.
+7.  **Payfast Integration (Completed):** Full backend integration of Payfast, including automated package activation upon successful payment and sandbox mode configuration for testing.
+8.  **Admin Discount Codes (Completed):** Backend and frontend implementation for administrators to create, manage (view, edit, deactivate), and validate discount codes (percentage or fixed value).
+9.  **Enhanced Navigation (Completed):** Admin users can now seamlessly navigate between the main job platform and the admin dashboard without being trapped.
+10. **Improved Job Listings Display (Completed):** Job data model fixes, expanded dummy job data (now 20 jobs), and resolution of frontend display issues including correct rendering of job cards, salary, and company info.
+11. **Job Details Modal (Completed):** Clicking job titles now opens a comprehensive job details modal for enhanced viewing.
+12. **UI/UX Fixes (Completed):** Resolved issues with Easy Apply button spacing (found to be correct, but fixed modal opening), job title click behavior, and general rendering errors like the  import issue.
+
+**Current focus of work:** Make cover letter mandatory for job applications and implement CV document upload functionality.
 </product_requirements>
 
 <key_technical_concepts>
@@ -20,8 +27,8 @@ The Job Rocket application aims to be a comprehensive platform connecting job se
 -   **UI/UX**: Tailwind CSS, Shadcn UI components, Glassmorphism, CSS animations.
 -   **Authentication**: JWT for role-based authentication.
 -   **Database**: PyMongo/Motor for MongoDB, UUIDs for IDs.
--   **Payment Gateway**: Payfast integration (in progress).
--   **Email Integration**: SendGrid (planned, credentials pending).
+-   **Payment Gateway**: Payfast integration.
+-   **Email Integration**: SendGrid (planned).
 -   **Data Processing**: Pandas for CSV/Excel bulk uploads.
 </key_technical_concepts>
 
@@ -34,63 +41,62 @@ The application follows a standard full-stack structure:
 
 *   :
     *   **Importance**: Core backend logic.
-    *   **Changes**: Extensive updates for user authentication (JobSeeker, Recruiter, Admin models, JWT), Company models (main, branches, team members), gamification logic, MongoDB ObjectId serialization fixes. Added API endpoints for company structure (invite, accept invite), job posting (single/bulk), job expiry/archive, job applications, and package/payment management. Includes , , , , ,  models.
+    *   **Changes**:
+        *   Extensive updates for Payfast integration: replaced mock payment initiation with actual Payfast logic, added a Payfast webhook endpoint for automated package activation and discount code usage tracking.
+        *   Introduced , , , , and  models.
+        *   Added API endpoints for admin to manage discount codes (create, retrieve, update, deactivate) and a public endpoint for discount code validation.
+        *   Fixed routing issue where admin endpoints were not registered correctly by moving them before  inclusion.
+        *   Updated job models and data loading logic to include , , and correct enum values (, ).
+*   :
+    *   **Importance**: Stores environment variables for backend.
+    *   **Changes**: Added Payfast production credentials (merchant ID, key, passphrase), then updated  to  for testing. Fixed missing  and  variables.
 *   :
     *   **Importance**: Main React component, handles global state, routing, and conditional rendering.
-    *   **Changes**: Implemented tech-rocket theme, role-based routing (, , , ), authentication state management. Added new routes for . Updated  to accept  prop and display enhanced job details.
+    *   **Changes**:
+        *   Integrated  and  components.
+        *   Modified role-based routing to allow admin users to access the main job platform by default, with a dedicated Admin Panel link in the navigation.
+        *   Added  state management (, ) within the  component (defined inline) and passed  handler to .
+        *   Included necessary  icon imports (, ).
 *   :
-    *   **Importance**: Manages company branches and team invitations for recruiters.
-    *   **Changes**: Modified to generate and display invitation links (instead of just success messages), preparing for external email sending.
+    *   **Importance**: Displays pricing packages and handles purchase initiation.
+    *   **Changes**: Integrated discount code input, logic for validating and applying discounts, and a checkout modal to streamline the purchase flow.
 *   :
-    *   **Importance**: New component for invited team members to accept invitations and register.
-    *   **Changes**: Created to handle the UI and logic for invitation acceptance flow.
+    *   **Importance**: New component for administrators to manage platform features.
+    *   **Changes**: Created to display and manage discount codes, with UI for creating, editing, deactivating, and viewing usage statistics. Includes navigation back to the main job platform.
 *   :
-    *   **Importance**: Recruiter's central dashboard.
-    *   **Changes**: Integrated , , , and  via new tabs for enhanced functionality. Updated to manage company details and gamification.
+    *   **Importance**: New component for displaying detailed job information.
+    *   **Changes**: Created to show comprehensive job descriptions, requirements, company details, and an integrated Easy Apply button within a modal dialog.
 *   :
-    *   **Importance**: Allows recruiters to create and manage job listings.
-    *   **Changes**: Created to support single and bulk job posting with all required fields. Enhanced to display active/archived jobs, show job expiry, and integrate repost functionality. Added credit display and checks for available packages.
+    *   **Importance**: Job seeker's profile and gamification dashboard.
+    *   **Changes**: Added missing  icon import to resolve a critical frontend rendering error.
 *   :
-    *   **Importance**: Handles the Easy Apply modal for job seekers.
-    *   **Changes**: Created to pre-populate job seeker's name, email, CV, and skills, with an optional cover letter input. Submits applications to the backend.
+    *   **Importance**: Handles the Easy Apply modal for job application.
+    *   **Changes**: Preparatory examination for making cover letter mandatory and implementing CV document upload.
 *   :
-    *   **Importance**: Displays a job seeker's submitted applications.
-    *   **Changes**: Created and integrated into  for application tracking.
+    *   **Importance**: New script for populating the database with comprehensive test data.
+    *   **Changes**: Created to set up admin, job seeker, and recruiter users, companies, realistic job listings, job applications, and discount codes.
 *   :
-    *   **Importance**: Allows recruiters to view and manage job applications.
-    *   **Changes**: Created and integrated into .
-*   :
-    *   **Importance**: Displays different job listing and CV search packages.
-    *   **Changes**: Created to list all defined pricing packages.
-*   :
-    *   **Importance**: Shows a recruiter's purchased packages and available credits.
-    *   **Changes**: Created and integrated into  to display package details and credit usage.
+    *   **Importance**: New script to correct and expand existing job data.
+    *   **Changes**: Created to fix data validation issues (e.g., missing fields, incorrect enums) in existing jobs and add 15 new diverse job listings.
 </code_architecture>
 
 <pending_tasks>
 -   Implementing the full Applicant Tracking System (ATS).
--   Building the Admin Dashboard for platform management.
+-   Building the Admin Dashboard for comprehensive platform management (beyond discount codes).
 -   Completing the team member invitation email flow (SendGrid integration).
 -   Developing the CV Search functionality.
+-   Making the cover letter section mandatory in the job application.
+-   Implementing a document upload function for CVs in the job application.
 </pending_tasks>
 
 <current_work>
-The immediate focus is on integrating the **Payfast payment system** in full, ensuring automatic package activation upon successful payment without human intervention.
+The immediate work being done is enhancing the Easy Apply job application process. The user explicitly requested two changes:
+1.  **Make the cover letter section mandatory** when applying for a job.
+2.  **Implement a document upload function for the CV**, replacing the current method (presumably a URL input or text field).
 
-**Backend Work (In Progress):**
-*    has been updated with new  and  models.
-*   API endpoints for managing packages and processing payments have been added.
-*   The  endpoint now includes logic to check and consume package credits, ensuring a job can only be posted if a recruiter has available listings from purchased packages.
-*   The AI engineer has successfully obtained the Payfast integration playbook (Chat Message 269) and is now proceeding to implement the backend logic using the provided merchant ID, key, and passphrase to automate package activation.
-
-**Frontend Work (Partially Complete):**
-*   A dedicated  component has been created to display the various job listing and CV search packages.
-*   A  component has been created and integrated into the  to show a recruiter's purchased packages and available job credits.
-*   The  component has been updated to display the recruiter's available credits and to prevent job submission if no credits are available.
-
-The last successful action was backend testing, confirming that the package management API works correctly, and all six packages are recognized and manageable. The next step is to integrate the actual Payfast payment processing and the automated package activation in .
+The AI engineer has just completed a thorough review of the  component, specifically examining the current implementation of the cover letter field and the CV input. The analysis noted that the cover letter is already marked as  in the UI and validation logic (lines 287 and 343 in ). The next step is to focus on replacing the CV URL input with a proper file upload mechanism. The trajectory ends with the AI engineer stating, Now let me add the file upload handler function. indicating this is the precise next action.
 </current_work>
 
 <optional_next_step>
-Implement the full Payfast integration on the backend using the provided merchant credentials to automate package activation upon successful payment.
+I will implement the file upload handler function for the CV in the  component to allow document uploads.
 </optional_next_step>
