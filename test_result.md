@@ -258,6 +258,30 @@ backend:
         -agent: "testing"
         -comment: "CRITICAL ISSUE: Frontend discount code validation UI is completely missing. Backend validation endpoint exists but no frontend interface to validate codes, show discount amounts, or display error messages. No real-time validation, no price updates when codes are applied. Complete frontend implementation needed to utilize backend validation functionality."
 
+  - task: "CV File Upload API Endpoint"
+    implemented: true
+    working: "NA"
+    file: "/app/backend/server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+        -working: "NA"
+        -agent: "main"
+        -comment: "Implemented new POST /api/upload-cv endpoint for CV file uploads. Supports PDF, DOC, DOCX files up to 5MB. Creates uploads/cvs directory, generates unique filenames, validates file types and sizes. Returns file URL for use in job applications. Includes proper authentication and error handling."
+
+  - task: "Static File Serving for CV Files"
+    implemented: true
+    working: "NA"
+    file: "/app/backend/server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+        -working: "NA"
+        -agent: "main"
+        -comment: "Added FastAPI static file serving for uploaded CV files. Mounted /uploads directory to serve files at /uploads/{filename}. This allows uploaded CV files to be accessible via direct URLs for recruiters to download and view."
+
   - task: "Automatic Job Expiry (35 days)"
     implemented: true
     working: true
