@@ -3,9 +3,8 @@
 Script to add job listing credits to recruiter accounts for testing
 """
 
-import asyncio
 import os
-from pymongo import AsyncMongoClient
+from pymongo import MongoClient
 from dotenv import load_dotenv
 from datetime import datetime, timedelta
 
@@ -15,36 +14,40 @@ load_dotenv('/app/backend/.env')
 MONGO_URL = os.getenv('MONGO_URL', 'mongodb://localhost:27017')
 DB_NAME = os.getenv('DB_NAME', 'jobrocket')
 
-async def add_credits_to_recruiters():
+def add_credits_to_recruiters():
     """Add job listing credits to all recruiter accounts"""
     
-    client = AsyncMongoClient(MONGO_URL)
+    client = MongoClient(MONGO_URL)
     db = client[DB_NAME]
     
     try:
         # Find all recruiter users
-        recruiters = await db.users.find({"role": "recruiter"}).to_list(None)
+        recruiters = list(db.users.find({"role": "recruiter"}))
         
         print(f"Found {len(recruiters)} recruiter accounts")
         
         for recruiter in recruiters:
             user_id = recruiter['id']
             email = recruiter.get('email', 'Unknown')
+            current_credits = recruiter.get('job_credits', 0)
             
             # Add 10 job listing credits to each recruiter
             credits_to_add = 10
+            new_total = current_credits + credits_to_add
             
             # Update user's job credits
-            result = await db.users.update_one(
+            result = db.users.update_one(
                 {"id": user_id},
                 {
-                    "$inc": {"job_credits": credits_to_add},
-                    "$set": {"credits_updated": datetime.utcnow()}
+                    "$set": {
+                        "job_credits": new_total,
+                        "credits_updated": datetime.utcnow()
+                    }
                 }
             )
             
             if result.modified_count > 0:
-                print(f"✅ Added {credits_to_add} job credits to {email}")
+                print(f"✅ Added {credits_to_add} job credits to {email} (Total: {new_total})")
                 
                 # Also create a fake payment record for tracking
                 payment_record = {
@@ -61,7 +64,7 @@ async def add_credits_to_recruiters():
                     "description": f"Admin granted {credits_to_add} job credits for testing"
                 }
                 
-                await db.payments.insert_one(payment_record)
+                db.payments.insert_one(payment_record)
                 print(f"   📝 Created payment record for tracking")
             else:
                 print(f"❌ Failed to add credits to {email}")
@@ -74,10 +77,10 @@ async def add_credits_to_recruiters():
     finally:
         client.close()
 
-async def main():
+def main():
     print("🚀 Adding Job Credits to Recruiter Accounts")
     print("=" * 50)
-    await add_credits_to_recruiters()
+    add_credits_to_recruiters()
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    main()
