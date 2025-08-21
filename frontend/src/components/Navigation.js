@@ -12,7 +12,7 @@ import {
   Menu,
   X,
   FileText,
-  DollarSign,
+  Banknote,
   Users,
   Shield,
   Bell,
