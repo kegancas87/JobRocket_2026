@@ -363,10 +363,114 @@ const JobListingPage = ({ user, onLogout }) => {
   };
 
   const filteredJobs = jobs.filter(job => {
+    // Search and location filters
     const matchesSearch = job.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         job.company_name.toLowerCase().includes(searchTerm.toLowerCase());
+                         job.company_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                         job.description.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesLocation = !location || job.location.toLowerCase().includes(location.toLowerCase());
-    return matchesSearch && matchesLocation;
+    
+    // Date Posted filters
+    let matchesDatePosted = true;
+    if (filters.datePosted.newJobs || filters.datePosted.lastWeek) {
+      const jobDate = new Date(job.posted_date);
+      const now = new Date();
+      const daysDiff = Math.floor((now - jobDate) / (1000 * 60 * 60 * 24));
+      
+      if (filters.datePosted.newJobs && daysDiff > 1) {
+        matchesDatePosted = false;
+      }
+      if (filters.datePosted.lastWeek && daysDiff > 7) {
+        matchesDatePosted = false;
+      }
+    }
+    
+    // Work From Home filters
+    let matchesWorkFromHome = true;
+    if (filters.workFromHome.partiallyRemote || filters.workFromHome.fullyRemote) {
+      const workType = job.work_type?.toLowerCase() || '';
+      matchesWorkFromHome = false;
+      
+      if (filters.workFromHome.partiallyRemote && (workType.includes('hybrid') || workType.includes('partial'))) {
+        matchesWorkFromHome = true;
+      }
+      if (filters.workFromHome.fullyRemote && workType.includes('remote')) {
+        matchesWorkFromHome = true;
+      }
+    }
+    
+    // Application Method filters (assuming Easy Apply is available for all jobs)
+    let matchesApplicationMethod = true;
+    if (filters.applicationMethod.onCompanyWebsite || filters.applicationMethod.easyApply) {
+      matchesApplicationMethod = false;
+      
+      if (filters.applicationMethod.easyApply) {
+        matchesApplicationMethod = true; // All jobs have Easy Apply
+      }
+      if (filters.applicationMethod.onCompanyWebsite && job.external_url) {
+        matchesApplicationMethod = true;
+      }
+    }
+    
+    // Functions/Industry filters
+    let matchesFunctions = true;
+    const hasAnyFunctionFilter = Object.values(filters.functions).some(val => val);
+    if (hasAnyFunctionFilter) {
+      const jobIndustry = job.industry?.toLowerCase() || '';
+      const jobTitle = job.title?.toLowerCase() || '';
+      matchesFunctions = false;
+      
+      if (filters.functions.engineering && (
+        jobIndustry.includes('technology') || 
+        jobIndustry.includes('engineering') || 
+        jobTitle.includes('engineer') || 
+        jobTitle.includes('developer') || 
+        jobTitle.includes('technical')
+      )) {
+        matchesFunctions = true;
+      }
+      if (filters.functions.production && (
+        jobIndustry.includes('manufacturing') || 
+        jobIndustry.includes('production') ||
+        jobTitle.includes('production') ||
+        jobTitle.includes('manufacturing')
+      )) {
+        matchesFunctions = true;
+      }
+      if (filters.functions.it && (
+        jobIndustry.includes('technology') || 
+        jobIndustry.includes('software') || 
+        jobIndustry.includes('it') ||
+        jobTitle.includes('it ') ||
+        jobTitle.includes('software')
+      )) {
+        matchesFunctions = true;
+      }
+      if (filters.functions.sales && (
+        jobIndustry.includes('sales') || 
+        jobTitle.includes('sales') ||
+        jobTitle.includes('marketing')
+      )) {
+        matchesFunctions = true;
+      }
+      if (filters.functions.accounting && (
+        jobIndustry.includes('finance') || 
+        jobIndustry.includes('accounting') ||
+        jobTitle.includes('accountant') ||
+        jobTitle.includes('finance')
+      )) {
+        matchesFunctions = true;
+      }
+      if (filters.functions.banking && (
+        jobIndustry.includes('banking') || 
+        jobIndustry.includes('financial') ||
+        jobTitle.includes('bank') ||
+        jobTitle.includes('financial')
+      )) {
+        matchesFunctions = true;
+      }
+    }
+    
+    return matchesSearch && matchesLocation && matchesDatePosted && matchesWorkFromHome && matchesApplicationMethod && matchesFunctions;
   });
 
   if (loading) {
