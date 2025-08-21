@@ -625,7 +625,29 @@ backend:
         -agent: "testing"
         -comment: "Company member endpoints working: GET /api/company/members (list with user details and branches), PUT /api/company/members/{id} (update), DELETE /api/company/members/{id} (remove). All properly authenticated and authorized for company owners only."
 
-frontend:
+  - task: "Easy Apply Cover Letter Optional"
+    implemented: true
+    working: "NA"
+    file: "/app/frontend/src/components/EasyApply.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+        -working: "NA"
+        -agent: "main"
+        -comment: "Updated EasyApply component to make cover letter optional. Removed 'required' attribute and asterisk from label. Updated submit button to not be disabled when cover letter is empty. Users can now submit job applications without a cover letter."
+
+  - task: "Easy Apply CV File Upload UI"
+    implemented: true
+    working: "NA"
+    file: "/app/frontend/src/components/EasyApply.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+        -working: "NA"
+        -agent: "main"
+        -comment: "Replaced CV URL input with comprehensive file upload interface. Added file upload button, file validation (PDF/DOC/DOCX, 5MB max), uploaded file display with remove option, error handling, and OR divider with URL fallback. Integrated with handleFileUpload function and handleSubmitApplication for backend file upload."
   - task: "Team member invitation interface"
     implemented: true
     working: true
