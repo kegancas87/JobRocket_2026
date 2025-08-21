@@ -158,7 +158,7 @@ const JobCard = ({ job, user, onSave, onApply, onJobClick }) => {
               
               {job.salary && (
                 <div className="flex items-center space-x-2 text-emerald-700 font-bold mb-3 sm:mb-4 bg-emerald-50 px-2 py-1 sm:px-3 sm:py-2 rounded-lg w-fit">
-                  <DollarSign className="w-3 h-3 sm:w-4 sm:h-4" />
+                  <Banknote className="w-3 h-3 sm:w-4 sm:h-4" />
                   <span className="text-sm sm:text-base">{job.salary}</span>
                 </div>
               )}
