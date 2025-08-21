@@ -242,10 +242,22 @@ const RecruiterDashboard = ({ user, onUpdateUser }) => {
                     <Button
                       size="sm"
                       className="absolute -bottom-2 -right-2 w-8 h-8 rounded-full p-0"
-                      onClick={() => {/* Handle logo upload */}}
+                      onClick={() => document.getElementById('logo-upload-overview').click()}
+                      disabled={uploadingImage === 'logo'}
                     >
-                      <Camera className="w-4 h-4" />
+                      {uploadingImage === 'logo' ? (
+                        <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                      ) : (
+                        <Camera className="w-4 h-4" />
+                      )}
                     </Button>
+                    <input
+                      id="logo-upload-overview"
+                      type="file"
+                      accept="image/*"
+                      onChange={(e) => e.target.files[0] && handleImageUpload(e.target.files[0], 'logo')}
+                      className="hidden"
+                    />
                   </div>
                   <h3 className="font-bold text-slate-800 text-lg">
                     {companyForm.company_name || 'Your Company'}
