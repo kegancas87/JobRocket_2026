@@ -398,30 +398,31 @@ const JobListingPage = ({ user, onLogout }) => {
             </p>
           </div>
           
-          <div className="flex flex-col lg:flex-row gap-4 max-w-4xl mx-auto">
+          <div className="flex flex-col sm:flex-row gap-4 max-w-4xl mx-auto">
             <div className="relative flex-1">
-              <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 text-slate-400 w-6 h-6" />
+              <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 text-slate-400 w-5 h-5 sm:w-6 sm:h-6" />
               <Input
                 type="text"
-                placeholder="Job title, keywords, or company"
+                placeholder="Job title, keywords"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-12 h-16 text-lg font-medium bg-white/90 backdrop-blur-sm border-0 shadow-2xl rounded-2xl focus:ring-4 focus:ring-blue-500/30 focus:bg-white transition-all"
+                className="pl-10 sm:pl-12 h-12 sm:h-16 text-base sm:text-lg font-medium bg-white/90 backdrop-blur-sm border-0 shadow-2xl rounded-2xl focus:ring-4 focus:ring-blue-500/30 focus:bg-white transition-all"
               />
             </div>
             <div className="relative flex-1">
-              <MapPin className="absolute left-4 top-1/2 transform -translate-y-1/2 text-slate-400 w-6 h-6" />
+              <MapPin className="absolute left-4 top-1/2 transform -translate-y-1/2 text-slate-400 w-5 h-5 sm:w-6 sm:h-6" />
               <Input
                 type="text"
-                placeholder="City, province, or remote"
+                placeholder="City, province"
                 value={location}
                 onChange={(e) => setLocation(e.target.value)}
-                className="pl-12 h-16 text-lg font-medium bg-white/90 backdrop-blur-sm border-0 shadow-2xl rounded-2xl focus:ring-4 focus:ring-blue-500/30 focus:bg-white transition-all"
+                className="pl-10 sm:pl-12 h-12 sm:h-16 text-base sm:text-lg font-medium bg-white/90 backdrop-blur-sm border-0 shadow-2xl rounded-2xl focus:ring-4 focus:ring-blue-500/30 focus:bg-white transition-all"
               />
             </div>
-            <Button className="bg-gradient-to-r from-blue-600 to-slate-700 hover:from-blue-700 hover:to-slate-800 h-16 px-12 text-lg font-bold shadow-2xl rounded-2xl hover:shadow-3xl transform hover:scale-105 transition-all duration-300">
-              <Rocket className="w-6 h-6 mr-3" />
-              Launch Search
+            <Button className="bg-gradient-to-r from-blue-600 to-slate-700 hover:from-blue-700 hover:to-slate-800 h-12 sm:h-16 px-6 sm:px-12 text-base sm:text-lg font-bold shadow-2xl rounded-2xl hover:shadow-3xl transform hover:scale-105 transition-all duration-300 whitespace-nowrap">
+              <Rocket className="w-5 h-5 sm:w-6 sm:h-6 mr-2 sm:mr-3" />
+              <span className="hidden sm:inline">Launch Search</span>
+              <span className="sm:hidden">Search</span>
             </Button>
           </div>
         </div>
