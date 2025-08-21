@@ -153,18 +153,29 @@ const PricingPage = ({ user, onClose }) => {
       console.error('Error initiating payment:', error);
       let errorMessage = 'Failed to initiate payment';
       
-      if (error.response?.data) {
-        if (typeof error.response.data === 'string') {
-          errorMessage = error.response.data;
-        } else if (error.response.data.detail) {
-          errorMessage = error.response.data.detail;
-        } else if (error.response.data.error) {
-          errorMessage = error.response.data.error;
-        } else if (error.response.data.message) {
-          errorMessage = error.response.data.message;
+      try {
+        if (error.response?.data) {
+          const data = error.response.data;
+          if (typeof data === 'string') {
+            errorMessage = data;
+          } else if (data.detail) {
+            errorMessage = typeof data.detail === 'string' ? data.detail : JSON.stringify(data.detail);
+          } else if (data.error) {
+            errorMessage = typeof data.error === 'string' ? data.error : JSON.stringify(data.error);
+          } else if (data.message) {
+            errorMessage = typeof data.message === 'string' ? data.message : JSON.stringify(data.message);
+          } else {
+            // If data is an object but none of the expected fields, stringify it
+            errorMessage = `Error: ${JSON.stringify(data)}`;
+          }
+        } else if (error.message) {
+          errorMessage = error.message;
+        } else if (error.toString) {
+          errorMessage = error.toString();
         }
-      } else if (error.message) {
-        errorMessage = error.message;
+      } catch (parseError) {
+        console.error('Error parsing error message:', parseError);
+        errorMessage = 'An unexpected error occurred during payment initiation';
       }
       
       alert(errorMessage);
