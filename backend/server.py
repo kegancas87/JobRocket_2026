@@ -3589,7 +3589,8 @@ async def upload_image(
             buffer.write(content)
         
         # Return file URL
-        file_url = f"/uploads/images/{unique_filename}"
+        base_url = os.getenv('BASE_URL', 'http://localhost:8001')
+        file_url = f"{base_url}/uploads/images/{unique_filename}"
         
         return {
             "message": f"{image_type.title()} image uploaded successfully",
