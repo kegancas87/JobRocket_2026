@@ -324,7 +324,7 @@ const EasyApplyModal = ({ job, isOpen, onClose, onSuccess, user }) => {
                 )}
 
                 <div className="space-y-2">
-                  <Label htmlFor="cover_letter">Cover Letter *</Label>
+                  <Label htmlFor="cover_letter">Cover Letter (Optional)</Label>
                   <Textarea
                     id="cover_letter"
                     value={applicationData.cover_letter}
@@ -332,7 +332,6 @@ const EasyApplyModal = ({ job, isOpen, onClose, onSuccess, user }) => {
                     placeholder="Write a brief cover letter explaining why you're interested in this position and how your skills match the requirements..."
                     rows={6}
                     className="resize-none"
-                    required
                   />
                   <p className="text-sm text-slate-500">
                     {applicationData.cover_letter.length} characters
