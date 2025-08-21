@@ -549,9 +549,12 @@ const RecruiterDashboard = ({ user, onUpdateUser }) => {
                         <div className="w-full h-32 bg-gradient-to-r from-slate-100 to-slate-200 rounded-xl overflow-hidden">
                           {companyForm.company_cover_image_url ? (
                             <img 
-                              src={companyForm.company_cover_image_url} 
+                              src={getImageUrl(companyForm.company_cover_image_url)} 
                               alt="Company Cover" 
                               className="w-full h-full object-cover"
+                              onError={(e) => {
+                                e.target.style.display = 'none';
+                              }}
                             />
                           ) : (
                             <div className="w-full h-full flex items-center justify-center">
