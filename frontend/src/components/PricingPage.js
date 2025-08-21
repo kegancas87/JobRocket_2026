@@ -159,16 +159,15 @@ const PricingPage = ({ user, onClose }) => {
       const targetPackage = selectedPackage || packages.find(p => p.package_type === packageType);
       if (!targetPackage) return;
       
-      const payload = {
-        package_type: targetPackage.package_type
-      };
+      const params = new URLSearchParams();
+      params.append('package_type', targetPackage.package_type);
       
       // Add discount code if applied
       if (discountCode.trim()) {
-        payload.discount_code = discountCode.trim();
+        params.append('discount_code', discountCode.trim());
       }
       
-      const response = await axios.post(`${API}/payments/initiate`, payload, getAuthHeaders());
+      const response = await axios.post(`${API}/payments/initiate?${params.toString()}`, {}, getAuthHeaders());
 
       // Redirect to payment URL
       window.location.href = response.data.payment_url;
