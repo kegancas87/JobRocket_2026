@@ -392,6 +392,58 @@ async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(s
     if "_id" in user:
         del user["_id"]
     
+    # Handle legacy data formats for education and achievements
+    if "education" in user and user["education"]:
+        cleaned_education = []
+        for edu in user["education"]:
+            if isinstance(edu, dict):
+                # Add missing level field if not present
+                if "level" not in edu:
+                    edu["level"] = EducationLevel.BACHELORS  # Default value
+                # Ensure dates are datetime objects
+                if "start_date" in edu and isinstance(edu["start_date"], str):
+                    try:
+                        edu["start_date"] = datetime.fromisoformat(edu["start_date"])
+                    except:
+                        edu["start_date"] = datetime.utcnow()
+                if "end_date" in edu and isinstance(edu["end_date"], str):
+                    try:
+                        edu["end_date"] = datetime.fromisoformat(edu["end_date"])
+                    except:
+                        edu["end_date"] = None
+                cleaned_education.append(edu)
+        user["education"] = cleaned_education
+    
+    # Handle legacy achievements (convert strings to Achievement objects)
+    if "achievements" in user and user["achievements"]:
+        cleaned_achievements = []
+        for achievement in user["achievements"]:
+            if isinstance(achievement, str):
+                # Convert string to Achievement object
+                achievement_obj = {
+                    "title": achievement,
+                    "description": achievement,
+                    "date_achieved": datetime.utcnow(),
+                    "issuer": None,
+                    "credential_url": None
+                }
+                cleaned_achievements.append(achievement_obj)
+            elif isinstance(achievement, dict):
+                # Ensure required fields exist
+                if "title" not in achievement:
+                    achievement["title"] = "Achievement"
+                if "description" not in achievement:
+                    achievement["description"] = achievement.get("title", "Achievement")
+                if "date_achieved" not in achievement:
+                    achievement["date_achieved"] = datetime.utcnow()
+                elif isinstance(achievement["date_achieved"], str):
+                    try:
+                        achievement["date_achieved"] = datetime.fromisoformat(achievement["date_achieved"])
+                    except:
+                        achievement["date_achieved"] = datetime.utcnow()
+                cleaned_achievements.append(achievement)
+        user["achievements"] = cleaned_achievements
+    
     return User(**user)
 
 def calculate_profile_progress(user: User) -> ProfileProgress:
