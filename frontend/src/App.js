@@ -255,9 +255,18 @@ const JobListingPage = ({ user, onLogout }) => {
   const [searchTerm, setSearchTerm] = useState("");
   const [location, setLocation] = useState("");
   const [filters, setFilters] = useState({
-    datePosted: { newJobs: false, lastWeek: false },
-    workFromHome: { partiallyRemote: false, fullyRemote: false },
-    applicationMethod: { onCompanyWebsite: false, easyApply: false },
+    datePosted: {
+      newJobs: false,
+      lastWeek: false
+    },
+    workFromHome: {
+      partiallyRemote: false,
+      fullyRemote: false
+    },
+    applicationMethod: {
+      onCompanyWebsite: false,
+      easyApply: false
+    },
     functions: {
       engineering: false,
       production: false,
@@ -267,6 +276,17 @@ const JobListingPage = ({ user, onLogout }) => {
       banking: false
     }
   });
+
+  // Handle filter changes
+  const handleFilterChange = (category, filterKey, value) => {
+    setFilters(prevFilters => ({
+      ...prevFilters,
+      [category]: {
+        ...prevFilters[category],
+        [filterKey]: value
+      }
+    }));
+  };
   
   // Job details modal state
   const [selectedJob, setSelectedJob] = useState(null);
