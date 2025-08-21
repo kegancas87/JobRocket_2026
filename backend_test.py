@@ -356,11 +356,11 @@ class PayfastPaymentTestSuite:
         
         test_package = self.packages[0]
         
-        payment_data = {
+        payment_params = {
             "package_type": test_package["package_type"]
         }
         
-        response = self.make_request("POST", "/payments/initiate", data=payment_data, auth_token=self.recruiter_token)
+        response = self.make_request("POST", "/payments/initiate", data=payment_params, auth_token=self.recruiter_token, use_params=True)
         if self.assert_response(response, 200, "Payment Data Structure Test"):
             result = response.json()
             
