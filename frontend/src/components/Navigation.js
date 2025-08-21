@@ -45,7 +45,7 @@ const Navigation = ({ user, onLogout }) => {
         { name: 'Jobs', path: '/jobs', icon: Briefcase },
         { name: 'My Jobs', path: '/my-jobs', icon: Building2 },
         { name: 'Applications', path: '/applications', icon: FileText },
-        { name: 'Pricing', path: '/pricing', icon: DollarSign },
+        { name: 'Pricing', path: '/pricing', icon: Banknote },
         { name: 'Profile', path: '/profile', icon: User }
       ];
     } else if (user?.role === 'admin') {
