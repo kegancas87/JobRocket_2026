@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """
-Backend Test Suite for Job Rocket Payfast Payment Initiation
-Tests Payfast payment initiation functionality in sandbox mode with focus on package validation
+Backend Test Suite for Job Rocket - User Package Management Testing
+Tests the /api/my-packages endpoint specifically for lisa.martinez@techcorp.demo
+Focus: Verify user packages are returned correctly and investigate any query issues
 """
 
 import requests
