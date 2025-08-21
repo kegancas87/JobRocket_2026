@@ -37,6 +37,18 @@ import axios from 'axios';
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
 
+// Helper function to get full image URL
+const getImageUrl = (imageUrl) => {
+  if (!imageUrl) return '';
+  if (imageUrl.startsWith('http://') || imageUrl.startsWith('https://')) {
+    return imageUrl; // Already a full URL
+  }
+  if (imageUrl.startsWith('/uploads/')) {
+    return `${BACKEND_URL}${imageUrl}`; // Prepend backend URL to relative paths
+  }
+  return imageUrl; // Return as-is for other cases
+};
+
 const RecruiterDashboard = ({ user, onUpdateUser }) => {
   const [profile, setProfile] = useState(user);
   const [loading, setLoading] = useState(false);
