@@ -2661,8 +2661,9 @@ async def initiate_payment(
     if discount_info:
         payfast_data['item_description'] += f" (Discount: {discount_info['code']})"
     
-    # Generate signature
-    signature = generate_payfast_signature(payfast_data, PAYFAST_PASSPHRASE)
+    # Generate signature (no passphrase for sandbox)
+    passphrase = PAYFAST_PASSPHRASE if PAYFAST_PASSPHRASE else None
+    signature = generate_payfast_signature(payfast_data, passphrase)
     payfast_data['signature'] = signature
     
     # Determine Payfast URL based on environment
