@@ -679,74 +679,131 @@ function App() {
   return (
     <div className="App">
       <BrowserRouter>
-        <Routes>
-          <Route path="/" element={
-            currentPage === 'profile' ? (
-              user.role === 'recruiter' ? (
-                <RecruiterDashboard 
+        <div className="min-h-screen flex flex-col">
+          <Navigation user={user} onLogout={handleLogout} />
+          
+          <main className="flex-1">
+            <Routes>
+              <Route path="/" element={
+                currentPage === 'profile' ? (
+                  user.role === 'recruiter' ? (
+                    <RecruiterDashboard 
+                      user={user} 
+                      onUpdateUser={handleUpdateUser}
+                    />
+                  ) : (
+                    <ProfileDashboard 
+                      user={user} 
+                      onUpdateUser={handleUpdateUser}
+                      onLogout={handleLogout}
+                    />
+                  )
+                ) : (
+                  <JobListingPage 
+                    user={user} 
+                    onLogout={handleLogout}
+                  />
+                )
+              } />
+              
+              <Route path="/jobs" element={
+                <JobListingPage 
                   user={user} 
-                  onUpdateUser={handleUpdateUser}
-                />
-              ) : (
-                <ProfileDashboard 
-                  user={user} 
-                  onUpdateUser={handleUpdateUser}
                   onLogout={handleLogout}
                 />
-              )
-            ) : (
-              <JobListingPage 
-                user={user} 
-                onLogout={handleLogout}
-              />
-            )
-          } />
-          <Route path="/profile" element={
-            user.role === 'recruiter' ? (
-              <RecruiterDashboard 
-                user={user} 
-                onUpdateUser={handleUpdateUser}
-              />
-            ) : user.role === 'admin' ? (
-              <AdminDashboard 
-                user={user}
-                onLogout={handleLogout}
-              />
-            ) : (
-              <ProfileDashboard 
-                user={user} 
-                onUpdateUser={handleUpdateUser}
-                onLogout={handleLogout}
-              />
-            )
-          } />
+              } />
+              
+              <Route path="/profile" element={
+                user.role === 'recruiter' ? (
+                  <RecruiterDashboard 
+                    user={user} 
+                    onUpdateUser={handleUpdateUser}
+                  />
+                ) : user.role === 'admin' ? (
+                  <AdminDashboard 
+                    user={user}
+                    onLogout={handleLogout}
+                  />
+                ) : (
+                  <ProfileDashboard 
+                    user={user} 
+                    onUpdateUser={handleUpdateUser}
+                    onLogout={handleLogout}
+                  />
+                )
+              } />
+
+              <Route path="/my-applications" element={
+                user.role === 'job_seeker' ? (
+                  <MyApplications 
+                    user={user}
+                  />
+                ) : (
+                  <Navigate to="/" replace />
+                )
+              } />
+
+              <Route path="/applications" element={
+                user.role === 'recruiter' ? (
+                  <ApplicationManagement 
+                    user={user}
+                  />
+                ) : (
+                  <Navigate to="/" replace />
+                )
+              } />
+
+              <Route path="/my-jobs" element={
+                user.role === 'recruiter' ? (
+                  <JobPosting 
+                    user={user}
+                  />
+                ) : (
+                  <Navigate to="/" replace />
+                )
+              } />
+
+              <Route path="/pricing" element={
+                <PricingPage 
+                  user={user}
+                />
+              } />
+
+              <Route path="/packages" element={
+                user.role === 'recruiter' ? (
+                  <PackageManagement 
+                    user={user}
+                  />
+                ) : (
+                  <Navigate to="/" replace />
+                )
+              } />
+              
+              <Route path="/admin" element={
+                user && user.role === 'admin' ? (
+                  <AdminDashboard 
+                    user={user}
+                    onLogout={handleLogout}
+                  />
+                ) : (
+                  <div className="min-h-screen bg-slate-50 flex items-center justify-center">
+                    <div className="text-center">
+                      <h1 className="text-2xl font-bold text-slate-900 mb-4">Access Denied</h1>
+                      <p className="text-slate-600 mb-4">You need admin privileges to access this page.</p>
+                      <Button onClick={() => window.location.href = '/'} className="bg-blue-600 hover:bg-blue-700">
+                        Return to Home
+                      </Button>
+                    </div>
+                  </div>
+                )
+              } />
+              
+              <Route path="*" element={<Navigate to="/" replace />} />
+            </Routes>
+          </main>
           
-          <Route path="/admin" element={
-            user && user.role === 'admin' ? (
-              <AdminDashboard 
-                user={user}
-                onLogout={handleLogout}
-              />
-            ) : (
-              <div className="min-h-screen bg-slate-900 flex items-center justify-center">
-                <div className="text-center">
-                  <h1 className="text-2xl font-bold text-white mb-4">Access Denied</h1>
-                  <p className="text-slate-400 mb-4">You need admin privileges to access this page.</p>
-                  <Button onClick={() => window.location.href = '/'} className="bg-blue-600 hover:bg-blue-700">
-                    Return to Home
-                  </Button>
-                </div>
-              </div>
-            )
-          } />
-          <Route path="/jobs" element={
-            <JobListingPage 
-              user={user} 
-              onLogout={handleLogout}
-            />
-          } />
-          <Route path="*" element={<Navigate to="/" replace />} />
-        </Routes>
+          <Footer user={user} />
+        </div>
       </BrowserRouter>
     </div>
   );
