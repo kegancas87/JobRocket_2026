@@ -428,14 +428,14 @@ const JobListingPage = ({ user, onLogout }) => {
       </div>
 
       {/* Main Content */}
-      <div className="max-w-7xl mx-auto px-6 lg:px-8 py-12 relative z-10">
-        <div className="flex gap-12">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 relative z-10">
+        <div className="flex flex-col lg:flex-row gap-6 lg:gap-12">
           {/* Filters Sidebar */}
-          <div className="w-96 flex-shrink-0">
-            <div className="bg-white/80 backdrop-blur-sm rounded-3xl shadow-xl p-8 sticky top-32 border border-slate-200/50">
-              <div className="flex items-center space-x-3 mb-8">
-                <Filter className="w-6 h-6 text-blue-600" />
-                <h3 className="text-2xl font-bold text-slate-800">Filters</h3>
+          <div className="w-full lg:w-96 lg:flex-shrink-0">
+            <div className="bg-white/80 backdrop-blur-sm rounded-3xl shadow-xl p-4 sm:p-8 lg:sticky lg:top-32 border border-slate-200/50">
+              <div className="flex items-center space-x-3 mb-6 lg:mb-8">
+                <Filter className="w-5 h-5 sm:w-6 sm:h-6 text-blue-600" />
+                <h3 className="text-xl sm:text-2xl font-bold text-slate-800">Filters</h3>
               </div>
 
               <FilterSection title="Date Posted" defaultExpanded={true}>
