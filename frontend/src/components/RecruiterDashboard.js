@@ -30,7 +30,8 @@ import {
   Link,
   Award,
   FileText,
-  CreditCard
+  CreditCard,
+  DollarSign
 } from "lucide-react";
 import axios from 'axios';
 
