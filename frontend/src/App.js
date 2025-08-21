@@ -12,6 +12,7 @@ import MyApplications from "./components/MyApplications";
 import ApplicationManagement from "./components/ApplicationManagement";
 import JobPosting from "./components/JobPosting";
 import PackageManagement from "./components/PackageManagement";
+import NotificationsPage from "./components/NotificationsPage";
 import { ApplyButton } from "./components/EasyApply";
 import JobDetailsModal from "./components/JobDetailsModal";
 import Navigation from "./components/Navigation";
