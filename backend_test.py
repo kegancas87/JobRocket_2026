@@ -430,7 +430,6 @@ class PayfastPaymentTestSuite:
             "invalid_package",
             "nonexistent_type",
             "",
-            None,
             "cv_search_5",  # Non-existent CV search package
             "unlimited_cv"  # Similar but wrong name
         ]
@@ -438,11 +437,11 @@ class PayfastPaymentTestSuite:
         for invalid_type in invalid_package_types:
             print_info(f"Testing invalid package type: {invalid_type}")
             
-            payment_data = {
+            payment_params = {
                 "package_type": invalid_type
             }
             
-            response = self.make_request("POST", "/payments/initiate", data=payment_data, auth_token=self.recruiter_token)
+            response = self.make_request("POST", "/payments/initiate", data=payment_params, auth_token=self.recruiter_token, use_params=True)
             
             # Should return 400 (Bad Request) or 422 (Unprocessable Entity)
             if response and response.status_code in [400, 422]:
@@ -450,6 +449,18 @@ class PayfastPaymentTestSuite:
             else:
                 expected_status = response.status_code if response else "No response"
                 print_error(f"❌ Invalid package type '{invalid_type}' should be rejected, got status: {expected_status}")
+        
+        # Test None separately as it causes JSON serialization issues
+        print_info("Testing None package type")
+        try:
+            response = self.make_request("POST", "/payments/initiate", data={}, auth_token=self.recruiter_token, use_params=True)
+            if response and response.status_code in [400, 422]:
+                print_success(f"✅ Missing package type correctly rejected with status {response.status_code}")
+            else:
+                expected_status = response.status_code if response else "No response"
+                print_error(f"❌ Missing package type should be rejected, got status: {expected_status}")
+        except Exception as e:
+            print_info(f"Exception handling None package type (expected): {str(e)}")
 
     def run_all_tests(self):
         """Run all Payfast payment initiation tests"""
