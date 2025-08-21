@@ -103,11 +103,43 @@ const EasyApplyModal = ({ job, isOpen, onClose, onSuccess, user }) => {
     try {
       setLoading(true);
       
+      let finalApplicationData = { ...applicationData };
+      
+      // Handle file upload if a file is selected
+      if (applicationData.resume_file) {
+        const formData = new FormData();
+        formData.append('file', applicationData.resume_file);
+        
+        try {
+          const uploadResponse = await axios.post(
+            `${API}/upload-cv`,
+            formData,
+            {
+              headers: {
+                'Authorization': `Bearer ${localStorage.getItem('token')}`,
+                'Content-Type': 'multipart/form-data'
+              }
+            }
+          );
+          
+          // Use the uploaded file URL instead of the local file
+          finalApplicationData.resume_url = uploadResponse.data.file_url;
+          // Remove the file object from the data
+          delete finalApplicationData.resume_file;
+        } catch (uploadError) {
+          console.error('File upload error:', uploadError);
+          throw new Error(uploadError.response?.data?.detail || 'Failed to upload CV file');
+        }
+      } else {
+        // Remove the file object if no file was uploaded
+        delete finalApplicationData.resume_file;
+      }
+
       const response = await axios.post(
         `${API}/jobs/${job.id}/apply`,
         {
           job_id: job.id,
-          ...applicationData
+          ...finalApplicationData
         },
         getAuthHeaders()
       );
@@ -122,7 +154,7 @@ const EasyApplyModal = ({ job, isOpen, onClose, onSuccess, user }) => {
       
     } catch (error) {
       console.error('Application error:', error);
-      alert(error.response?.data?.detail || 'Failed to submit application');
+      alert(error.message || error.response?.data?.detail || 'Failed to submit application');
     } finally {
       setLoading(false);
     }
