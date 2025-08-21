@@ -541,21 +541,43 @@ const RecruiterDashboard = ({ user, onUpdateUser }) => {
                             </div>
                           )}
                         </div>
-                        <Input
-                          id="company_cover"
-                          value={companyForm.company_cover_image_url}
-                          onChange={(e) => setCompanyForm(prev => ({ ...prev, company_cover_image_url: e.target.value }))}
-                          placeholder="Enter cover image URL"
-                          className="h-12"
-                        />
-                        <Button 
+                        <div className="flex space-x-2">
+                          <Input
+                            id="company_cover"
+                            value={companyForm.company_cover_image_url}
+                            onChange={(e) => setCompanyForm(prev => ({ ...prev, company_cover_image_url: e.target.value }))}
+                            placeholder="Enter cover image URL or upload file"
+                            className="h-12"
+                          />
+                          <Button 
+                            type="button" 
+                            variant="outline"
+                            onClick={() => document.getElementById('cover-upload-branding').click()}
+                            disabled={uploadingImage === 'cover'}
+                          >
+                            {uploadingImage === 'cover' ? (
+                              <div className="w-4 h-4 border-2 border-blue-600 border-t-transparent rounded-full animate-spin" />
+                            ) : (
+                              <Upload className="w-4 h-4" />
+                            )}
+                          </Button>
+                        </div>
+                        <Button
                           type="button" 
                           variant="outline"
                           onClick={() => updateCompanyProfile({ company_cover_image_url: companyForm.company_cover_image_url })}
+                          className="w-full"
                         >
-                          <Upload className="w-4 h-4 mr-2" />
-                          Update Cover Image
+                          <Save className="w-4 h-4 mr-2" />
+                          Update Cover Image URL
                         </Button>
+                        <input
+                          id="cover-upload-branding"
+                          type="file"
+                          accept="image/*"
+                          onChange={(e) => e.target.files[0] && handleImageUpload(e.target.files[0], 'cover')}
+                          className="hidden"
+                        />
                       </div>
                     </div>
                   </CardContent>
