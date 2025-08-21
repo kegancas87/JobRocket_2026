@@ -356,63 +356,6 @@ const JobListingPage = ({ user, onLogout }) => {
       {/* Background tech grid pattern */}
       <div className="absolute inset-0 opacity-5 tech-grid"></div>
       
-      {/* Header */}
-      <header className="bg-white/80 backdrop-blur-lg shadow-xl border-b border-slate-200/50 sticky top-0 z-50">
-        <div className="max-w-7xl mx-auto px-6 lg:px-8">
-          <div className="flex items-center justify-between h-20">
-            <div className="flex items-center space-x-8">
-              <div className="flex items-center space-x-3">
-                <div className="bg-gradient-to-br from-blue-600 to-slate-700 text-white p-3 rounded-2xl shadow-lg">
-                  <Rocket className="w-8 h-8" />
-                </div>
-                <div>
-                  <h1 className="text-3xl font-bold bg-gradient-to-r from-blue-600 to-slate-800 bg-clip-text text-transparent">
-                    Job Rocket
-                  </h1>
-                  <p className="text-xs text-slate-500 font-medium">LAUNCH YOUR CAREER</p>
-                </div>
-              </div>
-            </div>
-            <div className="flex items-center space-x-6">
-              <Button variant="ghost" className="text-blue-700 hover:text-blue-800 hover:bg-blue-50 font-semibold px-6">
-                For Recruiters
-              </Button>
-              <Button variant="ghost" className="flex items-center space-x-2 hover:bg-slate-50 font-semibold px-6">
-                <Heart className="w-5 h-5" />
-                <span>My Jobs</span>
-                <ChevronDown className="w-4 h-4" />
-              </Button>
-              {user && user.role === 'admin' && (
-                <Button 
-                  variant="ghost" 
-                  onClick={() => window.location.href = '/admin'}
-                  className="flex items-center space-x-2 hover:bg-orange-50 text-orange-700 hover:text-orange-800 font-semibold px-6"
-                >
-                  <Settings className="w-5 h-5" />
-                  <span>Admin Panel</span>
-                </Button>
-              )}
-              {user && (
-                <div className="flex items-center space-x-4">
-                  <Button variant="ghost" className="flex items-center space-x-2 hover:bg-slate-50 font-semibold px-6">
-                    <User className="w-5 h-5" />
-                    <span>{user.first_name}</span>
-                    <ChevronDown className="w-4 h-4" />
-                  </Button>
-                  <Button 
-                    variant="ghost" 
-                    onClick={onLogout}
-                    className="text-red-600 hover:text-red-700 hover:bg-red-50"
-                  >
-                    <LogOut className="w-5 h-5" />
-                  </Button>
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-      </header>
-
       {/* Hero Search Section */}
       <div 
         className="relative py-24 overflow-hidden"
