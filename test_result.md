@@ -102,7 +102,7 @@
 # Testing Data - Main Agent and testing sub agent both should log testing data below this section
 #====================================================================================================
 
-user_problem_statement: Test the complete Package and Payment system for Job Rocket including package management, payment initiation, payment completion, user package management, job posting with package credits, and package credit management. PLUS: Test the new Easy Apply enhancements - Cover letter made optional and CV file upload functionality with local storage.
+user_problem_statement: Fix the bulk upload issue where newly uploaded jobs are not appearing on the jobs screen. Jobs are being created successfully in the database but are not visible due to incorrect expiry date calculation during bulk upload process.
 
 backend:
   - task: "Package Management API"
