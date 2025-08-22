@@ -1697,8 +1697,11 @@ async def create_job(
     if job_data.company_id == current_user.id:
         # Using current user's company
         company_name = "Company Name Not Set"
+        company_logo_url = None
         if current_user.company_profile and current_user.company_profile.company_name:
             company_name = current_user.company_profile.company_name
+        if current_user.company_profile and current_user.company_profile.company_logo_url:
+            company_logo_url = current_user.company_profile.company_logo_url
     else:
         # Check if user is a member of this company
         member = await db.company_members.find_one({
@@ -1720,6 +1723,7 @@ async def create_job(
                 detail="Company not found"
             )
         company_name = company_owner.get("company_profile", {}).get("company_name", "Company Name Not Set")
+        company_logo_url = company_owner.get("company_profile", {}).get("company_logo_url")
     
     # Find the best package to use (prioritize non-unlimited packages first to preserve unlimited)
     selected_package = None
