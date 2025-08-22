@@ -1752,6 +1752,7 @@ async def create_job(
     # Create job object with appropriate expiry
     job_dict = job_data.dict()
     job_dict["company_name"] = company_name
+    job_dict["logo_url"] = company_logo_url
     job_dict["posted_by"] = current_user.id
     job_dict["expiry_date"] = datetime.utcnow() + timedelta(days=job_expiry_days)
     
