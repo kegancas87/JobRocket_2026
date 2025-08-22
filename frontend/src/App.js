@@ -61,7 +61,229 @@ const getImageUrl = (imageUrl) => {
   return imageUrl; // Return as-is for other cases
 };
 
-const JobCard = ({ job, user, onSave, onApply, onJobClick }) => {
+const CompanyProfilePage = ({ companyId }) => {
+  const [company, setCompany] = useState(null);
+  const [jobs, setJobs] = useState([]);
+  const [loading, setLoading] = useState(true);
+  
+  useEffect(() => {
+    fetchCompanyProfile();
+    fetchCompanyJobs();
+  }, [companyId]);
+  
+  const fetchCompanyProfile = async () => {
+    try {
+      const response = await axios.get(`${API}/public/company/${companyId}`);
+      setCompany(response.data);
+    } catch (error) {
+      console.error('Error fetching company profile:', error);
+    }
+  };
+  
+  const fetchCompanyJobs = async () => {
+    try {
+      const response = await axios.get(`${API}/public/company/${companyId}/jobs`);
+      setJobs(response.data);
+      setLoading(false);
+    } catch (error) {
+      console.error('Error fetching company jobs:', error);
+      setLoading(false);
+    }
+  };
+  
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 flex items-center justify-center">
+        <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-blue-600"></div>
+      </div>
+    );
+  }
+  
+  if (!company) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 flex items-center justify-center">
+        <div className="text-center">
+          <h1 className="text-2xl font-bold text-slate-800 mb-4">Company Not Found</h1>
+          <p className="text-slate-600">The company profile you're looking for doesn't exist.</p>
+        </div>
+      </div>
+    );
+  }
+  
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50">
+      {/* Cover Image Section */}
+      <div className="relative h-64 bg-gradient-to-r from-blue-600 to-slate-700 overflow-hidden">
+        {company.company_cover_image_url && (
+          <img 
+            src={getImageUrl(company.company_cover_image_url)} 
+            alt="Company cover"
+            className="w-full h-full object-cover"
+          />
+        )}
+        <div className="absolute inset-0 bg-black bg-opacity-40"></div>
+      </div>
+      
+      {/* Company Info Section */}
+      <div className="relative px-4 sm:px-6 lg:px-8 -mt-20">
+        <div className="max-w-4xl mx-auto">
+          <div className="bg-white rounded-2xl shadow-xl p-6 sm:p-8">
+            <div className="flex flex-col sm:flex-row items-start sm:items-center gap-6 mb-8">
+              {/* Company Logo */}
+              <div className="w-24 h-24 rounded-2xl overflow-hidden bg-gradient-to-br from-slate-100 to-slate-200 flex-shrink-0 shadow-lg ring-4 ring-white">
+                <img 
+                  src={getImageUrl(company.company_logo_url) || 'https://customer-assets.emergentagent.com/job_career-launchpad-16/artifacts/a6w1unn9_Leonardo_Phoenix_A_modern_sleek_logo_featuring_a_stylized_rock_2.jpg'} 
+                  alt={`${company.company_name} logo`}
+                  className="w-full h-full object-cover"
+                  onError={(e) => {
+                    e.target.src = 'https://customer-assets.emergentagent.com/job_career-launchpad-16/artifacts/a6w1unn9_Leonardo_Phoenix_A_modern_sleek_logo_featuring_a_stylized_rock_2.jpg';
+                  }}
+                />
+              </div>
+              
+              {/* Company Details */}
+              <div className="flex-1">
+                <h1 className="text-3xl font-bold text-slate-800 mb-2">{company.company_name}</h1>
+                <div className="flex flex-wrap items-center gap-4 text-slate-600 mb-4">
+                  {company.company_location && (
+                    <div className="flex items-center space-x-2">
+                      <MapPin className="w-5 h-5" />
+                      <span>{company.company_location}</span>
+                    </div>
+                  )}
+                  {company.company_size && (
+                    <div className="flex items-center space-x-2">
+                      <Users className="w-5 h-5" />
+                      <span>{company.company_size}</span>
+                    </div>
+                  )}
+                  {company.company_industry && (
+                    <div className="flex items-center space-x-2">
+                      <Building2 className="w-5 h-5" />
+                      <span>{company.company_industry}</span>
+                    </div>
+                  )}
+                </div>
+                
+                <div className="flex items-center gap-4">
+                  <div className="bg-blue-100 text-blue-800 px-4 py-2 rounded-full font-semibold">
+                    {company.active_jobs_count} Active Jobs
+                  </div>
+                  {company.company_website && (
+                    <a 
+                      href={company.company_website} 
+                      target="_blank" 
+                      rel="noopener noreferrer"
+                      className="flex items-center space-x-2 text-blue-600 hover:text-blue-700 font-medium"
+                    >
+                      <ExternalLink className="w-5 h-5" />
+                      <span>Website</span>
+                    </a>
+                  )}
+                  {company.company_linkedin && (
+                    <a 
+                      href={company.company_linkedin} 
+                      target="_blank" 
+                      rel="noopener noreferrer"
+                      className="flex items-center space-x-2 text-blue-600 hover:text-blue-700 font-medium"
+                    >
+                      <ExternalLink className="w-5 h-5" />
+                      <span>LinkedIn</span>
+                    </a>
+                  )}
+                </div>
+              </div>
+            </div>
+            
+            {/* Company Description */}
+            {company.company_description && (
+              <div className="mb-8">
+                <h2 className="text-xl font-bold text-slate-800 mb-4">About Us</h2>
+                <p className="text-slate-600 leading-relaxed">{company.company_description}</p>
+              </div>
+            )}
+            
+            {/* Jobs Section */}
+            <div>
+              <div className="flex items-center justify-between mb-6">
+                <h2 className="text-xl font-bold text-slate-800">Open Positions ({jobs.length})</h2>
+                {jobs.length > 0 && (
+                  <button 
+                    onClick={() => window.location.href = `/jobs?company=${companyId}`}
+                    className="text-blue-600 hover:text-blue-700 font-medium flex items-center space-x-2"
+                  >
+                    <span>View All Jobs</span>
+                    <ArrowRight className="w-4 h-4" />
+                  </button>
+                )}
+              </div>
+              
+              {jobs.length === 0 ? (
+                <div className="text-center py-8 text-slate-500">
+                  <Briefcase className="w-12 h-12 mx-auto mb-4 opacity-50" />
+                  <p>No active job openings at the moment.</p>
+                </div>
+              ) : (
+                <div className="grid gap-4">
+                  {jobs.slice(0, 3).map((job) => (
+                    <div key={job.id} className="border border-slate-200 rounded-xl p-4 hover:shadow-md transition-shadow">
+                      <div className="flex items-start justify-between">
+                        <div className="flex-1">
+                          <h3 className="font-bold text-slate-800 mb-2">{job.title}</h3>
+                          <div className="flex flex-wrap items-center gap-4 text-sm text-slate-600 mb-3">
+                            <div className="flex items-center space-x-1">
+                              <MapPin className="w-4 h-4" />
+                              <span>{job.location}</span>
+                            </div>
+                            <div className="flex items-center space-x-1">
+                              <Briefcase className="w-4 h-4" />
+                              <span>{job.job_type}</span>
+                            </div>
+                            <div className="flex items-center space-x-1">
+                              <Clock className="w-4 h-4" />
+                              <span>{formatPostedDate(job.posted_date)}</span>
+                            </div>
+                          </div>
+                          {job.salary && (
+                            <div className="text-green-600 font-semibold mb-2">
+                              R{job.salary}
+                            </div>
+                          )}
+                        </div>
+                        <button 
+                          onClick={() => window.location.href = `/jobs?search=${encodeURIComponent(job.title)}`}
+                          className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors"
+                        >
+                          View Job
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+const formatPostedDate = (dateString) => {
+  const date = new Date(dateString);
+  const now = new Date();
+  const diffTime = Math.abs(now - date);
+  const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+  
+  if (diffDays === 0) return 'Today';
+  if (diffDays === 1) return '1 day ago';
+  if (diffDays < 7) return `${diffDays} days ago`;
+  if (diffDays < 14) return '1 week ago';
+  if (diffDays < 30) return `${Math.ceil(diffDays / 7)} weeks ago`;
+  if (diffDays < 60) return '1 month ago';
+  return `${Math.ceil(diffDays / 30)} months ago`;
+};
+
   const formatPostedDate = (dateString) => {
     const date = new Date(dateString);
     const now = new Date();
