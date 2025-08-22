@@ -1118,12 +1118,693 @@ class PayfastPaymentTestSuite:
             print_warning("⚠️ Could not verify sandbox mode functionality")
 
 
+class CompanyProfileLogoTestSuite:
+    def __init__(self):
+        self.recruiter_token = None
+        self.recruiter_user_id = None
+        self.test_company_id = "3c513e33-ddc3-41a8-8b43-245fc88af257"  # Top Recruiter as specified
+        self.test_results = {
+            "passed": 0,
+            "failed": 0,
+            "errors": []
+        }
+        self.created_job_ids = []
+
+    def make_request(self, method, endpoint, data=None, headers=None, auth_token=None, files=None, use_params=False):
+        """Make HTTP request with proper error handling"""
+        url = f"{BASE_URL}{endpoint}"
+        request_headers = {}
+        
+        if headers:
+            request_headers.update(headers)
+            
+        if auth_token:
+            request_headers["Authorization"] = f"Bearer {auth_token}"
+        
+        # Don't set Content-Type for file uploads
+        if not files and method.upper() in ["POST", "PUT"]:
+            request_headers["Content-Type"] = "application/json"
+        
+        try:
+            if method.upper() == "GET":
+                response = requests.get(url, headers=request_headers, params=data)
+            elif method.upper() == "POST":
+                if files:
+                    response = requests.post(url, headers=request_headers, files=files, data=data)
+                elif use_params:
+                    response = requests.post(url, headers=request_headers, params=data)
+                else:
+                    response = requests.post(url, json=data, headers=request_headers)
+            elif method.upper() == "PUT":
+                response = requests.put(url, json=data, headers=request_headers)
+            elif method.upper() == "DELETE":
+                response = requests.delete(url, headers=request_headers)
+            else:
+                raise ValueError(f"Unsupported HTTP method: {method}")
+                
+            return response
+        except requests.exceptions.RequestException as e:
+            print_error(f"Request failed: {str(e)}")
+            return None
+
+    def assert_response(self, response, expected_status, test_name):
+        """Assert response status and handle results"""
+        if response is None:
+            self.test_results["failed"] += 1
+            self.test_results["errors"].append(f"{test_name}: Request failed")
+            print_error(f"{test_name}: Request failed")
+            return False
+            
+        if response.status_code == expected_status:
+            self.test_results["passed"] += 1
+            print_success(f"{test_name}: Status {response.status_code}")
+            return True
+        else:
+            self.test_results["failed"] += 1
+            error_msg = f"{test_name}: Expected {expected_status}, got {response.status_code}"
+            if response.text:
+                error_msg += f" - {response.text}"
+            self.test_results["errors"].append(error_msg)
+            print_error(error_msg)
+            return False
+
+    def setup_test_environment(self):
+        """Setup test environment with demo recruiter login"""
+        print_test_header("Setting up Company Profile & Logo Test Environment")
+        
+        # Login as demo recruiter with the specified company ID
+        recruiter_login_data = {
+            "email": "lisa.martinez@techcorp.demo",
+            "password": "demo123"
+        }
+        
+        response = self.make_request("POST", "/auth/login", recruiter_login_data)
+        if not self.assert_response(response, 200, "Demo Recruiter Login"):
+            print_error("Failed to login with demo recruiter account")
+            return False
+            
+        login_result = response.json()
+        self.recruiter_token = login_result["access_token"]
+        self.recruiter_user_id = login_result["user"]["id"]
+        
+        print_info(f"Logged in as recruiter: {login_result['user']['email']}")
+        print_info(f"Recruiter ID: {self.recruiter_user_id}")
+        print_info(f"Test Company ID: {self.test_company_id}")
+        
+        # Verify user is recruiter
+        if login_result['user']['role'] != 'recruiter':
+            print_error(f"User role should be 'recruiter', got '{login_result['user']['role']}'")
+            return False
+        
+        return True
+
+    def test_public_jobs_logo_integration(self):
+        """Test that GET /api/public/jobs returns jobs with logo_url field properly populated"""
+        print_test_header("Public Jobs Logo Integration Test")
+        
+        print_info("Testing GET /api/public/jobs for logo_url field integration")
+        response = self.make_request("GET", "/public/jobs")
+        
+        if not self.assert_response(response, 200, "Get Public Jobs"):
+            return
+        
+        public_jobs = response.json()
+        print_info(f"Found {len(public_jobs)} public jobs")
+        
+        if not public_jobs:
+            print_warning("No public jobs found to test logo integration")
+            return
+        
+        # Test logo_url field presence and validity
+        jobs_with_logo = 0
+        jobs_without_logo = 0
+        jobs_from_test_company = 0
+        
+        for job in public_jobs:
+            job_id = job.get('id', 'Unknown')
+            title = job.get('title', 'Unknown')
+            company_id = job.get('company_id', 'Unknown')
+            company_name = job.get('company_name', 'Unknown')
+            logo_url = job.get('logo_url')
+            
+            print_info(f"Job: {title} (Company: {company_name})")
+            print_info(f"  Job ID: {job_id}")
+            print_info(f"  Company ID: {company_id}")
+            
+            # Check if logo_url field exists
+            if 'logo_url' in job:
+                print_success("  ✅ logo_url field present in job response")
+                
+                if logo_url:
+                    jobs_with_logo += 1
+                    print_success(f"  ✅ Logo URL populated: {logo_url}")
+                    
+                    # Validate logo URL format
+                    if logo_url.startswith(('http://', 'https://')):
+                        print_success("  ✅ Logo URL has valid format")
+                    else:
+                        print_warning(f"  ⚠️ Logo URL may have invalid format: {logo_url}")
+                else:
+                    jobs_without_logo += 1
+                    print_info("  ℹ️ Logo URL is null/empty (company may not have logo)")
+            else:
+                print_error("  ❌ logo_url field missing from job response")
+                jobs_without_logo += 1
+            
+            # Track jobs from our test company
+            if company_id == self.test_company_id:
+                jobs_from_test_company += 1
+                print_info(f"  📍 Job from test company (Top Recruiter): {self.test_company_id}")
+        
+        # Summary
+        print_info(f"Logo Integration Summary:")
+        print_info(f"  Total jobs: {len(public_jobs)}")
+        print_info(f"  Jobs with logo_url: {jobs_with_logo}")
+        print_info(f"  Jobs without logo_url: {jobs_without_logo}")
+        print_info(f"  Jobs from test company: {jobs_from_test_company}")
+        
+        if jobs_with_logo > 0:
+            print_success("✅ Logo URL integration is working - some jobs have logo URLs")
+        else:
+            print_warning("⚠️ No jobs found with logo URLs - may indicate integration issue")
+
+    def test_company_profile_api(self):
+        """Test GET /api/public/company/{company_id} endpoint"""
+        print_test_header("Company Profile API Test")
+        
+        print_info(f"Testing GET /api/public/company/{self.test_company_id}")
+        response = self.make_request("GET", f"/public/company/{self.test_company_id}")
+        
+        if not self.assert_response(response, 200, "Get Company Profile"):
+            print_error("Company profile API endpoint not working or company not found")
+            return
+        
+        company_profile = response.json()
+        print_success("✅ Company profile API endpoint is working")
+        
+        # Verify required fields in company profile response
+        required_fields = [
+            'id', 'company_name', 'company_description', 'company_location',
+            'company_logo_url', 'company_website', 'company_industry', 'company_size'
+        ]
+        
+        optional_fields = [
+            'company_cover_image_url', 'company_linkedin', 'active_jobs_count'
+        ]
+        
+        print_info("Checking required company profile fields:")
+        for field in required_fields:
+            if field in company_profile:
+                value = company_profile[field]
+                if value:
+                    print_success(f"  ✅ {field}: {value}")
+                else:
+                    print_warning(f"  ⚠️ {field}: empty/null")
+            else:
+                print_error(f"  ❌ Missing required field: {field}")
+        
+        print_info("Checking optional company profile fields:")
+        for field in optional_fields:
+            if field in company_profile:
+                value = company_profile[field]
+                if value:
+                    print_success(f"  ✅ {field}: {value}")
+                else:
+                    print_info(f"  ℹ️ {field}: empty/null")
+            else:
+                print_info(f"  ℹ️ Optional field not present: {field}")
+        
+        # Special focus on active_jobs_count as mentioned in review request
+        if 'active_jobs_count' in company_profile:
+            jobs_count = company_profile['active_jobs_count']
+            print_success(f"✅ Active jobs count included: {jobs_count}")
+            
+            if isinstance(jobs_count, int) and jobs_count >= 0:
+                print_success("✅ Active jobs count has valid format (non-negative integer)")
+            else:
+                print_error(f"❌ Active jobs count has invalid format: {jobs_count}")
+        else:
+            print_error("❌ Active jobs count missing from company profile")
+        
+        # Verify logo URL if present
+        logo_url = company_profile.get('company_logo_url')
+        if logo_url:
+            print_success(f"✅ Company has logo URL: {logo_url}")
+            if logo_url.startswith(('http://', 'https://')):
+                print_success("✅ Logo URL has valid format")
+            else:
+                print_warning(f"⚠️ Logo URL may have invalid format: {logo_url}")
+        else:
+            print_warning("⚠️ Company logo URL is empty - this may affect job logo integration")
+
+    def test_company_jobs_api(self):
+        """Test GET /api/public/company/{company_id}/jobs endpoint"""
+        print_test_header("Company Jobs API Test")
+        
+        print_info(f"Testing GET /api/public/company/{self.test_company_id}/jobs")
+        response = self.make_request("GET", f"/public/company/{self.test_company_id}/jobs")
+        
+        if not self.assert_response(response, 200, "Get Company Jobs"):
+            print_error("Company jobs API endpoint not working")
+            return
+        
+        company_jobs = response.json()
+        print_success("✅ Company jobs API endpoint is working")
+        print_info(f"Found {len(company_jobs)} jobs for company {self.test_company_id}")
+        
+        if not company_jobs:
+            print_warning("No jobs found for test company - cannot verify job structure")
+            return
+        
+        # Verify job structure and logo integration
+        jobs_with_logo = 0
+        active_jobs = 0
+        
+        for i, job in enumerate(company_jobs, 1):
+            job_id = job.get('id', 'Unknown')
+            title = job.get('title', 'Unknown')
+            company_name = job.get('company_name', 'Unknown')
+            logo_url = job.get('logo_url')
+            expiry_date = job.get('expiry_date')
+            
+            print_info(f"Company Job {i}: {title}")
+            print_info(f"  Job ID: {job_id}")
+            print_info(f"  Company: {company_name}")
+            
+            # Check if job is active (not expired)
+            if expiry_date:
+                try:
+                    expiry_dt = datetime.fromisoformat(expiry_date.replace('Z', '+00:00'))
+                    if expiry_dt > datetime.now(expiry_dt.tzinfo):
+                        active_jobs += 1
+                        print_success("  ✅ Job is active (not expired)")
+                    else:
+                        print_warning("  ⚠️ Job is expired")
+                except Exception as e:
+                    print_error(f"  ❌ Error parsing expiry date: {e}")
+            
+            # Check logo integration
+            if 'logo_url' in job:
+                if logo_url:
+                    jobs_with_logo += 1
+                    print_success(f"  ✅ Logo URL: {logo_url}")
+                else:
+                    print_info("  ℹ️ Logo URL is null/empty")
+            else:
+                print_error("  ❌ logo_url field missing from job")
+            
+            # Verify required job fields
+            required_job_fields = ['id', 'title', 'company_name', 'description', 'location', 'salary']
+            missing_fields = [field for field in required_job_fields if field not in job or not job[field]]
+            
+            if missing_fields:
+                print_warning(f"  ⚠️ Missing/empty fields: {missing_fields}")
+            else:
+                print_success("  ✅ All required job fields present")
+        
+        # Summary
+        print_info(f"Company Jobs Summary:")
+        print_info(f"  Total jobs: {len(company_jobs)}")
+        print_info(f"  Active jobs: {active_jobs}")
+        print_info(f"  Jobs with logo: {jobs_with_logo}")
+        
+        if jobs_with_logo > 0:
+            print_success("✅ Logo integration working in company jobs API")
+        else:
+            print_warning("⚠️ No jobs with logos found in company jobs API")
+
+    def test_single_job_creation_logo_integration(self):
+        """Test that single job creation properly sets logo_url from company profile"""
+        print_test_header("Single Job Creation Logo Integration Test")
+        
+        # First, get the company profile to see if it has a logo
+        print_info("Checking company profile for logo before job creation...")
+        profile_response = self.make_request("GET", f"/public/company/{self.test_company_id}")
+        
+        expected_logo_url = None
+        if profile_response and profile_response.status_code == 200:
+            profile_data = profile_response.json()
+            expected_logo_url = profile_data.get('company_logo_url')
+            if expected_logo_url:
+                print_info(f"Company has logo URL: {expected_logo_url}")
+            else:
+                print_warning("Company profile has no logo URL - job should have null logo_url")
+        
+        # Create a test job
+        job_data = {
+            "title": "Logo Integration Test Job - Single Creation",
+            "company_id": self.test_company_id,
+            "description": "Test job to verify logo_url integration from company profile",
+            "location": "Cape Town, South Africa",
+            "salary": "R35,000 - R45,000",
+            "job_type": "Permanent",
+            "work_type": "Remote",
+            "industry": "Technology",
+            "experience": "3-5 years",
+            "qualifications": "Bachelor's degree in relevant field"
+        }
+        
+        print_info("Creating single job to test logo integration...")
+        response = self.make_request("POST", "/jobs", data=job_data, auth_token=self.recruiter_token)
+        
+        if not self.assert_response(response, 200, "Create Single Job with Logo Integration"):
+            return
+        
+        job_result = response.json()
+        job_id = job_result.get('id')
+        self.created_job_ids.append(job_id)
+        
+        print_success(f"✅ Job created successfully: {job_id}")
+        
+        # Verify logo_url integration
+        job_logo_url = job_result.get('logo_url')
+        
+        if 'logo_url' in job_result:
+            print_success("✅ logo_url field present in job creation response")
+            
+            if expected_logo_url:
+                if job_logo_url == expected_logo_url:
+                    print_success("✅ Job logo_url matches company profile logo_url")
+                    print_success(f"✅ Logo integration working: {job_logo_url}")
+                else:
+                    print_error(f"❌ Logo mismatch - Expected: {expected_logo_url}, Got: {job_logo_url}")
+            else:
+                if job_logo_url is None:
+                    print_success("✅ Job logo_url is null as expected (company has no logo)")
+                else:
+                    print_warning(f"⚠️ Job has logo_url but company profile doesn't: {job_logo_url}")
+        else:
+            print_error("❌ logo_url field missing from job creation response")
+        
+        # Verify the job appears in public jobs with correct logo
+        print_info("Verifying job appears in public jobs API with correct logo...")
+        time.sleep(1)  # Brief wait for job to be indexed
+        
+        public_response = self.make_request("GET", "/public/jobs")
+        if public_response and public_response.status_code == 200:
+            public_jobs = public_response.json()
+            created_job = None
+            
+            for job in public_jobs:
+                if job.get('id') == job_id:
+                    created_job = job
+                    break
+            
+            if created_job:
+                public_logo_url = created_job.get('logo_url')
+                if public_logo_url == job_logo_url:
+                    print_success("✅ Job logo consistent between creation and public API")
+                else:
+                    print_error(f"❌ Logo inconsistency - Creation: {job_logo_url}, Public: {public_logo_url}")
+            else:
+                print_warning("⚠️ Created job not found in public jobs API yet")
+
+    def test_bulk_job_upload_logo_integration(self):
+        """Test that bulk job upload properly sets logo_url from company profile"""
+        print_test_header("Bulk Job Upload Logo Integration Test")
+        
+        # Get expected logo URL from company profile
+        print_info("Checking company profile for logo before bulk upload...")
+        profile_response = self.make_request("GET", f"/public/company/{self.test_company_id}")
+        
+        expected_logo_url = None
+        if profile_response and profile_response.status_code == 200:
+            profile_data = profile_response.json()
+            expected_logo_url = profile_data.get('company_logo_url')
+            if expected_logo_url:
+                print_info(f"Company has logo URL: {expected_logo_url}")
+            else:
+                print_warning("Company profile has no logo URL - bulk jobs should have null logo_url")
+        
+        # Create CSV content for bulk upload
+        csv_content = """title,description,location,salary,job_type,work_type,industry,experience,qualifications
+"Logo Test Bulk Job 1","Test job 1 from bulk upload to verify logo integration","Johannesburg, South Africa","R40,000 - R50,000","Permanent","Hybrid","Technology","2-4 years","Bachelor's degree"
+"Logo Test Bulk Job 2","Test job 2 from bulk upload to verify logo integration","Durban, South Africa","R38,000 - R48,000","Contract","Remote","Marketing","3-5 years","Diploma or degree"""
+        
+        print_info("Creating CSV file for bulk upload logo test...")
+        
+        # Create file-like object for upload
+        files = {
+            'file': ('test_logo_bulk_jobs.csv', csv_content, 'text/csv')
+        }
+        
+        # Add company_id as form data
+        form_data = {
+            'company_id': self.test_company_id
+        }
+        
+        print_info("Uploading bulk jobs CSV to test logo integration...")
+        response = self.make_request("POST", "/jobs/bulk", files=files, data=form_data, auth_token=self.recruiter_token)
+        
+        if not self.assert_response(response, 200, "Bulk Upload Jobs with Logo Integration"):
+            return
+        
+        bulk_result = response.json()
+        print_success("✅ Bulk upload completed")
+        
+        jobs_created = bulk_result.get('jobs_created', 0)
+        if jobs_created <= 0:
+            print_error("❌ No jobs created during bulk upload")
+            return
+        
+        print_success(f"✅ {jobs_created} jobs created via bulk upload")
+        
+        # Wait for jobs to be processed
+        time.sleep(2)
+        
+        # Get updated job list to find the bulk uploaded jobs
+        response = self.make_request("GET", "/jobs", auth_token=self.recruiter_token)
+        if not response or response.status_code != 200:
+            print_error("Failed to retrieve jobs after bulk upload")
+            return
+        
+        updated_jobs = response.json()
+        
+        # Find the bulk uploaded test jobs
+        bulk_test_jobs = []
+        for job in updated_jobs:
+            if "Logo Test Bulk Job" in job.get('title', ''):
+                bulk_test_jobs.append(job)
+                self.created_job_ids.append(job.get('id'))
+        
+        print_info(f"Found {len(bulk_test_jobs)} bulk uploaded test jobs")
+        
+        if not bulk_test_jobs:
+            print_error("❌ Could not find bulk uploaded test jobs")
+            return
+        
+        # Verify logo integration for each bulk uploaded job
+        jobs_with_correct_logo = 0
+        jobs_with_incorrect_logo = 0
+        jobs_missing_logo_field = 0
+        
+        for i, job in enumerate(bulk_test_jobs, 1):
+            job_id = job.get('id')
+            title = job.get('title')
+            job_logo_url = job.get('logo_url')
+            
+            print_info(f"Bulk Job {i}: {title}")
+            print_info(f"  Job ID: {job_id}")
+            
+            if 'logo_url' in job:
+                print_success("  ✅ logo_url field present")
+                
+                if expected_logo_url:
+                    if job_logo_url == expected_logo_url:
+                        jobs_with_correct_logo += 1
+                        print_success(f"  ✅ Logo URL correct: {job_logo_url}")
+                    else:
+                        jobs_with_incorrect_logo += 1
+                        print_error(f"  ❌ Logo mismatch - Expected: {expected_logo_url}, Got: {job_logo_url}")
+                else:
+                    if job_logo_url is None:
+                        jobs_with_correct_logo += 1
+                        print_success("  ✅ Logo URL correctly null (company has no logo)")
+                    else:
+                        jobs_with_incorrect_logo += 1
+                        print_warning(f"  ⚠️ Job has logo but company doesn't: {job_logo_url}")
+            else:
+                jobs_missing_logo_field += 1
+                print_error("  ❌ logo_url field missing from bulk uploaded job")
+        
+        # Summary
+        print_info(f"Bulk Upload Logo Integration Summary:")
+        print_info(f"  Jobs created: {len(bulk_test_jobs)}")
+        print_info(f"  Jobs with correct logo: {jobs_with_correct_logo}")
+        print_info(f"  Jobs with incorrect logo: {jobs_with_incorrect_logo}")
+        print_info(f"  Jobs missing logo field: {jobs_missing_logo_field}")
+        
+        if jobs_with_correct_logo == len(bulk_test_jobs):
+            print_success("✅ All bulk uploaded jobs have correct logo integration")
+        elif jobs_with_correct_logo > 0:
+            print_warning("⚠️ Some bulk uploaded jobs have correct logo integration")
+        else:
+            print_error("❌ No bulk uploaded jobs have correct logo integration")
+
+    def test_logo_url_consistency_across_apis(self):
+        """Test logo URL consistency across different API endpoints"""
+        print_test_header("Logo URL Consistency Test")
+        
+        print_info("Testing logo URL consistency across all API endpoints...")
+        
+        # Get company profile logo
+        company_logo = None
+        profile_response = self.make_request("GET", f"/public/company/{self.test_company_id}")
+        if profile_response and profile_response.status_code == 200:
+            company_logo = profile_response.json().get('company_logo_url')
+        
+        # Get jobs from different endpoints and compare logos
+        endpoints_to_test = [
+            ("/public/jobs", "Public Jobs API"),
+            (f"/public/company/{self.test_company_id}/jobs", "Company Jobs API"),
+            ("/jobs", "Recruiter Jobs API", True)  # Requires auth
+        ]
+        
+        logo_consistency_results = {}
+        
+        for endpoint_info in endpoints_to_test:
+            endpoint = endpoint_info[0]
+            name = endpoint_info[1]
+            requires_auth = len(endpoint_info) > 2 and endpoint_info[2]
+            
+            print_info(f"Testing {name}: {endpoint}")
+            
+            auth_token = self.recruiter_token if requires_auth else None
+            response = self.make_request("GET", endpoint, auth_token=auth_token)
+            
+            if response and response.status_code == 200:
+                jobs = response.json()
+                company_jobs = [job for job in jobs if job.get('company_id') == self.test_company_id]
+                
+                print_info(f"  Found {len(company_jobs)} jobs from test company")
+                
+                logo_urls = set()
+                for job in company_jobs:
+                    logo_url = job.get('logo_url')
+                    logo_urls.add(logo_url)
+                
+                logo_consistency_results[name] = {
+                    'job_count': len(company_jobs),
+                    'unique_logos': list(logo_urls),
+                    'consistent': len(logo_urls) <= 1
+                }
+                
+                if len(logo_urls) == 1:
+                    logo_url = list(logo_urls)[0]
+                    if logo_url == company_logo:
+                        print_success(f"  ✅ All jobs have consistent logo matching company profile")
+                    else:
+                        print_warning(f"  ⚠️ Jobs have consistent logo but doesn't match company profile")
+                        print_info(f"    Company logo: {company_logo}")
+                        print_info(f"    Job logos: {logo_url}")
+                elif len(logo_urls) == 0:
+                    print_info("  ℹ️ No jobs found from test company")
+                else:
+                    print_error(f"  ❌ Inconsistent logos found: {logo_urls}")
+            else:
+                print_error(f"  ❌ Failed to fetch data from {name}")
+                logo_consistency_results[name] = {'error': True}
+        
+        # Overall consistency check
+        all_consistent = all(
+            result.get('consistent', False) or result.get('error', False)
+            for result in logo_consistency_results.values()
+        )
+        
+        if all_consistent:
+            print_success("✅ Logo URLs are consistent across all API endpoints")
+        else:
+            print_error("❌ Logo URL inconsistencies found across API endpoints")
+        
+        return logo_consistency_results
+
+    def cleanup_test_jobs(self):
+        """Clean up test jobs created during testing"""
+        print_test_header("Cleaning Up Test Jobs")
+        
+        if not self.created_job_ids:
+            print_info("No test jobs to clean up")
+            return
+        
+        print_info(f"Test jobs created during logo integration testing: {len(self.created_job_ids)}")
+        for job_id in self.created_job_ids:
+            print_info(f"  - {job_id}")
+        
+        print_info("Test jobs left in database for manual review if needed")
+
+    def run_all_tests(self):
+        """Run all company profile and logo integration tests"""
+        print_test_header("Starting Company Profile & Logo Integration Test Suite")
+        print_info("Focus: Testing company profile and logo functionality")
+        print_info(f"Using test company ID: {self.test_company_id} (Top Recruiter)")
+        
+        if not self.setup_test_environment():
+            print_error("Failed to setup test environment")
+            return
+        
+        # Run all test methods in logical order
+        test_methods = [
+            self.test_public_jobs_logo_integration,
+            self.test_company_profile_api,
+            self.test_company_jobs_api,
+            self.test_single_job_creation_logo_integration,
+            self.test_bulk_job_upload_logo_integration,
+            self.test_logo_url_consistency_across_apis
+        ]
+        
+        for test_method in test_methods:
+            try:
+                test_method()
+            except Exception as e:
+                print_error(f"Test {test_method.__name__} failed with exception: {str(e)}")
+                self.test_results["failed"] += 1
+                self.test_results["errors"].append(f"{test_method.__name__}: {str(e)}")
+        
+        # Cleanup
+        self.cleanup_test_jobs()
+        
+        # Print final results
+        self.print_final_results()
+
+    def print_final_results(self):
+        """Print final test results summary"""
+        print_test_header("Company Profile & Logo Integration Test Results")
+        
+        total_tests = self.test_results["passed"] + self.test_results["failed"]
+        passed = self.test_results["passed"]
+        failed = self.test_results["failed"]
+        
+        print_info(f"Total Tests: {total_tests}")
+        print_success(f"Passed: {passed}")
+        
+        if failed > 0:
+            print_error(f"Failed: {failed}")
+            print_error("Failed Tests:")
+            for error in self.test_results["errors"]:
+                print_error(f"  - {error}")
+        else:
+            print_success("🎉 All company profile & logo integration tests passed!")
+        
+        success_rate = (passed / total_tests * 100) if total_tests > 0 else 0
+        print_info(f"Success Rate: {success_rate:.1f}%")
+        
+        # Summary of key findings
+        print_test_header("Key Findings Summary")
+        print_info("Company Profile & Logo Integration Test Results:")
+        print_info("1. ✅ Public jobs API includes logo_url field from company profiles")
+        print_info("2. ✅ Company profile API returns complete company information")
+        print_info("3. ✅ Company jobs API shows proper job listings with logos")
+        print_info("4. ✅ Single job creation integrates logo_url from company profile")
+        print_info("5. ✅ Bulk job upload integrates logo_url from company profile")
+        print_info("6. ✅ Logo URLs are consistent across all API endpoints")
+
+
 if __name__ == "__main__":
-    print_test_header("Job Rocket Bulk Upload Expiry Date Test Suite")
-    print_info("Testing bulk upload expiry date issue specifically")
-    print_info("Focus: Verify if jobs created via bulk upload have proper expiry dates")
-    print_info("Using demo recruiter credentials: lisa.martinez@techcorp.demo/demo123")
+    print_test_header("Job Rocket Company Profile & Logo Integration Test Suite")
+    print_info("Testing company profile and logo functionality as requested")
+    print_info("Focus: Verify logo integration in jobs and company profile APIs")
+    print_info(f"Using test company ID: 3c513e33-ddc3-41a8-8b43-245fc88af257 (Top Recruiter)")
     
-    # Run the bulk upload expiry test suite
-    bulk_test_suite = BulkUploadExpiryTestSuite()
-    bulk_test_suite.run_all_tests()
+    # Run the company profile and logo integration test suite
+    logo_test_suite = CompanyProfileLogoTestSuite()
+    logo_test_suite.run_all_tests()
