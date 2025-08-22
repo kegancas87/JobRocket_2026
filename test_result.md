@@ -640,17 +640,20 @@ backend:
         -agent: "testing"
         -comment: "Company member endpoints working: GET /api/company/members (list with user details and branches), PUT /api/company/members/{id} (update), DELETE /api/company/members/{id} (remove). All properly authenticated and authorized for company owners only."
 
-  - task: "Easy Apply Cover Letter Optional"
+  - task: "Bulk Upload Jobs Expiry Date Fix"
     implemented: true
-    working: "NA"
-    file: "/app/frontend/src/components/EasyApply.js"
+    working: true
+    file: "/app/backend/server.py"
     stuck_count: 0
     priority: "high"
-    needs_retesting: true
+    needs_retesting: false
     status_history:
         -working: "NA"
         -agent: "main"
-        -comment: "Updated EasyApply component to make cover letter optional. Removed 'required' attribute and asterisk from label. Updated submit button to not be disabled when cover letter is empty. Users can now submit job applications without a cover letter."
+        -comment: "User reported that bulk uploaded jobs are not appearing on jobs screen despite being created in database. Issue suspected to be with expiry_date calculation during bulk upload process."
+        -working: true
+        -agent: "testing"
+        -comment: "BULK UPLOAD EXPIRY DATE ISSUE - RESOLVED ✅ Comprehensive testing shows all bulk uploaded jobs have proper expiry dates. Found 102 total recruiter jobs including 13 bulk uploaded jobs, ALL with correct expiry_date values (35 days from posting). Both GET /api/public/jobs (20 jobs) and GET /api/jobs (102 jobs) return jobs with valid expiry dates. Tested new bulk upload creation - works correctly with proper expiry calculation. Root cause analysis: Issue was already resolved - expiry calculation logic is consistent between single and bulk job creation methods. All existing and new jobs have expiry_date = posted_date + 35 days as expected."
 
   - task: "Easy Apply CV File Upload UI"
     implemented: true
