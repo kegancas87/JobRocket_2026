@@ -2082,7 +2082,7 @@ async def get_public_jobs(
     work_type: Optional[str] = Query(None),
     industry: Optional[str] = Query(None),
     search: Optional[str] = Query(None),
-    limit: Optional[int] = Query(20)
+    limit: Optional[int] = Query(1000)
 ):
     """Get active jobs for job seekers (public endpoint with filtering)"""
     query = {
