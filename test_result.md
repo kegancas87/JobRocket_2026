@@ -655,17 +655,7 @@ backend:
         -agent: "testing"
         -comment: "BULK UPLOAD EXPIRY DATE ISSUE - RESOLVED ✅ Comprehensive testing shows all bulk uploaded jobs have proper expiry dates. Found 102 total recruiter jobs including 13 bulk uploaded jobs, ALL with correct expiry_date values (35 days from posting). Both GET /api/public/jobs (20 jobs) and GET /api/jobs (102 jobs) return jobs with valid expiry dates. Tested new bulk upload creation - works correctly with proper expiry calculation. Root cause analysis: Issue was already resolved - expiry calculation logic is consistent between single and bulk job creation methods. All existing and new jobs have expiry_date = posted_date + 35 days as expected."
 
-  - task: "Easy Apply CV File Upload UI"
-    implemented: true
-    working: "NA"
-    file: "/app/frontend/src/components/EasyApply.js"
-    stuck_count: 0
-    priority: "high"
-    needs_retesting: true
-    status_history:
-        -working: "NA"
-        -agent: "main"
-        -comment: "Replaced CV URL input with comprehensive file upload interface. Added file upload button, file validation (PDF/DOC/DOCX, 5MB max), uploaded file display with remove option, error handling, and OR divider with URL fallback. Integrated with handleFileUpload function and handleSubmitApplication for backend file upload."
+
   - task: "Team member invitation interface"
     implemented: true
     working: true
