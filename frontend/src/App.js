@@ -370,7 +370,15 @@ const JobCard = ({ job, user, onSave, onApply, onJobClick }) => {
               <div className="flex flex-wrap items-center gap-4 text-slate-600 mb-4">
                 <div className="flex items-center space-x-2">
                   <Building2 className="w-5 h-5 text-slate-500" />
-                  <span className="font-medium">{job.company_name}</span>
+                  <span 
+                    className="font-medium hover:text-blue-600 cursor-pointer transition-colors hover:underline"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      window.location.href = `/company/${job.company_id}`;
+                    }}
+                  >
+                    {job.company_name}
+                  </span>
                 </div>
                 <div className="flex items-center space-x-2">
                   <MapPin className="w-5 h-5 text-slate-500" />
