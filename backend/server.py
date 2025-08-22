@@ -1809,24 +1809,59 @@ async def create_jobs_bulk(
             for encoding in encodings_to_try:
                 try:
                     text_content = contents.decode(encoding)
-                    df = pd.read_csv(io.StringIO(text_content))
-                    break
+                    
+                    # Try multiple CSV parsing strategies
+                    parsing_strategies = [
+                        # Strategy 1: Standard parsing
+                        lambda content: pd.read_csv(io.StringIO(content)),
+                        # Strategy 2: Skip bad lines and warn
+                        lambda content: pd.read_csv(io.StringIO(content), on_bad_lines='skip'),
+                        # Strategy 3: More flexible parsing with quoting
+                        lambda content: pd.read_csv(io.StringIO(content), quoting=1, skipinitialspace=True),
+                        # Strategy 4: Use different separator detection
+                        lambda content: pd.read_csv(io.StringIO(content), sep=None, engine='python'),
+                        # Strategy 5: Very permissive parsing
+                        lambda content: pd.read_csv(io.StringIO(content), on_bad_lines='skip', quoting=1, skipinitialspace=True, engine='python')
+                    ]
+                    
+                    for i, strategy in enumerate(parsing_strategies):
+                        try:
+                            df = strategy(text_content)
+                            if len(df.columns) > 1 and len(df) > 0:  # Basic validation
+                                break
+                        except Exception as parse_error:
+                            if i == len(parsing_strategies) - 1:  # Last strategy failed
+                                raise parse_error
+                            continue
+                    
+                    if df is not None and len(df.columns) > 1:
+                        break
+                        
                 except (UnicodeDecodeError, UnicodeError):
+                    continue
+                except Exception as e:
+                    # If this encoding worked but parsing failed, continue to next encoding
                     continue
             
             if df is None:
                 # If all encodings fail, try with error handling
                 try:
                     text_content = contents.decode('utf-8', errors='replace')
-                    df = pd.read_csv(io.StringIO(text_content))
+                    df = pd.read_csv(io.StringIO(text_content), on_bad_lines='skip', engine='python')
                 except Exception:
                     raise HTTPException(
                         status_code=status.HTTP_400_BAD_REQUEST,
-                        detail="Unable to read CSV file. Please ensure it's properly encoded (UTF-8 recommended)"
+                        detail="Unable to read CSV file. Please ensure it's properly formatted with consistent columns and properly quoted text fields. Common issues: commas in text fields should be within quotes, consistent number of columns per row."
                     )
         else:
             # Excel files are binary, no encoding issues
-            df = pd.read_excel(io.BytesIO(contents))
+            try:
+                df = pd.read_excel(io.BytesIO(contents))
+            except Exception as e:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"Unable to read Excel file: {str(e)}"
+                )
         
         # Validate required columns
         required_columns = ['title', 'location', 'salary', 'job_type', 'work_type', 'industry', 'description']
