@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """
-Backend Test Suite for Job Rocket - User Package Management Testing
-Tests the /api/my-packages endpoint specifically for lisa.martinez@techcorp.demo
-Focus: Verify user packages are returned correctly and investigate any query issues
+Backend Test Suite for Job Rocket - Bulk Upload Expiry Date Testing
+Tests the bulk upload issue - specifically check if jobs created via bulk upload have proper expiry dates
+Focus: Verify expiry_date values for both regular and bulk uploaded jobs
 """
 
 import requests
