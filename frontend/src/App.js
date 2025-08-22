@@ -852,6 +852,12 @@ function App() {
             <Route path="/invitation/:token" element={
               <InvitationPage onLogin={handleLogin} />
             } />
+            <Route path="/jobs" element={
+              <JobListingPage 
+                user={null} 
+                onLogout={handleLogout}
+              />
+            } />
             <Route path="*" element={
               authPage === 'login' ? (
                 <LoginPage 
