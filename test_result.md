@@ -772,7 +772,12 @@ metadata:
 
 test_plan:
   current_focus: 
-    - "Bulk Upload Jobs Expiry Date Fix"
+    - "Company Logo in Jobs API"
+    - "Company Profile API" 
+    - "Company Jobs API"
+    - "Single Job Creation Logo Integration"
+    - "Bulk Job Upload Logo Integration"
+    - "Logo URL Consistency Across APIs"
   stuck_tasks: 
     - "Discount Codes System - Admin Management - Frontend missing"
     - "Discount Codes System - Payment Integration - Frontend missing"  
