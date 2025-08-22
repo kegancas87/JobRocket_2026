@@ -1897,14 +1897,18 @@ async def create_jobs_bulk(
                         errors.append(f"Row {index + 1}: No permission for company {job_company_id}")
                         continue
                 
-                # Get company name
+                # Get company name and logo
                 if job_company_id == current_user.id:
                     company_name = "Company Name Not Set"
+                    company_logo_url = None
                     if current_user.company_profile and current_user.company_profile.company_name:
                         company_name = current_user.company_profile.company_name
+                    if current_user.company_profile and current_user.company_profile.company_logo_url:
+                        company_logo_url = current_user.company_profile.company_logo_url
                 else:
                     company_owner = await db.users.find_one({"id": job_company_id})
                     company_name = company_owner.get("company_profile", {}).get("company_name", "Company Name Not Set") if company_owner else "Unknown Company"
+                    company_logo_url = company_owner.get("company_profile", {}).get("company_logo_url") if company_owner else None
                 
                 # Validate enum values
                 try:
