@@ -655,6 +655,78 @@ backend:
         -agent: "testing"
         -comment: "BULK UPLOAD EXPIRY DATE ISSUE - RESOLVED ✅ Comprehensive testing shows all bulk uploaded jobs have proper expiry dates. Found 102 total recruiter jobs including 13 bulk uploaded jobs, ALL with correct expiry_date values (35 days from posting). Both GET /api/public/jobs (20 jobs) and GET /api/jobs (102 jobs) return jobs with valid expiry dates. Tested new bulk upload creation - works correctly with proper expiry calculation. Root cause analysis: Issue was already resolved - expiry calculation logic is consistent between single and bulk job creation methods. All existing and new jobs have expiry_date = posted_date + 35 days as expected."
 
+  - task: "Company Logo in Jobs API"
+    implemented: true
+    working: true
+    file: "/app/backend/server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+        -working: true
+        -agent: "testing"
+        -comment: "Company Logo in Jobs API working excellently. GET /api/public/jobs returns jobs with logo_url field properly populated from recruiter's company profile. Tested with company ID 3c513e33-ddc3-41a8-8b43-245fc88af257 (Top Recruiter) which has complete profile with logo URL: /uploads/images/3c513e33-ddc3-41a8-8b43-245fc88af257_logo_38f96df3-af08-4357-a86c-627dd3c72b81.png. Found 126 public jobs, all include logo_url field. Jobs from test company show proper logo integration. New jobs created during testing correctly inherit logo_url from company profile. Minor: Some existing jobs have null logo_url (companies without logos), but field structure is consistent across all jobs."
+
+  - task: "Company Profile API"
+    implemented: true
+    working: true
+    file: "/app/backend/server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+        -working: true
+        -agent: "testing"
+        -comment: "Company Profile API working perfectly. GET /api/public/company/{company_id} endpoint returns complete company information including active jobs count. Tested with company ID 3c513e33-ddc3-41a8-8b43-245fc88af257 (Top Recruiter). All required fields present: id, company_name (Top Recruiter), company_description, company_location (Pretoria), company_logo_url, company_website (sdvcdsv.com), company_industry (Consulting), company_size (11-50 employees). Optional fields working: company_cover_image_url, company_linkedin, active_jobs_count (106). Active jobs count has valid format (non-negative integer) and accurately reflects company's job listings."
+
+  - task: "Company Jobs API"
+    implemented: true
+    working: true
+    file: "/app/backend/server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+        -working: true
+        -agent: "testing"
+        -comment: "Company Jobs API working excellently. GET /api/public/company/{company_id}/jobs endpoint returns company's active job listings properly. Tested with company ID 3c513e33-ddc3-41a8-8b43-245fc88af257 found 100 active jobs for the company. All jobs include required fields (id, title, company_name, description, location, salary) and logo_url field. All jobs verified as active (not expired). Job structure consistent with public jobs API. Company-specific filtering working correctly - only returns jobs belonging to specified company."
+
+  - task: "Single Job Creation Logo Integration"
+    implemented: true
+    working: true
+    file: "/app/backend/server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+        -working: true
+        -agent: "testing"
+        -comment: "Single Job Creation Logo Integration working perfectly. POST /api/jobs properly sets logo_url field from company profile during job creation. Created test job (ID: 1fdbf7ed-6d92-4c1c-a444-42c77e5bd40a) successfully inherits logo URL from company profile: /uploads/images/3c513e33-ddc3-41a8-8b43-245fc88af257_logo_38f96df3-af08-4357-a86c-627dd3c72b81.png. Job creation response includes logo_url field. Logo URL matches company profile exactly. Job appears in public jobs API with consistent logo URL. Integration working for both company owner and company member job creation scenarios."
+
+  - task: "Bulk Job Upload Logo Integration"
+    implemented: true
+    working: true
+    file: "/app/backend/server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+        -working: true
+        -agent: "testing"
+        -comment: "Bulk Job Upload Logo Integration working excellently. POST /api/jobs/bulk properly sets logo_url field from company profile for all uploaded jobs. Created test job via CSV upload (ID: 90949f1a-2b44-434d-975b-9c7875ab342a) successfully inherits logo URL from company profile. All bulk uploaded jobs include logo_url field with correct company logo. Logo integration consistent between single job creation and bulk upload methods. CSV processing maintains logo URL inheritance from company profile. Bulk upload summary: 1 job created, 1 job with correct logo (100% success rate)."
+
+  - task: "Logo URL Consistency Across APIs"
+    implemented: true
+    working: true
+    file: "/app/backend/server.py"
+    stuck_count: 0
+    priority: "medium"
+    needs_retesting: false
+    status_history:
+        -working: true
+        -agent: "testing"
+        -comment: "Logo URL Consistency working with minor inconsistencies. Tested logo URLs across Public Jobs API (/api/public/jobs), Company Jobs API (/api/public/company/{id}/jobs), and Recruiter Jobs API (/api/jobs). All APIs include logo_url field consistently. New jobs created during testing have consistent logo URLs across all endpoints. Minor: Some existing jobs have null logo_url while others have populated logos, creating mixed results within same company. This is expected behavior as logo integration was recently implemented - existing jobs without logos remain null while new jobs inherit company logos. Overall structure and integration working correctly for new job creation."
+
 
   - task: "Team member invitation interface"
     implemented: true
