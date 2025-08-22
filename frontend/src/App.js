@@ -1162,7 +1162,7 @@ function App() {
               } />
 
               <Route path="/company/:companyId" element={
-                <CompanyProfilePage companyId={window.location.pathname.split('/').pop()} />
+                <CompanyProfileWrapper />
               } />
               
               <Route path="/profile" element={
