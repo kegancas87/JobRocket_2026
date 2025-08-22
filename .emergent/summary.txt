@@ -1,35 +1,34 @@
 <analysis>
-The AI engineer successfully transformed the Job Rocket application from an MVP into a more robust platform. Initially, the focus was on completing the Payfast integration, transitioning from mock data to a production-ready system with automated package activation and a functional webhook. Subsequently, two new critical features were implemented: a comprehensive discount code system for administrators (supporting both percentage and fixed-value discounts) and a redesigned frontend navigation to allow seamless access between the main application and the new admin dashboard. Throughout this process, the engineer adeptly debugged and resolved various backend issues, including missing environment variables and routing misconfigurations, as well as significant frontend UI/UX problems related to job display, modal functionality, and component imports. The work culminated in establishing a well-populated demo environment and addressing the user's explicit UI concerns, leading into the current task of enhancing the job application process.
+The AI engineer successfully guided the Job Rocket application through significant feature enhancements and debugging cycles. Initially, the focus was on implementing CV file uploads and making cover letters optional in the Easy Apply process. This led to a series of critical backend and frontend fixes: resolving Pydantic validation errors affecting user authentication, integrating a comprehensive navigation bar and footer across all user roles (job seeker, recruiter, admin), and fixing recruiter-specific issues like dashboard routing, package purchase errors, and image uploads. A major challenge involved troubleshooting static file serving, where images were not displaying due to incorrect Kubernetes ingress routing, which was resolved by serving static assets under the  path. Subsequently, the engineer addressed user feedback on job card images, Payfast payment issues (enum mismatch, sandbox credentials, signature generation), and added unlimited packages for testing. Finally, a robust job filtering system and advanced bulk job upload error handling (encoding, parsing inconsistencies) were implemented, culminating in the current task of fixing why bulk-uploaded jobs are not visible due to incorrect expiry dates.
 </analysis>
 
 <product_requirements>
-The Job Rocket application aims to be a comprehensive platform connecting job seekers, recruiters, and administrators, featuring an Applicant Tracking System (ATS), subscription models for job listings and CV search, and payment processing via Payfast.
-
+The Job Rocket platform connects job seekers, recruiters, and administrators with features like ATS, subscription models, and Payfast integration.
 **Core Features & Implemented State:**
-1.  **UI & Theme:** Modern techie, rocket feel UI with dark greys, blues, gradients, glassmorphism, and animations.
-2.  **Gamified Onboarding:** Full registration/login for Job Seekers (profile completion with points, visual trophy progress) and Recruiters (company profile completion).
-3.  **Company Structure & Team Management:** Recruiters can manage main company, branches, and invite team members (email deferral).
-4.  **Job Listing & Posting:** Recruiters can post jobs (single/bulk), with mandatory fields (Title, Location, Salary, Type, Work Type, Industry, Description) and optional ones. Jobs auto-expire in 35 days, are archived, and can be reposted.
-5.  **Job Application System:** Easy Apply modal pre-populates job seeker data (name, email, CV, skills, optional cover letter). Job seekers track applications, recruiters manage them.
-6.  **Pricing & Payment Packages:** Defined packages for job listings and CV search are displayed.
-7.  **Payfast Integration (Completed):** Full backend integration of Payfast, including automated package activation upon successful payment and sandbox mode configuration for testing.
-8.  **Admin Discount Codes (Completed):** Backend and frontend implementation for administrators to create, manage (view, edit, deactivate), and validate discount codes (percentage or fixed value).
-9.  **Enhanced Navigation (Completed):** Admin users can now seamlessly navigate between the main job platform and the admin dashboard without being trapped.
-10. **Improved Job Listings Display (Completed):** Job data model fixes, expanded dummy job data (now 20 jobs), and resolution of frontend display issues including correct rendering of job cards, salary, and company info.
-11. **Job Details Modal (Completed):** Clicking job titles now opens a comprehensive job details modal for enhanced viewing.
-12. **UI/UX Fixes (Completed):** Resolved issues with Easy Apply button spacing (found to be correct, but fixed modal opening), job title click behavior, and general rendering errors like the  import issue.
-
-**Current focus of work:** Make cover letter mandatory for job applications and implement CV document upload functionality.
+- **UI & Theme:** Modern techie, rocket feel with dark greys, blues, and animations.
+- **Gamified Onboarding:** Registration/login for Job Seekers (profile completion, trophy progress) and Recruiters (company profile).
+- **Company Structure & Team Management:** Recruiters manage branches and invite team members.
+- **Job Listing & Posting:** Recruiters post jobs (single/bulk) with mandatory/optional fields. Jobs expire in 35 days, are archived, and can be reposted.
+- **Job Application System:** Easy Apply pre-populates data. Job seekers track applications; recruiters manage them. Cover letter made optional, CV document upload implemented.
+- **Pricing & Payment Packages:** Defined packages displayed. Purchase flow and  errors resolved, Payfast sandbox mode verified, and payment errors fixed.
+- **Admin Discount Codes:** Admin can create, manage, validate discount codes.
+- **Enhanced Navigation:** Global navigation and footer implemented, role-based navigation for all user types.
+- **Improved Job Listings Display:** Job data fixes, expanded dummy jobs, correct rendering of job cards (including image fallbacks), and layout fixes.
+- **Job Details Modal:** Comprehensive job details on click.
+- **UI/UX Fixes:** Easy Apply button and general rendering errors fixed. Mobile responsiveness implemented for key pages. Dollar symbols changed to money notes.
+- **Filter System:** Functional filter pane for jobs screen with toggle and Clear All features.
+- **Bulk Upload Reliability:** UTF-8 decoding and CSV parsing errors fixed.
+- **Package Visibility:** Unlimited packages successfully added to users and made visible.
 </product_requirements>
 
 <key_technical_concepts>
--   **Full-stack Architecture**: React (frontend), FastAPI (backend), MongoDB (database).
--   **UI/UX**: Tailwind CSS, Shadcn UI components, Glassmorphism, CSS animations.
--   **Authentication**: JWT for role-based authentication.
--   **Database**: PyMongo/Motor for MongoDB, UUIDs for IDs.
--   **Payment Gateway**: Payfast integration.
--   **Email Integration**: SendGrid (planned).
--   **Data Processing**: Pandas for CSV/Excel bulk uploads.
+- **Full-stack Architecture**: React (frontend), FastAPI (backend), MongoDB (database).
+- **UI/UX**: Tailwind CSS, Shadcn UI components, Lucide-React icons.
+- **Authentication**: JWT for role-based authentication.
+- **Database**: PyMongo/Motor for MongoDB, UUIDs for IDs.
+- **Payment Gateway**: Payfast integration (sandbox mode).
+- **File Uploads**:  (FastAPI),  (FastAPI).
+- **Data Processing**: Pandas for CSV/Excel bulk uploads.
 </key_technical_concepts>
 
 <code_architecture>
@@ -39,64 +38,70 @@ The application follows a standard full-stack structure:
 
 **Key Files and Changes:**
 
-*   :
-    *   **Importance**: Core backend logic.
-    *   **Changes**:
-        *   Extensive updates for Payfast integration: replaced mock payment initiation with actual Payfast logic, added a Payfast webhook endpoint for automated package activation and discount code usage tracking.
-        *   Introduced , , , , and  models.
-        *   Added API endpoints for admin to manage discount codes (create, retrieve, update, deactivate) and a public endpoint for discount code validation.
-        *   Fixed routing issue where admin endpoints were not registered correctly by moving them before  inclusion.
-        *   Updated job models and data loading logic to include , , and correct enum values (, ).
-*   :
-    *   **Importance**: Stores environment variables for backend.
-    *   **Changes**: Added Payfast production credentials (merchant ID, key, passphrase), then updated  to  for testing. Fixed missing  and  variables.
-*   :
-    *   **Importance**: Main React component, handles global state, routing, and conditional rendering.
-    *   **Changes**:
-        *   Integrated  and  components.
-        *   Modified role-based routing to allow admin users to access the main job platform by default, with a dedicated Admin Panel link in the navigation.
-        *   Added  state management (, ) within the  component (defined inline) and passed  handler to .
-        *   Included necessary  icon imports (, ).
-*   :
-    *   **Importance**: Displays pricing packages and handles purchase initiation.
-    *   **Changes**: Integrated discount code input, logic for validating and applying discounts, and a checkout modal to streamline the purchase flow.
-*   :
-    *   **Importance**: New component for administrators to manage platform features.
-    *   **Changes**: Created to display and manage discount codes, with UI for creating, editing, deactivating, and viewing usage statistics. Includes navigation back to the main job platform.
-*   :
-    *   **Importance**: New component for displaying detailed job information.
-    *   **Changes**: Created to show comprehensive job descriptions, requirements, company details, and an integrated Easy Apply button within a modal dialog.
-*   :
-    *   **Importance**: Job seeker's profile and gamification dashboard.
-    *   **Changes**: Added missing  icon import to resolve a critical frontend rendering error.
-*   :
-    *   **Importance**: Handles the Easy Apply modal for job application.
-    *   **Changes**: Preparatory examination for making cover letter mandatory and implementing CV document upload.
-*   :
-    *   **Importance**: New script for populating the database with comprehensive test data.
-    *   **Changes**: Created to set up admin, job seeker, and recruiter users, companies, realistic job listings, job applications, and discount codes.
-*   :
-    *   **Importance**: New script to correct and expand existing job data.
-    *   **Changes**: Created to fix data validation issues (e.g., missing fields, incorrect enums) in existing jobs and add 15 new diverse job listings.
+- :
+  - **Importance**: Core backend logic for APIs, database interactions, and service configuration.
+  - **Changes**:
+    - **Payfast**:  enum fixed (), sandbox credentials updated,  modified to handle  passphrase for sandbox.
+    - **Uploads**: Added  and  endpoints for file uploads. Modified static file serving to mount  for correct Kubernetes ingress routing, and updated file URL generation to use the full  with  prefix. Fixed relative path issues for file storage.
+    - **Authentication**:  updated to handle Pydantic validation issues with legacy  and  data.
+    - **Bulk Upload**: Implemented robust CSV encoding detection (UTF-8, Windows-1252, etc.) and flexible parsing (skip bad lines, quoting, separator detection) in  endpoint.
+    - **Database**: Added logic for  and  models.
+- :
+  - **Importance**: Backend environment variables.
+  - **Changes**: Updated Payfast credentials to sandbox values. Added  for constructing absolute URLs.
+- :
+  - **Importance**: Main React component, global state, routing, and layout.
+  - **Changes**:
+    - **Navigation/Footer**: Integrated  and  components into the main layout.
+    - **Routing**: Adjusted role-based routing (e.g., recruiter dashboard on ). Added a new route for .
+    - **Job Listing**: Removed redundant header/navigation from . Implemented a functional filter system (state, , ,  logic) within . Fixed   handler for unselection.
+    - **Images**: Added  helper function to construct correct image URLs (handling both  and  prefixes). Added a fallback image for job cards.
+    - **JobCard**: Rewrote the  component for mobile responsiveness and fixed layout issues, replaced  with  icon.
+- :
+  - **Importance**: Job application modal.
+  - **Changes**: Modified cover letter field to be optional. Replaced CV URL input with a file upload input ().
+- :
+  - **Importance**: Displays pricing packages and handles purchase.
+  - **Changes**: Enhanced error handling in  and  to convert  errors to readable strings. Modified how  is sent to the backend.
+- :
+  - **Importance**: Recruiter's profile and company management.
+  - **Changes**:
+    - **Routing**: Corrected dashboard route to display this component for recruiters.
+    - **Image Upload**: Implemented proper file upload for company logo and cover images using the new backend  endpoint. Added  helper.
+    - **Job Credits**: Added a display section for recruiter job credits.
+- :
+  - **Importance**: New, global navigation bar.
+  - **Changes**: Created to provide role-based navigation links, logo, and user info. Replaced  with  icon for Pricing.
+- :
+  - **Importance**: New, global footer.
+  - **Changes**: Created for consistent footer across all pages.
+- :
+  - **Importance**: New placeholder page.
+  - **Changes**: Created as a simple component for future notification features.
+- :
+  - **Importance**: Utility script.
+  - **Changes**: Created to add job listing credits to recruiter users for testing.
+- :
+  - **Importance**: Utility script.
+  - **Changes**: Created to add unlimited job listing and CV search packages to specified users, and fixed package  field to  for frontend compatibility.
 </code_architecture>
 
 <pending_tasks>
--   Implementing the full Applicant Tracking System (ATS).
--   Building the Admin Dashboard for comprehensive platform management (beyond discount codes).
--   Completing the team member invitation email flow (SendGrid integration).
--   Developing the CV Search functionality.
--   Making the cover letter section mandatory in the job application.
--   Implementing a document upload function for CVs in the job application.
+- Implementing the full Applicant Tracking System (ATS).
+- Building the Admin Dashboard for comprehensive platform management (beyond discount codes).
+- Completing the team member invitation email flow (SendGrid integration).
+- Developing the CV Search functionality.
+- Database migration to Postgres (deferred).
+- Storing files on Google Drive (deferred).
+- Fixing the job expiry date in the bulk upload logic.
 </pending_tasks>
 
 <current_work>
-The immediate work being done is enhancing the Easy Apply job application process. The user explicitly requested two changes:
-1.  **Make the cover letter section mandatory** when applying for a job.
-2.  **Implement a document upload function for the CV**, replacing the current method (presumably a URL input or text field).
+The immediate work being addressed is resolving an issue where jobs created via bulk upload are not appearing on the jobs screen. The AI engineer has successfully confirmed that the jobs are indeed being created and stored in the MongoDB database, with 122 jobs total. However, upon inspecting the backend  endpoint, it was discovered that this endpoint defaults to a  of 20 jobs and filters by . Further investigation revealed that all existing jobs (including the newly bulk-uploaded ones) are appearing as expired.
 
-The AI engineer has just completed a thorough review of the  component, specifically examining the current implementation of the cover letter field and the CV input. The analysis noted that the cover letter is already marked as  in the UI and validation logic (lines 287 and 343 in ). The next step is to focus on replacing the CV URL input with a proper file upload mechanism. The trajectory ends with the AI engineer stating, Now let me add the file upload handler function. indicating this is the precise next action.
+The root cause was traced to the bulk upload logic in . The  model has a  that sets the  to 35 days from . However, the bulk upload process calls  without explicitly providing an . This causes the default factory to be invoked, but for reasons currently being investigated, the resulting  is making the jobs appear as expired, preventing them from being displayed by the  endpoint. The engineer is in the process of fixing this  calculation during bulk job creation.
 </current_work>
 
 <optional_next_step>
-I will implement the file upload handler function for the CV in the  component to allow document uploads.
+Fix the  calculation during bulk job creation in  to ensure jobs are active.
 </optional_next_step>
