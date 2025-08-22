@@ -700,8 +700,7 @@ metadata:
 
 test_plan:
   current_focus: 
-    - "Easy Apply Cover Letter Optional"
-    - "Easy Apply CV File Upload UI"
+    - "Bulk Upload Jobs Expiry Date Fix"
   stuck_tasks: 
     - "Discount Codes System - Admin Management - Frontend missing"
     - "Discount Codes System - Payment Integration - Frontend missing"  
