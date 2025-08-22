@@ -1092,6 +1092,9 @@ function App() {
                 onLogout={handleLogout}
               />
             } />
+            <Route path="/company/:companyId" element={
+              <CompanyProfilePage companyId={window.location.pathname.split('/').pop()} />
+            } />
             <Route path="*" element={
               authPage === 'login' ? (
                 <LoginPage 
