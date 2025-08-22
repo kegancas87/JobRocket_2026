@@ -258,7 +258,7 @@ const CompanyProfilePage = ({ companyId }) => {
                             </div>
                             <div className="flex items-center space-x-1">
                               <Clock className="w-4 h-4" />
-                              <span>{formatPostedDate(job.posted_date)}</span>
+                              <span>{formatJobPostedDate(job.posted_date)}</span>
                             </div>
                           </div>
                           {job.salary && (
