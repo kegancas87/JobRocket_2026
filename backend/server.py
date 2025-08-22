@@ -608,6 +608,7 @@ class Job(BaseModel):
     closing_date: Optional[datetime] = None
     is_active: bool = True
     featured: bool = False
+    logo_url: Optional[str] = None  # Company logo URL
     
     @property
     def is_expired(self) -> bool:
