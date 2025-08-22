@@ -79,6 +79,11 @@ const formatPostedDate = (dateString) => {
   return `${Math.ceil(diffDays / 30)} months ago`;
 };
 
+const CompanyProfileWrapper = () => {
+  const { companyId } = useParams();
+  return <CompanyProfilePage companyId={companyId} />;
+};
+
 const CompanyProfilePage = ({ companyId }) => {
   const [company, setCompany] = useState(null);
   const [jobs, setJobs] = useState([]);
