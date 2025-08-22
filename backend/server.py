@@ -2133,7 +2133,67 @@ async def get_public_jobs(
     
     return result
 
-@api_router.get("/jobs/archived", response_model=List[Job])
+@api_router.get("/public/company/{company_id}")
+async def get_public_company_profile(company_id: str):
+    """Get public company profile information"""
+    company_user = await db.users.find_one({"id": company_id, "role": "recruiter"})
+    if not company_user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Company not found"
+        )
+    
+    if "_id" in company_user:
+        del company_user["_id"]
+    
+    # Get active jobs count for this company
+    active_jobs_count = await db.jobs.count_documents({
+        "company_id": company_id,
+        "is_active": True,
+        "expiry_date": {"$gt": datetime.utcnow()}
+    })
+    
+    # Get company profile information
+    company_profile = company_user.get("company_profile", {})
+    
+    return {
+        "id": company_user["id"],
+        "company_name": company_profile.get("company_name", "Company Name Not Set"),
+        "company_logo_url": company_profile.get("company_logo_url"),
+        "company_cover_image_url": company_profile.get("company_cover_image_url"),
+        "company_description": company_profile.get("company_description"),
+        "company_website": company_profile.get("company_website"),
+        "company_linkedin": company_profile.get("company_linkedin"),
+        "company_size": company_profile.get("company_size"),
+        "company_industry": company_profile.get("company_industry"),
+        "company_location": company_profile.get("company_location"),
+        "active_jobs_count": active_jobs_count,
+        "created_at": company_user.get("created_at")
+    }
+
+@api_router.get("/public/company/{company_id}/jobs", response_model=List[Job])
+async def get_company_jobs(
+    company_id: str,
+    limit: Optional[int] = Query(100)
+):
+    """Get active jobs for a specific company"""
+    query = {
+        "company_id": company_id,
+        "is_active": True,
+        "expiry_date": {"$gt": datetime.utcnow()}
+    }
+    
+    jobs = await db.jobs.find(query).sort("posted_date", -1).limit(limit).to_list(limit)
+    
+    result = []
+    for job in jobs:
+        if "_id" in job:
+            del job["_id"]
+        result.append(Job(**job))
+    
+    return result
+
+
 async def get_archived_jobs(
     company_id: Optional[str] = Query(None),
     current_user: User = Depends(get_current_user)
