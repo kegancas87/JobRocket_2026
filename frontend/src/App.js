@@ -287,59 +287,7 @@ const CompanyProfilePage = ({ companyId }) => {
   );
 };
 
-const formatPostedDate = (dateString) => {
-  const date = new Date(dateString);
-  const now = new Date();
-  const diffTime = Math.abs(now - date);
-  const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-  
-  if (diffDays === 0) return 'Today';
-  if (diffDays === 1) return '1 day ago';
-  if (diffDays < 7) return `${diffDays} days ago`;
-  if (diffDays < 14) return '1 week ago';
-  if (diffDays < 30) return `${Math.ceil(diffDays / 7)} weeks ago`;
-  if (diffDays < 60) return '1 month ago';
-  return `${Math.ceil(diffDays / 30)} months ago`;
-};
-
-  const formatPostedDate = (dateString) => {
-    const date = new Date(dateString);
-    const now = new Date();
-    const diffTime = Math.abs(now - date);
-    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-    
-    if (diffDays === 0) return 'Today';
-    if (diffDays === 1) return '1 day ago';
-    if (diffDays < 7) return `${diffDays} days ago`;
-    if (diffDays < 14) return '1 week ago';
-    if (diffDays < 30) return `${Math.ceil(diffDays / 7)} weeks ago`;
-    if (diffDays < 60) return '1 month ago';
-    return `${Math.ceil(diffDays / 30)} months ago`;
-  };
-
-  const formatSalary = (salaryMin, salaryMax, currency = 'ZAR') => {
-    if (!salaryMin && !salaryMax) return null;
-    if (salaryMin && salaryMax) {
-      return `${currency} ${salaryMin.toLocaleString()} - ${salaryMax.toLocaleString()}`;
-    }
-    if (salaryMin) return `${currency} ${salaryMin.toLocaleString()}+`;
-    return `Up to ${currency} ${salaryMax.toLocaleString()}`;
-  };
-
-  const handleCardClick = () => {
-    if (onJobClick) {
-      onJobClick(job);
-    }
-  };
-
-  const handleJobTitleClick = (e) => {
-    e.stopPropagation();
-    if (onJobClick) {
-      onJobClick(job);
-    }
-  };
-
-  return (
+const JobCard = ({ job, user, onSave, onApply, onJobClick }) => {
     <Card 
       className="group cursor-pointer hover:shadow-2xl transition-all duration-500 bg-white/80 backdrop-blur-sm border-0 hover:bg-white/90 relative overflow-hidden rocket-card"
       onClick={handleCardClick}
