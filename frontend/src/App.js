@@ -288,6 +288,29 @@ const CompanyProfilePage = ({ companyId }) => {
 };
 
 const JobCard = ({ job, user, onSave, onApply, onJobClick }) => {
+  const formatSalary = (salaryMin, salaryMax, currency = 'ZAR') => {
+    if (!salaryMin && !salaryMax) return null;
+    if (salaryMin && salaryMax) {
+      return `${currency} ${salaryMin.toLocaleString()} - ${salaryMax.toLocaleString()}`;
+    }
+    if (salaryMin) return `${currency} ${salaryMin.toLocaleString()}+`;
+    return `Up to ${currency} ${salaryMax.toLocaleString()}`;
+  };
+
+  const handleCardClick = () => {
+    if (onJobClick) {
+      onJobClick(job);
+    }
+  };
+
+  const handleJobTitleClick = (e) => {
+    e.stopPropagation();
+    if (onJobClick) {
+      onJobClick(job);
+    }
+  };
+
+  return (
     <Card 
       className="group cursor-pointer hover:shadow-2xl transition-all duration-500 bg-white/80 backdrop-blur-sm border-0 hover:bg-white/90 relative overflow-hidden rocket-card"
       onClick={handleCardClick}
