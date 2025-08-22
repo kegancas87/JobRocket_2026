@@ -1923,7 +1923,9 @@ async def create_jobs_bulk(
                     "application_email": str(row.get('application_email', '')) if pd.notna(row.get('application_email')) else None,
                     "company_id": job_company_id,
                     "company_name": company_name,
-                    "posted_by": current_user.id
+                    "posted_by": current_user.id,
+                    "posted_date": datetime.utcnow(),
+                    "expiry_date": datetime.utcnow() + timedelta(days=35)  # Set proper expiry date
                 }
                 
                 job_obj = Job(**job_data)
