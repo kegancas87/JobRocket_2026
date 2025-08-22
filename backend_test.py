@@ -1119,10 +1119,11 @@ class PayfastPaymentTestSuite:
 
 
 if __name__ == "__main__":
-    print_test_header("Job Rocket Payfast Payment Initiation Test Suite")
-    print_info("Testing Payfast payment initiation functionality specifically")
-    print_info("Focus: Sandbox mode, package validation, and CV_SEARCH_UNLIMITED availability")
+    print_test_header("Job Rocket Bulk Upload Expiry Date Test Suite")
+    print_info("Testing bulk upload expiry date issue specifically")
+    print_info("Focus: Verify if jobs created via bulk upload have proper expiry dates")
+    print_info("Using demo recruiter credentials: lisa.martinez@techcorp.demo/demo123")
     
-    # Run the Payfast payment test suite
-    payfast_test_suite = PayfastPaymentTestSuite()
-    payfast_test_suite.run_all_tests()
+    # Run the bulk upload expiry test suite
+    bulk_test_suite = BulkUploadExpiryTestSuite()
+    bulk_test_suite.run_all_tests()
