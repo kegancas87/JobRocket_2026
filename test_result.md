@@ -727,6 +727,18 @@ backend:
         -agent: "testing"
         -comment: "Logo URL Consistency working with minor inconsistencies. Tested logo URLs across Public Jobs API (/api/public/jobs), Company Jobs API (/api/public/company/{id}/jobs), and Recruiter Jobs API (/api/jobs). All APIs include logo_url field consistently. New jobs created during testing have consistent logo URLs across all endpoints. Minor: Some existing jobs have null logo_url while others have populated logos, creating mixed results within same company. This is expected behavior as logo integration was recently implemented - existing jobs without logos remain null while new jobs inherit company logos. Overall structure and integration working correctly for new job creation."
 
+  - task: "CV Search API Endpoint"
+    implemented: true
+    working: true
+    file: "/app/backend/server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+        -working: true
+        -agent: "testing"
+        -comment: "CV Search API working excellently. GET /api/cv-search endpoint successfully implemented with comprehensive functionality: 1) Authentication & Authorization ✅ - Only recruiters can access CV search, proper token validation 2) Package Credit System ✅ - Validates CV search packages (cv_search_10, cv_search_20, cv_search_unlimited, unlimited_listings), enforces credit requirements with 402 Payment Required when no credits available 3) Search Query Building ✅ - Supports position, location, and skills parameters with regex-based matching across candidate profiles 4) Results Processing ✅ - Returns proper candidate data structure with id, first_name, last_name, email, location, skills, experience, education while excluding sensitive fields like password_hash 5) Credit Deduction ✅ - Properly deducts credits after successful search, deactivates packages when credits exhausted 6) Error Handling ✅ - Handles invalid parameters gracefully, special characters correctly processed. Fixed critical package validation query to include all CV search package types. Found 5 job seeker candidates during testing. Search parameters working correctly with proper response structure including results, total_found, search_criteria, and remaining_searches fields. Minor: Authentication returns 403 instead of 401 for unauthenticated requests (both indicate unauthorized access)."
+
 
   - task: "Team member invitation interface"
     implemented: true
