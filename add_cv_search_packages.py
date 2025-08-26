@@ -21,42 +21,22 @@ async def add_cv_search_packages():
     print("🔍 Adding CV Search Packages to Recruiter Users...")
     
     try:
-        # Find all recruiter users
-        recruiters = []
+        # Find all recruiter users - try known recruiter IDs
+        known_recruiter_id = "3c513e33-ddc3-41a8-8b43-245fc88af257"  # lisa.martinez@techcorp.demo
         
-        # Try to get recruiters from API login to verify they exist
-        print("🔍 Looking for existing recruiters...")
+        # Try to find this specific recruiter
+        recruiter = await db.users.find_one({"id": known_recruiter_id})
         
-        # Test with known recruiter
-        test_recruiters = [
-            {"email": "lisa.martinez@techcorp.demo", "password": "demo123"},
-            {"email": "david.wilson@innovate.demo", "password": "demo123"}
-        ]
+        if recruiter:
+            recruiters = [recruiter]
+            print(f"✅ Found known recruiter: {recruiter.get('email', 'No email')}")
+        else:
+            # Fallback: try to find any users with role recruiter
+            all_users = await db.users.find({}).to_list(None)
+            recruiters = [user for user in all_users if user.get('role') == 'recruiter']
+            print(f"📊 Found {len(recruiters)} recruiters from {len(all_users)} total users")
         
-        import aiohttp
-        async with aiohttp.ClientSession() as session:
-            for test_recruiter in test_recruiters:
-                try:
-                    async with session.post(
-                        'https://job-expiry-fix.preview.emergentagent.com/api/auth/login',
-                        json=test_recruiter
-                    ) as response:
-                        if response.status == 200:
-                            data = await response.json()
-                            user_data = data['user']
-                            if user_data.get('role') == 'recruiter':
-                                recruiters.append(user_data)
-                                print(f"✅ Found recruiter: {user_data['email']}")
-                except Exception as e:
-                    print(f"⚠️  Could not verify {test_recruiter['email']}: {str(e)}")
-        
-        if not recruiters:
-            # Fallback: try direct database query
-            db_recruiters = await db.users.find({"role": "recruiter"}).to_list(None)
-            print(f"📊 Found {len(db_recruiters)} recruiters in database")
-            recruiters = db_recruiters
-        
-        print(f"📊 Total recruiters to process: {len(recruiters)}")
+        print(f"📊 Processing {len(recruiters)} recruiter users")
         
         # CV Search packages to add
         packages_to_add = [
