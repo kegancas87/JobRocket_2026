@@ -128,6 +128,21 @@ const CompanyProfilePage = ({ companyId }) => {
     if (diffDays < 60) return '1 month ago';
     return `${Math.ceil(diffDays / 30)} months ago`;
   };
+
+  const isValidDescription = (description) => {
+    if (!description || description.trim().length === 0) return false;
+    
+    // Check if description is just repeated characters (like "mmmmm...")
+    const firstChar = description.trim().charAt(0);
+    const isRepeatedChar = description.trim().split('').every(char => char === firstChar);
+    
+    if (isRepeatedChar) return false;
+    
+    // Check if description is too short or looks like test data
+    if (description.trim().length < 10) return false;
+    
+    return true;
+  };
   
   if (loading) {
     return (
