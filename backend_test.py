@@ -1799,12 +1799,556 @@ class CompanyProfileLogoTestSuite:
         print_info("6. ✅ Logo URLs are consistent across all API endpoints")
 
 
+class CVSearchTestSuite:
+    def __init__(self):
+        self.recruiter_token = None
+        self.recruiter_user_id = None
+        self.job_seeker_token = None
+        self.job_seeker_user_id = None
+        self.test_results = {
+            "passed": 0,
+            "failed": 0,
+            "errors": []
+        }
+        self.cv_search_packages = []
+        self.initial_cv_credits = None
+
+    def make_request(self, method, endpoint, data=None, headers=None, auth_token=None, files=None, use_params=False):
+        """Make HTTP request with proper error handling"""
+        url = f"{BASE_URL}{endpoint}"
+        request_headers = {}
+        
+        if headers:
+            request_headers.update(headers)
+            
+        if auth_token:
+            request_headers["Authorization"] = f"Bearer {auth_token}"
+        
+        # Don't set Content-Type for file uploads
+        if not files and method.upper() in ["POST", "PUT"]:
+            request_headers["Content-Type"] = "application/json"
+        
+        try:
+            if method.upper() == "GET":
+                response = requests.get(url, headers=request_headers, params=data)
+            elif method.upper() == "POST":
+                if files:
+                    response = requests.post(url, headers=request_headers, files=files, data=data)
+                elif use_params:
+                    response = requests.post(url, headers=request_headers, params=data)
+                else:
+                    response = requests.post(url, json=data, headers=request_headers)
+            elif method.upper() == "PUT":
+                response = requests.put(url, json=data, headers=request_headers)
+            elif method.upper() == "DELETE":
+                response = requests.delete(url, headers=request_headers)
+            else:
+                raise ValueError(f"Unsupported HTTP method: {method}")
+                
+            return response
+        except requests.exceptions.RequestException as e:
+            print_error(f"Request failed: {str(e)}")
+            return None
+
+    def assert_response(self, response, expected_status, test_name):
+        """Assert response status and handle results"""
+        if response is None:
+            self.test_results["failed"] += 1
+            self.test_results["errors"].append(f"{test_name}: Request failed")
+            print_error(f"{test_name}: Request failed")
+            return False
+            
+        if response.status_code == expected_status:
+            self.test_results["passed"] += 1
+            print_success(f"{test_name}: Status {response.status_code}")
+            return True
+        else:
+            self.test_results["failed"] += 1
+            error_msg = f"{test_name}: Expected {expected_status}, got {response.status_code}"
+            if response.text:
+                error_msg += f" - {response.text}"
+            self.test_results["errors"].append(error_msg)
+            print_error(error_msg)
+            return False
+
+    def setup_test_environment(self):
+        """Setup test environment with demo recruiter login"""
+        print_test_header("Setting up CV Search Test Environment")
+        
+        # Login as demo recruiter (as specified in review request)
+        recruiter_login_data = {
+            "email": "lisa.martinez@techcorp.demo",
+            "password": "demo123"
+        }
+        
+        response = self.make_request("POST", "/auth/login", recruiter_login_data)
+        if not self.assert_response(response, 200, "Demo Recruiter Login"):
+            print_error("Failed to login with demo recruiter account")
+            return False
+            
+        login_result = response.json()
+        self.recruiter_token = login_result["access_token"]
+        self.recruiter_user_id = login_result["user"]["id"]
+        
+        print_info(f"Logged in as recruiter: {login_result['user']['email']}")
+        print_info(f"Recruiter ID: {self.recruiter_user_id}")
+        print_info(f"User Role: {login_result['user']['role']}")
+        
+        # Verify user is recruiter
+        if login_result['user']['role'] != 'recruiter':
+            print_error(f"User role should be 'recruiter', got '{login_result['user']['role']}'")
+            return False
+        
+        # Check current CV search credits
+        response = self.make_request("GET", "/my-packages", auth_token=self.recruiter_token)
+        if response and response.status_code == 200:
+            packages = response.json()
+            for package in packages:
+                if package.get('package', {}).get('package_type') in ['cv_search_10', 'cv_search_20', 'cv_search_unlimited', 'unlimited_listings']:
+                    cv_credits = package.get('user_package', {}).get('cv_searches_remaining')
+                    if cv_credits is not None:
+                        self.initial_cv_credits = cv_credits
+                        print_info(f"Initial CV search credits: {cv_credits}")
+                    else:
+                        self.initial_cv_credits = "unlimited"
+                        print_info("Initial CV search credits: unlimited")
+                    break
+        
+        return True
+
+    def test_cv_search_authentication(self):
+        """Test CV search authentication and authorization"""
+        print_test_header("CV Search Authentication & Authorization")
+        
+        # Test 1: No authentication (should fail)
+        print_info("Testing CV search without authentication")
+        response = self.make_request("GET", "/cv-search")
+        if self.assert_response(response, 401, "CV Search Without Authentication (Should Fail)"):
+            print_success("✅ CV search correctly requires authentication")
+        
+        # Test 2: Invalid token (should fail)
+        print_info("Testing CV search with invalid token")
+        response = self.make_request("GET", "/cv-search", auth_token="invalid_token")
+        if self.assert_response(response, 401, "CV Search With Invalid Token (Should Fail)"):
+            print_success("✅ CV search correctly validates authentication token")
+        
+        # Test 3: Valid recruiter token (should check for credits)
+        print_info("Testing CV search with valid recruiter token")
+        response = self.make_request("GET", "/cv-search", auth_token=self.recruiter_token)
+        if response:
+            if response.status_code == 200:
+                print_success("✅ CV search works with valid recruiter authentication")
+            elif response.status_code == 402:
+                print_info("ℹ️ CV search requires payment (no credits available) - this is expected behavior")
+                print_success("✅ CV search correctly enforces credit requirements")
+            elif response.status_code == 403:
+                print_error("❌ CV search should work for recruiters")
+            else:
+                print_warning(f"⚠️ Unexpected response status: {response.status_code}")
+
+    def test_cv_search_package_integration(self):
+        """Test CV search package availability and integration"""
+        print_test_header("CV Search Package Integration")
+        
+        # Get all available packages
+        response = self.make_request("GET", "/packages", auth_token=self.recruiter_token)
+        if not self.assert_response(response, 200, "Get CV Search Packages"):
+            return
+        
+        packages = response.json()
+        cv_search_packages = []
+        
+        # Find CV search packages
+        for package in packages:
+            package_type = package.get("package_type", "")
+            if "cv_search" in package_type:
+                cv_search_packages.append(package)
+                print_success(f"✅ Found CV search package: {package.get('name')} - {package_type}")
+                print_info(f"  Price: R{package.get('price')}")
+                print_info(f"  CV Searches: {package.get('cv_searches_included', 'N/A')}")
+        
+        self.cv_search_packages = cv_search_packages
+        
+        if not cv_search_packages:
+            print_error("❌ No CV search packages found")
+            return
+        
+        # Verify expected CV search packages exist
+        expected_cv_packages = ["cv_search_10", "cv_search_20", "cv_search_unlimited"]
+        found_types = [pkg.get("package_type") for pkg in cv_search_packages]
+        
+        for expected_type in expected_cv_packages:
+            if expected_type in found_types:
+                print_success(f"✅ {expected_type} package is available")
+            else:
+                print_error(f"❌ {expected_type} package is missing")
+        
+        # Check user's current CV search packages
+        response = self.make_request("GET", "/my-packages", auth_token=self.recruiter_token)
+        if self.assert_response(response, 200, "Get User CV Search Packages"):
+            user_packages = response.json()
+            user_cv_packages = []
+            
+            for package in user_packages:
+                package_type = package.get('package', {}).get('package_type', '')
+                if 'cv_search' in package_type or package_type == 'unlimited_listings':
+                    user_cv_packages.append(package)
+                    cv_credits = package.get('user_package', {}).get('cv_searches_remaining')
+                    print_info(f"User has package: {package.get('package', {}).get('name')}")
+                    print_info(f"  CV Credits remaining: {cv_credits if cv_credits is not None else 'unlimited'}")
+            
+            if user_cv_packages:
+                print_success(f"✅ User has {len(user_cv_packages)} CV search package(s)")
+            else:
+                print_warning("⚠️ User has no CV search packages - will need to purchase for testing")
+
+    def test_cv_search_basic_functionality(self):
+        """Test basic CV search functionality with different parameters"""
+        print_test_header("CV Search Basic Functionality")
+        
+        # Test 1: Basic search without parameters
+        print_info("Testing basic CV search without parameters")
+        response = self.make_request("GET", "/cv-search", auth_token=self.recruiter_token)
+        
+        if response:
+            if response.status_code == 200:
+                result = response.json()
+                print_success("✅ Basic CV search successful")
+                
+                # Verify response structure
+                required_fields = ["results", "total_found", "search_criteria", "remaining_searches"]
+                for field in required_fields:
+                    if field in result:
+                        print_success(f"  ✅ Response has {field}: {result[field]}")
+                    else:
+                        print_error(f"  ❌ Response missing {field}")
+                
+                # Verify results structure
+                results = result.get("results", [])
+                if results:
+                    print_success(f"✅ Found {len(results)} CV results")
+                    
+                    # Check first result structure
+                    first_result = results[0]
+                    candidate_fields = ["id", "first_name", "last_name", "email", "location", "skills"]
+                    for field in candidate_fields:
+                        if field in first_result:
+                            print_success(f"    ✅ Candidate has {field}")
+                        else:
+                            print_warning(f"    ⚠️ Candidate missing {field}")
+                else:
+                    print_info("ℹ️ No CV results found (may be expected if no job seekers in database)")
+                
+            elif response.status_code == 402:
+                print_warning("⚠️ CV search requires payment - no credits available")
+                print_info("This is expected behavior when user has no CV search credits")
+            else:
+                print_error(f"❌ Unexpected response status: {response.status_code}")
+                if response.text:
+                    print_error(f"Response: {response.text}")
+
+    def test_cv_search_with_parameters(self):
+        """Test CV search with different search parameters"""
+        print_test_header("CV Search with Parameters")
+        
+        # Test different search parameter combinations
+        search_scenarios = [
+            {
+                "name": "Position Search",
+                "params": {"position": "software engineer"},
+                "description": "Search by job position"
+            },
+            {
+                "name": "Location Search", 
+                "params": {"location": "cape town"},
+                "description": "Search by location"
+            },
+            {
+                "name": "Skills Search",
+                "params": {"skills": "python,javascript"},
+                "description": "Search by skills"
+            },
+            {
+                "name": "Combined Search",
+                "params": {"position": "developer", "location": "johannesburg", "skills": "react"},
+                "description": "Search with multiple parameters"
+            },
+            {
+                "name": "Empty Parameters",
+                "params": {"position": "", "location": "", "skills": ""},
+                "description": "Search with empty parameters"
+            }
+        ]
+        
+        for scenario in search_scenarios:
+            print_info(f"Testing {scenario['name']}: {scenario['description']}")
+            
+            response = self.make_request("GET", "/cv-search", data=scenario["params"], auth_token=self.recruiter_token)
+            
+            if response:
+                if response.status_code == 200:
+                    result = response.json()
+                    print_success(f"  ✅ {scenario['name']} successful")
+                    
+                    # Verify search criteria in response
+                    search_criteria = result.get("search_criteria", {})
+                    for param, value in scenario["params"].items():
+                        if search_criteria.get(param) == value:
+                            print_success(f"    ✅ Search criteria {param} correctly set to '{value}'")
+                        else:
+                            print_warning(f"    ⚠️ Search criteria {param} mismatch")
+                    
+                    total_found = result.get("total_found", 0)
+                    print_info(f"    Found {total_found} candidates")
+                    
+                elif response.status_code == 402:
+                    print_warning(f"  ⚠️ {scenario['name']} requires payment - no credits available")
+                else:
+                    print_error(f"  ❌ {scenario['name']} failed with status {response.status_code}")
+
+    def test_cv_search_credit_deduction(self):
+        """Test CV search credit deduction logic"""
+        print_test_header("CV Search Credit Deduction")
+        
+        # Get initial credits
+        response = self.make_request("GET", "/my-packages", auth_token=self.recruiter_token)
+        if not response or response.status_code != 200:
+            print_error("Cannot get initial package information")
+            return
+        
+        packages = response.json()
+        cv_package = None
+        initial_credits = None
+        
+        for package in packages:
+            package_type = package.get('package', {}).get('package_type', '')
+            if 'cv_search' in package_type or package_type == 'unlimited_listings':
+                cv_package = package
+                initial_credits = package.get('user_package', {}).get('cv_searches_remaining')
+                break
+        
+        if not cv_package:
+            print_warning("⚠️ No CV search package found - cannot test credit deduction")
+            return
+        
+        print_info(f"Initial CV search credits: {initial_credits if initial_credits is not None else 'unlimited'}")
+        
+        # Perform a CV search
+        print_info("Performing CV search to test credit deduction")
+        response = self.make_request("GET", "/cv-search", data={"position": "test"}, auth_token=self.recruiter_token)
+        
+        if response and response.status_code == 200:
+            result = response.json()
+            remaining_searches = result.get("remaining_searches")
+            print_success("✅ CV search completed successfully")
+            print_info(f"Remaining searches after search: {remaining_searches}")
+            
+            # Verify credit deduction for limited packages
+            if initial_credits is not None and isinstance(initial_credits, int):
+                expected_remaining = initial_credits - 1
+                if remaining_searches == expected_remaining:
+                    print_success("✅ Credit deduction working correctly")
+                else:
+                    print_error(f"❌ Credit deduction incorrect: expected {expected_remaining}, got {remaining_searches}")
+            else:
+                print_info("ℹ️ Unlimited package - no credit deduction expected")
+                if remaining_searches == "unlimited":
+                    print_success("✅ Unlimited package correctly shows unlimited searches")
+        
+        elif response and response.status_code == 402:
+            print_info("ℹ️ No credits available for testing credit deduction")
+        else:
+            print_error("❌ CV search failed - cannot test credit deduction")
+
+    def test_cv_search_error_handling(self):
+        """Test CV search error handling scenarios"""
+        print_test_header("CV Search Error Handling")
+        
+        # Test 1: No CV search credits
+        print_info("Testing CV search with no credits (if applicable)")
+        # This would require a user with no CV search packages, which is complex to set up
+        # We'll rely on the 402 responses we've seen in other tests
+        
+        # Test 2: Invalid parameters (very long strings)
+        print_info("Testing CV search with invalid parameters")
+        invalid_params = {
+            "position": "a" * 1000,  # Very long position
+            "location": "b" * 1000,  # Very long location  
+            "skills": "c" * 1000     # Very long skills
+        }
+        
+        response = self.make_request("GET", "/cv-search", data=invalid_params, auth_token=self.recruiter_token)
+        if response:
+            if response.status_code in [200, 402]:
+                print_success("✅ CV search handles long parameters gracefully")
+            elif response.status_code == 400:
+                print_success("✅ CV search correctly rejects invalid parameters")
+            else:
+                print_warning(f"⚠️ Unexpected response to invalid parameters: {response.status_code}")
+        
+        # Test 3: Special characters in parameters
+        print_info("Testing CV search with special characters")
+        special_params = {
+            "position": "software & engineer",
+            "location": "cape town, south africa",
+            "skills": "c++,c#,.net"
+        }
+        
+        response = self.make_request("GET", "/cv-search", data=special_params, auth_token=self.recruiter_token)
+        if response:
+            if response.status_code in [200, 402]:
+                print_success("✅ CV search handles special characters correctly")
+            else:
+                print_warning(f"⚠️ Issues with special characters: {response.status_code}")
+
+    def test_cv_search_results_processing(self):
+        """Test CV search results data structure and processing"""
+        print_test_header("CV Search Results Processing")
+        
+        # Perform a search to get results
+        response = self.make_request("GET", "/cv-search", data={"position": "engineer"}, auth_token=self.recruiter_token)
+        
+        if not response:
+            print_error("❌ Cannot perform CV search for results testing")
+            return
+        
+        if response.status_code == 402:
+            print_warning("⚠️ Cannot test results processing - no CV search credits")
+            return
+        
+        if response.status_code != 200:
+            print_error(f"❌ CV search failed with status {response.status_code}")
+            return
+        
+        result = response.json()
+        print_success("✅ CV search successful - testing results processing")
+        
+        # Test response structure
+        expected_response_fields = {
+            "results": "Array of candidate profiles",
+            "total_found": "Number of results found", 
+            "search_criteria": "Search parameters used",
+            "remaining_searches": "Credits remaining after search"
+        }
+        
+        for field, description in expected_response_fields.items():
+            if field in result:
+                print_success(f"  ✅ {field}: {description}")
+            else:
+                print_error(f"  ❌ Missing {field}: {description}")
+        
+        # Test candidate data structure
+        results = result.get("results", [])
+        if results:
+            print_info(f"Testing candidate data structure ({len(results)} candidates)")
+            
+            candidate = results[0]
+            expected_candidate_fields = {
+                "id": "Candidate ID",
+                "first_name": "First name",
+                "last_name": "Last name", 
+                "email": "Email address",
+                "location": "Location",
+                "skills": "Skills array",
+                "experience": "Work experience",
+                "education": "Education history"
+            }
+            
+            for field, description in expected_candidate_fields.items():
+                if field in candidate:
+                    value = candidate[field]
+                    print_success(f"    ✅ {field}: {description} - {type(value).__name__}")
+                    
+                    # Additional validation for specific fields
+                    if field == "skills" and isinstance(value, list):
+                        print_info(f"      Skills count: {len(value)}")
+                    elif field == "experience" and isinstance(value, list):
+                        print_info(f"      Experience entries: {len(value)}")
+                    elif field == "education" and isinstance(value, list):
+                        print_info(f"      Education entries: {len(value)}")
+                else:
+                    print_warning(f"    ⚠️ Missing {field}: {description}")
+            
+            # Test data privacy (ensure sensitive fields are not exposed)
+            sensitive_fields = ["password_hash", "phone"]  # Add more as needed
+            for field in sensitive_fields:
+                if field in candidate:
+                    print_error(f"    ❌ Sensitive field {field} should not be exposed")
+                else:
+                    print_success(f"    ✅ Sensitive field {field} properly excluded")
+        else:
+            print_info("ℹ️ No candidates found - cannot test candidate data structure")
+
+    def run_all_tests(self):
+        """Run all CV search tests"""
+        print_test_header("Starting CV Search Test Suite")
+        print_info("Focus: Testing CV Search functionality comprehensively")
+        print_info("Testing authentication, package integration, search parameters, and results processing")
+        
+        if not self.setup_test_environment():
+            print_error("Failed to setup test environment")
+            return
+        
+        # Run all test methods in logical order
+        test_methods = [
+            self.test_cv_search_authentication,
+            self.test_cv_search_package_integration,
+            self.test_cv_search_basic_functionality,
+            self.test_cv_search_with_parameters,
+            self.test_cv_search_credit_deduction,
+            self.test_cv_search_error_handling,
+            self.test_cv_search_results_processing
+        ]
+        
+        for test_method in test_methods:
+            try:
+                test_method()
+            except Exception as e:
+                print_error(f"Test {test_method.__name__} failed with exception: {str(e)}")
+                self.test_results["failed"] += 1
+                self.test_results["errors"].append(f"{test_method.__name__}: {str(e)}")
+        
+        # Print final results
+        self.print_final_results()
+
+    def print_final_results(self):
+        """Print final test results summary"""
+        print_test_header("CV Search Test Results")
+        
+        total_tests = self.test_results["passed"] + self.test_results["failed"]
+        passed = self.test_results["passed"]
+        failed = self.test_results["failed"]
+        
+        print_info(f"Total Tests: {total_tests}")
+        print_success(f"Passed: {passed}")
+        
+        if failed > 0:
+            print_error(f"Failed: {failed}")
+            print_error("Failed Tests:")
+            for error in self.test_results["errors"]:
+                print_error(f"  - {error}")
+        else:
+            print_success("🎉 All CV search tests passed!")
+        
+        success_rate = (passed / total_tests * 100) if total_tests > 0 else 0
+        print_info(f"Success Rate: {success_rate:.1f}%")
+        
+        # Summary of key findings
+        print_test_header("CV Search Key Findings Summary")
+        print_info("Based on the test results:")
+        print_info("1. CV search authentication and authorization")
+        print_info("2. Package integration and credit management")
+        print_info("3. Search parameter handling and query building")
+        print_info("4. Results processing and data structure")
+        print_info("5. Error handling for edge cases")
+
+
 if __name__ == "__main__":
-    print_test_header("Job Rocket Company Profile & Logo Integration Test Suite")
-    print_info("Testing company profile and logo functionality as requested")
-    print_info("Focus: Verify logo integration in jobs and company profile APIs")
-    print_info(f"Using test company ID: 3c513e33-ddc3-41a8-8b43-245fc88af257 (Top Recruiter)")
+    print_test_header("Job Rocket CV Search Test Suite")
+    print_info("Testing CV Search functionality as requested in review")
+    print_info("Focus: Comprehensive CV Search API testing with demo recruiter credentials")
+    print_info("Demo credentials: lisa.martinez@techcorp.demo/demo123")
     
-    # Run the company profile and logo integration test suite
-    logo_test_suite = CompanyProfileLogoTestSuite()
-    logo_test_suite.run_all_tests()
+    # Run the CV Search test suite
+    cv_search_test_suite = CVSearchTestSuite()
+    cv_search_test_suite.run_all_tests()
