@@ -3586,9 +3586,12 @@ async def search_cvs(
     # Check if user has active CV search package with remaining credits
     active_cv_package = await db.user_packages.find_one({
         "user_id": current_user.id,
-        "package.package_type": {"$in": ["cv_search", "cv_search_unlimited"]},
+        "package_type": {"$in": ["cv_search_10", "cv_search_20", "cv_search_unlimited", "unlimited_listings"]},
         "is_active": True,
-        "expiry_date": {"$gt": datetime.utcnow()},
+        "$or": [
+            {"expiry_date": {"$gt": datetime.utcnow()}},  # For subscription packages
+            {"expiry_date": None}  # For one-time packages
+        ],
         "$or": [
             {"cv_searches_remaining": {"$gt": 0}},
             {"cv_searches_remaining": None}  # Unlimited
