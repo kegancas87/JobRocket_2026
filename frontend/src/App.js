@@ -277,12 +277,12 @@ const CompanyProfilePage = ({ companyId }) => {
                   <p>No active job openings at the moment.</p>
                 </div>
               ) : (
-                <div className="grid gap-4">
-                  {jobs.slice(0, 3).map((job) => (
-                    <div key={job.id} className="border border-slate-200 rounded-xl p-4 hover:shadow-md transition-shadow">
+                <div className="max-h-96 overflow-y-auto space-y-4 pr-2">
+                  {jobs.slice(0, 10).map((job) => (
+                    <div key={job.id} className="border border-slate-200 rounded-xl p-4 hover:shadow-md transition-shadow bg-white">
                       <div className="flex items-start justify-between">
                         <div className="flex-1">
-                          <h3 className="font-bold text-slate-800 mb-2">{job.title}</h3>
+                          <h3 className="font-bold text-slate-800 mb-2 text-lg">{job.title}</h3>
                           <div className="flex flex-wrap items-center gap-4 text-sm text-slate-600 mb-3">
                             <div className="flex items-center space-x-1">
                               <MapPin className="w-4 h-4" />
@@ -298,20 +298,35 @@ const CompanyProfilePage = ({ companyId }) => {
                             </div>
                           </div>
                           {job.salary && (
-                            <div className="text-green-600 font-semibold mb-2">
+                            <div className="text-green-600 font-semibold mb-2 text-lg">
                               R{job.salary}
                             </div>
+                          )}
+                          {job.description && (
+                            <p className="text-slate-600 text-sm mb-3 line-clamp-2">
+                              {job.description.length > 100 ? `${job.description.substring(0, 100)}...` : job.description}
+                            </p>
                           )}
                         </div>
                         <button 
                           onClick={() => window.location.href = `/jobs?search=${encodeURIComponent(job.title)}`}
-                          className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors"
+                          className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors ml-4 flex-shrink-0"
                         >
                           View Job
                         </button>
                       </div>
                     </div>
                   ))}
+                  {jobs.length > 10 && (
+                    <div className="text-center py-4">
+                      <button 
+                        onClick={() => window.location.href = `/jobs?company=${companyId}`}
+                        className="text-blue-600 hover:text-blue-700 font-medium"
+                      >
+                        View {jobs.length - 10} More Jobs →
+                      </button>
+                    </div>
+                  )}
                 </div>
               )}
             </div>
