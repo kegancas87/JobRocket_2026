@@ -3588,13 +3588,19 @@ async def search_cvs(
         "user_id": current_user.id,
         "package_type": {"$in": ["cv_search_10", "cv_search_20", "cv_search_unlimited", "unlimited_listings"]},
         "is_active": True,
-        "$or": [
-            {"expiry_date": {"$gt": datetime.utcnow()}},  # For subscription packages
-            {"expiry_date": None}  # For one-time packages
-        ],
-        "$or": [
-            {"cv_searches_remaining": {"$gt": 0}},
-            {"cv_searches_remaining": None}  # Unlimited
+        "$and": [
+            {
+                "$or": [
+                    {"expiry_date": {"$gt": datetime.utcnow()}},  # For subscription packages
+                    {"expiry_date": None}  # For one-time packages
+                ]
+            },
+            {
+                "$or": [
+                    {"cv_searches_remaining": {"$gt": 0}},
+                    {"cv_searches_remaining": None}  # Unlimited
+                ]
+            }
         ]
     })
     
