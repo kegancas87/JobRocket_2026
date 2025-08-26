@@ -22,8 +22,41 @@ async def add_cv_search_packages():
     
     try:
         # Find all recruiter users
-        recruiters = await db.users.find({"role": "recruiter"}).to_list(None)
-        print(f"📊 Found {len(recruiters)} recruiter users")
+        recruiters = []
+        
+        # Try to get recruiters from API login to verify they exist
+        print("🔍 Looking for existing recruiters...")
+        
+        # Test with known recruiter
+        test_recruiters = [
+            {"email": "lisa.martinez@techcorp.demo", "password": "demo123"},
+            {"email": "david.wilson@innovate.demo", "password": "demo123"}
+        ]
+        
+        import aiohttp
+        async with aiohttp.ClientSession() as session:
+            for test_recruiter in test_recruiters:
+                try:
+                    async with session.post(
+                        'https://job-expiry-fix.preview.emergentagent.com/api/auth/login',
+                        json=test_recruiter
+                    ) as response:
+                        if response.status == 200:
+                            data = await response.json()
+                            user_data = data['user']
+                            if user_data.get('role') == 'recruiter':
+                                recruiters.append(user_data)
+                                print(f"✅ Found recruiter: {user_data['email']}")
+                except Exception as e:
+                    print(f"⚠️  Could not verify {test_recruiter['email']}: {str(e)}")
+        
+        if not recruiters:
+            # Fallback: try direct database query
+            db_recruiters = await db.users.find({"role": "recruiter"}).to_list(None)
+            print(f"📊 Found {len(db_recruiters)} recruiters in database")
+            recruiters = db_recruiters
+        
+        print(f"📊 Total recruiters to process: {len(recruiters)}")
         
         # CV Search packages to add
         packages_to_add = [
