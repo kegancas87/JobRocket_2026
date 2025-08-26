@@ -234,7 +234,7 @@ const CompanyProfilePage = ({ companyId }) => {
             </div>
             
             {/* Company Description */}
-            {company.company_description && (
+            {company.company_description && isValidDescription(company.company_description) && (
               <div className="mb-8">
                 <h2 className="text-xl font-bold text-slate-800 mb-4">About Us</h2>
                 <p className="text-slate-600 leading-relaxed">{company.company_description}</p>
