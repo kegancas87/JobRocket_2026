@@ -1578,6 +1578,14 @@ function App() {
                 )
               } />
 
+              <Route path="/cv-search" element={
+                user.role === 'recruiter' ? (
+                  <CVSearchPage user={user} />
+                ) : (
+                  <Navigate to="/" replace />
+                )
+              } />
+
               <Route path="/my-applications" element={
                 user.role === 'job_seeker' ? (
                   <MyApplications 
