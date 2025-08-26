@@ -79,6 +79,330 @@ const formatPostedDate = (dateString) => {
   return `${Math.ceil(diffDays / 30)} months ago`;
 };
 
+const CVSearchPage = ({ user }) => {
+  const [searchCriteria, setSearchCriteria] = useState({
+    position: '',
+    location: '',
+    skills: ''
+  });
+  const [searchResults, setSearchResults] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [hasSearched, setHasSearched] = useState(false);
+  const [remainingSearches, setRemainingSearches] = useState(null);
+  const [error, setError] = useState('');
+
+  const handleInputChange = (e) => {
+    const { name, value } = e.target;
+    setSearchCriteria(prev => ({
+      ...prev,
+      [name]: value
+    }));
+  };
+
+  const handleSearch = async (e) => {
+    e.preventDefault();
+    setLoading(true);
+    setError('');
+    
+    try {
+      const params = new URLSearchParams();
+      if (searchCriteria.position) params.append('position', searchCriteria.position);
+      if (searchCriteria.location) params.append('location', searchCriteria.location);
+      if (searchCriteria.skills) params.append('skills', searchCriteria.skills);
+
+      const response = await axios.get(`${API}/cv-search?${params.toString()}`, {
+        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
+      });
+
+      setSearchResults(response.data.results);
+      setRemainingSearches(response.data.remaining_searches);
+      setHasSearched(true);
+    } catch (error) {
+      console.error('CV search error:', error);
+      if (error.response?.status === 402) {
+        setError('No CV search credits available. Please purchase a CV search package.');
+      } else {
+        setError(error.response?.data?.detail || 'An error occurred while searching CVs');
+      }
+      setSearchResults([]);
+    }
+    setLoading(false);
+  };
+
+  const getExperienceYears = (experience) => {
+    if (!experience || experience.length === 0) return 'No experience listed';
+    
+    // Calculate total experience from all positions
+    let totalMonths = 0;
+    experience.forEach(exp => {
+      if (exp.start_date && exp.end_date) {
+        const start = new Date(exp.start_date);
+        const end = new Date(exp.end_date);
+        const diffMonths = (end.getFullYear() - start.getFullYear()) * 12 + (end.getMonth() - start.getMonth());
+        totalMonths += diffMonths;
+      }
+    });
+    
+    if (totalMonths < 12) return `${totalMonths} months`;
+    const years = Math.floor(totalMonths / 12);
+    const months = totalMonths % 12;
+    return months > 0 ? `${years}.${months} years` : `${years} years`;
+  };
+
+  if (user?.role !== 'recruiter') {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 flex items-center justify-center">
+        <div className="text-center">
+          <h1 className="text-2xl font-bold text-slate-800 mb-4">Access Denied</h1>
+          <p className="text-slate-600">Only recruiters can access CV search functionality.</p>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50">
+      <div className="container mx-auto px-4 py-8">
+        <div className="max-w-6xl mx-auto">
+          {/* Header */}
+          <div className="mb-8">
+            <h1 className="text-3xl font-bold text-slate-800 mb-2">CV Search</h1>
+            <p className="text-slate-600">Search and discover talented candidates for your open positions</p>
+            {remainingSearches !== null && (
+              <div className="mt-4">
+                <span className="bg-blue-100 text-blue-800 px-3 py-1 rounded-full text-sm font-medium">
+                  {remainingSearches === 'unlimited' ? 'Unlimited searches' : `${remainingSearches} searches remaining`}
+                </span>
+              </div>
+            )}
+          </div>
+
+          {/* Search Form */}
+          <div className="bg-white rounded-2xl shadow-xl p-6 mb-8">
+            <form onSubmit={handleSearch} className="space-y-6">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <div>
+                  <label htmlFor="position" className="block text-sm font-medium text-slate-700 mb-2">
+                    Position / Job Title
+                  </label>
+                  <input
+                    type="text"
+                    id="position"
+                    name="position"
+                    value={searchCriteria.position}
+                    onChange={handleInputChange}
+                    placeholder="e.g. Software Developer, Marketing Manager"
+                    className="w-full px-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  />
+                </div>
+
+                <div>
+                  <label htmlFor="location" className="block text-sm font-medium text-slate-700 mb-2">
+                    Location
+                  </label>
+                  <input
+                    type="text"
+                    id="location"
+                    name="location"
+                    value={searchCriteria.location}
+                    onChange={handleInputChange}
+                    placeholder="e.g. Cape Town, Johannesburg"
+                    className="w-full px-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  />
+                </div>
+
+                <div>
+                  <label htmlFor="skills" className="block text-sm font-medium text-slate-700 mb-2">
+                    Skills
+                  </label>
+                  <input
+                    type="text"
+                    id="skills"
+                    name="skills"
+                    value={searchCriteria.skills}
+                    onChange={handleInputChange}
+                    placeholder="e.g. JavaScript, Python, Marketing"
+                    className="w-full px-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  />
+                  <p className="text-xs text-slate-500 mt-1">Separate multiple skills with commas</p>
+                </div>
+              </div>
+
+              <div className="flex justify-center">
+                <button
+                  type="submit"
+                  disabled={loading || (!searchCriteria.position && !searchCriteria.location && !searchCriteria.skills)}
+                  className="bg-blue-600 text-white px-8 py-3 rounded-lg hover:bg-blue-700 disabled:bg-slate-300 disabled:cursor-not-allowed transition-colors font-medium flex items-center space-x-2"
+                >
+                  {loading ? (
+                    <>
+                      <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
+                      <span>Searching...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Search className="w-5 h-5" />
+                      <span>Search CVs</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </form>
+          </div>
+
+          {/* Error Message */}
+          {error && (
+            <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-8">
+              <div className="flex items-center space-x-2">
+                <AlertCircle className="w-5 h-5 text-red-500" />
+                <p className="text-red-700">{error}</p>
+              </div>
+              {error.includes('purchase') && (
+                <div className="mt-3">
+                  <button
+                    onClick={() => window.location.href = '/pricing'}
+                    className="bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700 transition-colors text-sm"
+                  >
+                    View CV Search Packages
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Search Results */}
+          {hasSearched && (
+            <div className="bg-white rounded-2xl shadow-xl p-6">
+              <div className="flex items-center justify-between mb-6">
+                <h2 className="text-xl font-bold text-slate-800">
+                  Search Results ({searchResults.length})
+                </h2>
+                {searchResults.length > 0 && (
+                  <p className="text-slate-600 text-sm">
+                    Showing top {searchResults.length} candidates
+                  </p>
+                )}
+              </div>
+
+              {searchResults.length === 0 ? (
+                <div className="text-center py-12">
+                  <Users className="w-16 h-16 mx-auto text-slate-300 mb-4" />
+                  <h3 className="text-lg font-medium text-slate-800 mb-2">No candidates found</h3>
+                  <p className="text-slate-600">Try adjusting your search criteria or using different keywords.</p>
+                </div>
+              ) : (
+                <div className="space-y-6">
+                  {searchResults.map((candidate) => (
+                    <div key={candidate.id} className="border border-slate-200 rounded-xl p-6 hover:shadow-md transition-shadow">
+                      <div className="flex items-start space-x-6">
+                        {/* Profile Picture */}
+                        <div className="w-16 h-16 rounded-full overflow-hidden bg-gradient-to-br from-slate-200 to-slate-300 flex-shrink-0">
+                          <img
+                            src={getImageUrl(candidate.profile_picture_url) || `https://ui-avatars.com/api/?name=${candidate.first_name}+${candidate.last_name}&background=3b82f6&color=fff`}
+                            alt={`${candidate.first_name} ${candidate.last_name}`}
+                            className="w-full h-full object-cover"
+                            onError={(e) => {
+                              e.target.src = `https://ui-avatars.com/api/?name=${candidate.first_name}+${candidate.last_name}&background=3b82f6&color=fff`;
+                            }}
+                          />
+                        </div>
+
+                        {/* Candidate Info */}
+                        <div className="flex-1">
+                          <div className="flex items-start justify-between mb-4">
+                            <div>
+                              <h3 className="text-xl font-bold text-slate-800 mb-1">
+                                {candidate.first_name} {candidate.last_name}
+                              </h3>
+                              {candidate.desired_job_title && (
+                                <p className="text-blue-600 font-medium mb-2">{candidate.desired_job_title}</p>
+                              )}
+                              <div className="flex flex-wrap items-center gap-4 text-sm text-slate-600">
+                                {candidate.location && (
+                                  <div className="flex items-center space-x-1">
+                                    <MapPin className="w-4 h-4" />
+                                    <span>{candidate.location}</span>
+                                  </div>
+                                )}
+                                {candidate.experience && (
+                                  <div className="flex items-center space-x-1">
+                                    <Briefcase className="w-4 h-4" />
+                                    <span>{getExperienceYears(candidate.experience)}</span>
+                                  </div>
+                                )}
+                                <div className="flex items-center space-x-1">
+                                  <User className="w-4 h-4" />
+                                  <span>{candidate.profile_completeness}% profile complete</span>
+                                </div>
+                              </div>
+                            </div>
+                            <div className="flex space-x-2">
+                              {candidate.resume_url && (
+                                <a
+                                  href={getImageUrl(candidate.resume_url)}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="bg-slate-100 text-slate-700 px-4 py-2 rounded-lg hover:bg-slate-200 transition-colors text-sm flex items-center space-x-2"
+                                >
+                                  <FileText className="w-4 h-4" />
+                                  <span>View CV</span>
+                                </a>
+                              )}
+                              <button
+                                onClick={() => window.location.href = `mailto:${candidate.email}`}
+                                className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors text-sm flex items-center space-x-2"
+                              >
+                                <Mail className="w-4 h-4" />
+                                <span>Contact</span>
+                              </button>
+                            </div>
+                          </div>
+
+                          {/* Skills */}
+                          {candidate.skills && candidate.skills.length > 0 && (
+                            <div className="mb-4">
+                              <h4 className="text-sm font-medium text-slate-700 mb-2">Skills</h4>
+                              <div className="flex flex-wrap gap-2">
+                                {candidate.skills.slice(0, 8).map((skill, index) => (
+                                  <span
+                                    key={index}
+                                    className="bg-blue-100 text-blue-800 px-3 py-1 rounded-full text-sm"
+                                  >
+                                    {skill}
+                                  </span>
+                                ))}
+                                {candidate.skills.length > 8 && (
+                                  <span className="text-slate-500 text-sm">+{candidate.skills.length - 8} more</span>
+                                )}
+                              </div>
+                            </div>
+                          )}
+
+                          {/* Latest Experience */}
+                          {candidate.experience && candidate.experience.length > 0 && (
+                            <div>
+                              <h4 className="text-sm font-medium text-slate-700 mb-2">Latest Experience</h4>
+                              <div className="text-sm text-slate-600">
+                                <p className="font-medium">{candidate.experience[0].job_title}</p>
+                                <p>{candidate.experience[0].company}</p>
+                                <p>{candidate.experience[0].start_date} - {candidate.experience[0].end_date || 'Present'}</p>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+};
+
 const CompanyProfileWrapper = () => {
   const { companyId } = useParams();
   return <CompanyProfilePage companyId={companyId} />;
