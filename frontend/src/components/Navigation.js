@@ -44,6 +44,7 @@ const Navigation = ({ user, onLogout }) => {
         { name: 'Dashboard', path: '/', icon: Home },
         { name: 'Jobs', path: '/jobs', icon: Briefcase },
         { name: 'My Jobs', path: '/my-jobs', icon: Building2 },
+        { name: 'CV Search', path: '/cv-search', icon: Search },
         { name: 'Applications', path: '/applications', icon: FileText },
         { name: 'Pricing', path: '/pricing', icon: Banknote },
         { name: 'Profile', path: '/profile', icon: User }
