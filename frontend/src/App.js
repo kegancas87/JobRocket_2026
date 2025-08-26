@@ -249,12 +249,48 @@ const CompanyProfilePage = ({ companyId }) => {
             </div>
             
             {/* Company Description */}
-            {company.company_description && isValidDescription(company.company_description) && (
-              <div className="mb-8">
-                <h2 className="text-xl font-bold text-slate-800 mb-4">About Us</h2>
+            <div className="mb-8">
+              <h2 className="text-xl font-bold text-slate-800 mb-4">About Us</h2>
+              {company.company_description && isValidDescription(company.company_description) ? (
                 <p className="text-slate-600 leading-relaxed">{company.company_description}</p>
-              </div>
-            )}
+              ) : (
+                <div className="text-slate-600 leading-relaxed">
+                  <p className="mb-4">
+                    <strong>{company.company_name}</strong> is a leading company in the {company.company_industry || 'professional services'} industry, 
+                    based in {company.company_location || 'South Africa'}.
+                  </p>
+                  {company.company_size && (
+                    <p className="mb-4">
+                      We are a {company.company_size} organization committed to excellence and innovation in our field.
+                    </p>
+                  )}
+                  <p className="mb-4">
+                    With {company.active_jobs_count} active job opportunities, we're always looking for talented individuals to join our growing team.
+                  </p>
+                  {(company.company_website || company.company_linkedin) && (
+                    <p>
+                      Learn more about our company culture and opportunities by visiting our 
+                      {company.company_website && (
+                        <>
+                          {' '}
+                          <a href={company.company_website} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">
+                            website
+                          </a>
+                        </>
+                      )}
+                      {company.company_website && company.company_linkedin && ' or '}
+                      {company.company_linkedin && (
+                        <>
+                          <a href={company.company_linkedin} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">
+                            LinkedIn page
+                          </a>
+                        </>
+                      )}.
+                    </p>
+                  )}
+                </div>
+              )}
+            </div>
             
             {/* Jobs Section */}
             <div>
