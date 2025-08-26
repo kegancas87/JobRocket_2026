@@ -3569,6 +3569,132 @@ async def list_discount_codes(
     
     return result
 
+@api_router.get("/cv-search")
+async def search_cvs(
+    position: Optional[str] = Query(None, description="Job title or position"),
+    location: Optional[str] = Query(None, description="Location"),
+    skills: Optional[str] = Query(None, description="Skills (comma-separated)"),
+    current_user: User = Depends(get_current_user)
+):
+    """Search CVs/profiles with filters - requires CV search package credits"""
+    if current_user.role != UserRole.RECRUITER:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only recruiters can search CVs"
+        )
+    
+    # Check if user has active CV search package with remaining credits
+    active_cv_package = await db.user_packages.find_one({
+        "user_id": current_user.id,
+        "package.package_type": {"$in": ["cv_search", "cv_search_unlimited"]},
+        "is_active": True,
+        "expiry_date": {"$gt": datetime.utcnow()},
+        "$or": [
+            {"cv_searches_remaining": {"$gt": 0}},
+            {"cv_searches_remaining": None}  # Unlimited
+        ]
+    })
+    
+    if not active_cv_package:
+        raise HTTPException(
+            status_code=status.HTTP_402_PAYMENT_REQUIRED,
+            detail="No active CV search credits available. Please purchase a CV search package."
+        )
+    
+    # Build search query for job seekers
+    query = {"role": "job_seeker"}
+    search_conditions = []
+    
+    if position:
+        # Search in desired job title, skills, and experience
+        position_regex = {"$regex": position, "$options": "i"}
+        search_conditions.append({
+            "$or": [
+                {"profile.desired_job_title": position_regex},
+                {"profile.skills": {"$elemMatch": position_regex}},
+                {"profile.experience.0.job_title": position_regex},
+                {"profile.experience.1.job_title": position_regex},
+                {"profile.experience.2.job_title": position_regex}
+            ]
+        })
+    
+    if location:
+        location_regex = {"$regex": location, "$options": "i"}
+        search_conditions.append({
+            "$or": [
+                {"profile.location": location_regex},
+                {"profile.experience.0.company": location_regex}
+            ]
+        })
+    
+    if skills:
+        skill_list = [skill.strip() for skill in skills.split(",") if skill.strip()]
+        if skill_list:
+            skill_conditions = []
+            for skill in skill_list:
+                skill_regex = {"$regex": skill, "$options": "i"}
+                skill_conditions.append({"profile.skills": {"$elemMatch": skill_regex}})
+            search_conditions.append({"$or": skill_conditions})
+    
+    if search_conditions:
+        query["$and"] = search_conditions
+    
+    # Execute search with limit of 10
+    cv_results = await db.users.find(query).limit(10).to_list(10)
+    
+    # Process results to return relevant profile information
+    processed_results = []
+    for user in cv_results:
+        if "_id" in user:
+            del user["_id"]
+        
+        profile = user.get("profile", {})
+        
+        cv_result = {
+            "id": user["id"],
+            "first_name": user.get("first_name", ""),
+            "last_name": user.get("last_name", ""),
+            "email": user.get("email", ""),
+            "profile_picture_url": user.get("profile_picture_url"),
+            "location": profile.get("location", ""),
+            "phone": profile.get("phone", ""),
+            "desired_job_title": profile.get("desired_job_title", ""),
+            "skills": profile.get("skills", []),
+            "experience": profile.get("experience", []),
+            "education": profile.get("education", []),
+            "resume_url": profile.get("resume_url", ""),
+            "profile_completeness": profile.get("profile_completeness", 0),
+            "created_at": user.get("created_at")
+        }
+        processed_results.append(cv_result)
+    
+    # Deduct search credit (only if not unlimited)
+    if active_cv_package.get("cv_searches_remaining") is not None:
+        new_count = active_cv_package["cv_searches_remaining"] - 1
+        
+        # Update package credits
+        update_data = {"cv_searches_remaining": new_count}
+        
+        # Deactivate package if no credits left
+        if new_count <= 0:
+            update_data["is_active"] = False
+        
+        await db.user_packages.update_one(
+            {"_id": active_cv_package["_id"]},
+            {"$set": update_data}
+        )
+    
+    return {
+        "results": processed_results,
+        "total_found": len(processed_results),
+        "search_criteria": {
+            "position": position,
+            "location": location,
+            "skills": skills
+        },
+        "remaining_searches": active_cv_package.get("cv_searches_remaining", "unlimited") if active_cv_package.get("cv_searches_remaining") != 1 else 0
+    }
+
 @api_router.get("/admin/discount-codes/{code_id}", response_model=DiscountCode)
 async def get_discount_code(
     code_id: str,
