@@ -3678,8 +3678,10 @@ async def search_cvs(
         processed_results.append(cv_result)
     
     # Deduct search credit (only if not unlimited)
+    remaining_searches = active_cv_package.get("cv_searches_remaining", "unlimited")
     if active_cv_package.get("cv_searches_remaining") is not None:
         new_count = active_cv_package["cv_searches_remaining"] - 1
+        remaining_searches = new_count
         
         # Update package credits
         update_data = {"cv_searches_remaining": new_count}
@@ -3701,7 +3703,7 @@ async def search_cvs(
             "location": location,
             "skills": skills
         },
-        "remaining_searches": active_cv_package.get("cv_searches_remaining", "unlimited") if active_cv_package.get("cv_searches_remaining") != 1 else 0
+        "remaining_searches": remaining_searches
     }
 
 @api_router.get("/admin/discount-codes/{code_id}", response_model=DiscountCode)
