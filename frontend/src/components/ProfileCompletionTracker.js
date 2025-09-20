@@ -93,12 +93,15 @@ const ProfileCompletionTracker = ({ progress, profile, onNavigateToSection, comp
     }
   ];
 
-  const totalPossiblePoints = completionItems.reduce((sum, item) => sum + item.points, 0);
-  const earnedPoints = completionItems
+  const totalPossiblePoints = 100; // Fixed total
+  
+  // Use the actual progress total_points if available, otherwise calculate from completion items
+  const earnedPoints = progress?.total_points || completionItems
     .filter(item => item.completed)
     .reduce((sum, item) => sum + item.points, 0);
   
   const completionPercentage = Math.round((earnedPoints / totalPossiblePoints) * 100);
+  const pointsRemaining = totalPossiblePoints - earnedPoints;
   const completedItems = completionItems.filter(item => item.completed).length;
   const totalItems = completionItems.length;
 
