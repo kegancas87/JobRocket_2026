@@ -11,6 +11,7 @@ import CompanyStructure from './CompanyStructure';
 import JobPosting from './JobPosting';
 import ApplicationManagement from './ApplicationManagement';
 import PackageManagement from './PackageManagement';
+import ProfileCompletionTracker from './ProfileCompletionTracker';
 import { 
   Building2, 
   Globe, 
