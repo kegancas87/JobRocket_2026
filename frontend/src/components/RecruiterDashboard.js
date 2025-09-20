@@ -254,8 +254,9 @@ const RecruiterDashboard = ({ user, onUpdateUser }) => {
 
         {/* Main Content */}
         <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
-          {/* Sidebar - Company Overview */}
-          <div className="lg:col-span-1">
+          {/* Sidebar - Company Overview & Completion Tracker */}
+          <div className="lg:col-span-1 space-y-6">
+            {/* Company Overview Card */}
             <Card className="bg-white/80 backdrop-blur-sm border-0 shadow-xl">
               <CardContent className="p-6">
                 <div className="text-center mb-6">
@@ -329,6 +330,14 @@ const RecruiterDashboard = ({ user, onUpdateUser }) => {
                 </div>
               </CardContent>
             </Card>
+
+            {/* Profile Completion Tracker */}
+            <ProfileCompletionTracker 
+              progress={progress}
+              profile={profile}
+              companyForm={companyForm}
+              onNavigateToSection={handleNavigateToSection}
+            />
           </div>
 
           {/* Main Company Profile Tabs */}
