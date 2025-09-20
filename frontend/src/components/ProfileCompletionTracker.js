@@ -240,7 +240,7 @@ const ProfileCompletionTracker = ({ progress, profile, onNavigateToSection, comp
         )}
 
         {/* Action Button */}
-        {earnedPoints < totalPossiblePoints && (
+        {pointsRemaining > 0 && (
           <div className="mt-4 pt-4 border-t border-slate-200">
             {completionPercentage === 100 ? (
               <div className="text-center">
