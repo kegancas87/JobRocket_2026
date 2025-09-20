@@ -144,7 +144,7 @@ const ProfileCompletionTracker = ({ progress, profile, onNavigateToSection, comp
           <Progress value={completionPercentage} className="h-3" />
           <div className="flex justify-between text-xs text-slate-500 mt-1">
             <span>{earnedPoints} points earned</span>
-            <span>{totalPossiblePoints - earnedPoints} points remaining</span>
+            <span>{pointsRemaining} points to go</span>
           </div>
         </div>
 
