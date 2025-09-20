@@ -393,7 +393,7 @@ const PricingPage = ({ user, onClose }) => {
         <div className="mb-16">
           <div className="text-center mb-12">
             <h2 className="text-3xl font-bold text-slate-800 mb-4">CV Search Packages</h2>
-            <p className="text-lg text-slate-600">Find candidates actively (Coming Soon)</p>
+            <p className="text-lg text-slate-600">Find the perfect candidates for your team</p>
           </div>
           
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
