@@ -28,14 +28,14 @@ const ProfileCompletionTracker = ({ progress, profile, onNavigateToSection, comp
       title: 'Company Information',
       description: 'Company name, industry, size, location',
       points: 25,
-      completed: progress?.company_name && 
+      completed: companyForm?.company_name && 
                  companyForm?.company_industry && 
                  companyForm?.company_size && 
                  companyForm?.company_location,
       action: 'overview',
       icon: Building2,
       requirements: [
-        { field: 'Company Name', completed: !!progress?.company_name },
+        { field: 'Company Name', completed: !!companyForm?.company_name },
         { field: 'Industry', completed: !!companyForm?.company_industry },
         { field: 'Company Size', completed: !!companyForm?.company_size },
         { field: 'Location', completed: !!companyForm?.company_location }
@@ -46,11 +46,11 @@ const ProfileCompletionTracker = ({ progress, profile, onNavigateToSection, comp
       title: 'Company Description',
       description: '100+ character compelling description',
       points: 20,
-      completed: progress?.company_description,
+      completed: companyForm?.company_description && companyForm.company_description.length >= 100,
       action: 'overview',
       icon: Building2,
       requirements: [
-        { field: 'Description (100+ chars)', completed: progress?.company_description }
+        { field: 'Description (100+ chars)', completed: companyForm?.company_description && companyForm.company_description.length >= 100 }
       ]
     },
     {
