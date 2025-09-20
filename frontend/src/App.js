@@ -736,10 +736,10 @@ const JobCard = ({ job, user, onSave, onApply, onJobClick }) => {
         <div className="absolute inset-0 bg-gradient-to-r from-blue-500/10 via-transparent to-slate-500/10 pointer-events-none"></div>
       )}
       
-      <CardContent className="p-4 sm:p-6 lg:p-8 relative z-10">
+      <CardContent className="p-3 sm:p-4 lg:p-6 relative z-10">
         <div className="flex items-start justify-between">
-          <div className="flex items-start space-x-4 sm:space-x-6 flex-1">
-            <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-2xl overflow-hidden bg-gradient-to-br from-slate-100 to-slate-200 flex-shrink-0 shadow-lg ring-2 ring-slate-200/50">
+          <div className="flex items-start space-x-3 sm:space-x-4 flex-1 min-w-0">
+            <div className="w-12 h-12 sm:w-16 sm:h-16 lg:w-20 lg:h-20 rounded-xl sm:rounded-2xl overflow-hidden bg-gradient-to-br from-slate-100 to-slate-200 flex-shrink-0 shadow-lg ring-2 ring-slate-200/50">
               <img 
                 src={getImageUrl(job.logo_url) || 'https://customer-assets.emergentagent.com/job_career-launchpad-16/artifacts/a6w1unn9_Leonardo_Phoenix_A_modern_sleek_logo_featuring_a_stylized_rock_2.jpg'} 
                 alt={`${job.company_name} logo`}
@@ -749,27 +749,27 @@ const JobCard = ({ job, user, onSave, onApply, onJobClick }) => {
                 }}
               />
             </div>
-            <div className="flex-1 min-w-0">
-              <div className="flex items-start justify-between mb-3">
+            <div className="flex-1 min-w-0 overflow-hidden">
+              <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between mb-2 sm:mb-3">
                 <h3 
-                  className="text-xl sm:text-2xl font-bold text-slate-800 group-hover:text-blue-700 transition-colors leading-tight cursor-pointer hover:underline pr-4"
+                  className="text-lg sm:text-xl lg:text-2xl font-bold text-slate-800 group-hover:text-blue-700 transition-colors leading-tight cursor-pointer hover:underline pr-2 truncate"
                   onClick={handleJobTitleClick}
                 >
                   {job.title}
                 </h3>
                 {job.featured && (
-                  <div className="flex items-center space-x-1 bg-gradient-to-r from-blue-600 to-slate-700 text-white px-3 py-1 rounded-full text-xs font-semibold flex-shrink-0">
+                  <div className="flex items-center space-x-1 bg-gradient-to-r from-blue-600 to-slate-700 text-white px-2 sm:px-3 py-1 rounded-full text-xs font-semibold flex-shrink-0 mt-1 sm:mt-0">
                     <Star className="w-3 h-3 fill-current" />
-                    <span>Featured</span>
+                    <span className="hidden sm:inline">Featured</span>
                   </div>
                 )}
               </div>
               
-              <div className="flex flex-wrap items-center gap-4 text-slate-600 mb-4">
-                <div className="flex items-center space-x-2">
-                  <Building2 className="w-5 h-5 text-slate-500" />
+              <div className="flex flex-col sm:flex-row sm:flex-wrap sm:items-center gap-2 sm:gap-4 text-slate-600 mb-3 sm:mb-4">
+                <div className="flex items-center space-x-2 min-w-0">
+                  <Building2 className="w-4 h-4 text-slate-500 flex-shrink-0" />
                   <span 
-                    className="font-medium hover:text-blue-600 cursor-pointer transition-colors hover:underline"
+                    className="font-medium hover:text-blue-600 cursor-pointer transition-colors hover:underline truncate"
                     onClick={(e) => {
                       e.stopPropagation();
                       window.location.href = `/company/${job.company_id}`;
@@ -778,12 +778,12 @@ const JobCard = ({ job, user, onSave, onApply, onJobClick }) => {
                     {job.company_name}
                   </span>
                 </div>
-                <div className="flex items-center space-x-2">
-                  <MapPin className="w-5 h-5 text-slate-500" />
-                  <span>{job.location}</span>
+                <div className="flex items-center space-x-2 min-w-0">
+                  <MapPin className="w-4 h-4 text-slate-500 flex-shrink-0" />
+                  <span className="truncate">{job.location}</span>
                 </div>
                 <div className="flex items-center space-x-2">
-                  <Clock className="w-4 h-4 text-slate-500" />
+                  <Clock className="w-4 h-4 text-slate-500 flex-shrink-0" />
                   <span className="text-sm">{formatPostedDate(job.posted_date)}</span>
                 </div>
               </div>
