@@ -172,6 +172,21 @@ const RecruiterDashboard = ({ user, onUpdateUser }) => {
     console.log('Company profile completed! 🚀');
   };
 
+  const handleNavigateToSection = (sectionId) => {
+    setActiveTab(sectionId);
+    
+    // Scroll to top of the page for better UX
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+    
+    // If it's the jobs section and no jobs exist, focus on creating first job
+    if (sectionId === 'jobs' && !progress.first_job_posted) {
+      // Small delay to let the tab switch, then we could potentially show a tooltip or guide
+      setTimeout(() => {
+        console.log('Guide user to create their first job');
+      }, 300);
+    }
+  };
+
   useEffect(() => {
     fetchCurrentUser();
   }, []);
