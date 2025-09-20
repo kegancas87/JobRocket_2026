@@ -21,13 +21,13 @@ import {
 const ProfileCompletionTracker = ({ progress, profile, onNavigateToSection, companyForm }) => {
   const [expanded, setExpanded] = useState(true);
 
-  // Define completion requirements
+  // Define completion requirements with balanced point system
   const completionItems = [
     {
       id: 'basic_info',
       title: 'Company Information',
       description: 'Company name, industry, size, location',
-      points: 25,
+      points: 30,
       completed: companyForm?.company_name && 
                  companyForm?.company_industry && 
                  companyForm?.company_size && 
@@ -45,7 +45,7 @@ const ProfileCompletionTracker = ({ progress, profile, onNavigateToSection, comp
       id: 'description',
       title: 'Company Description',
       description: '100+ character compelling description',
-      points: 20,
+      points: 15,
       completed: companyForm?.company_description && companyForm.company_description.length >= 100,
       action: 'overview',
       icon: Building2,
@@ -57,7 +57,7 @@ const ProfileCompletionTracker = ({ progress, profile, onNavigateToSection, comp
       id: 'branding',
       title: 'Company Branding',
       description: 'Logo and cover images',
-      points: 20,
+      points: 25,
       completed: companyForm?.company_logo_url && companyForm?.company_cover_image_url,
       action: 'branding',
       icon: Image,
@@ -83,7 +83,7 @@ const ProfileCompletionTracker = ({ progress, profile, onNavigateToSection, comp
       id: 'first_job',
       title: 'First Job Posted',
       description: 'Post your first job listing',
-      points: 20,
+      points: 15,
       completed: progress?.first_job_posted,
       action: 'jobs',
       icon: Briefcase,
