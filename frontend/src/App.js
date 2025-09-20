@@ -1186,10 +1186,10 @@ const JobListingPage = ({ user, onLogout }) => {
       </div>
 
       {/* Main Content */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 relative z-10">
-        <div className="flex flex-col lg:flex-row gap-6 lg:gap-12">
+      <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-12 relative z-10">
+        <div className="flex flex-col lg:flex-row gap-6 lg:gap-8">
           {/* Filters Sidebar */}
-          <div className="w-full lg:w-96 lg:flex-shrink-0">
+          <div className="w-full lg:w-80 lg:flex-shrink-0">
             <div className="bg-white/80 backdrop-blur-sm rounded-3xl shadow-xl p-4 sm:p-8 lg:sticky lg:top-32 border border-slate-200/50">
               <div className="flex items-center justify-between mb-6 lg:mb-8">
                 <div className="flex items-center space-x-3">
