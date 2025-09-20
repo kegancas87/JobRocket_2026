@@ -400,14 +400,8 @@ const PricingPage = ({ user, onClose }) => {
             {cvPackages.map((pkg) => (
               <Card 
                 key={pkg.id} 
-                className={`relative bg-white/60 backdrop-blur-sm border-2 shadow-xl opacity-75 ${getPackageColor(pkg.package_type)}`}
+                className={`relative bg-white/60 backdrop-blur-sm border-2 shadow-xl hover:scale-105 transition-all duration-300 ${getPackageColor(pkg.package_type)}`}
               >
-                <div className="absolute inset-0 bg-slate-100/50 rounded-lg flex items-center justify-center">
-                  <Badge variant="outline" className="px-4 py-2 text-slate-600 border-slate-400 bg-white/80">
-                    Coming Soon
-                  </Badge>
-                </div>
-                
                 <CardHeader className="text-center pb-2">
                   <div className="flex justify-center mb-4">
                     {getPackageIcon(pkg.package_type)}
@@ -438,10 +432,22 @@ const PricingPage = ({ user, onClose }) => {
                   </div>
                   
                   <Button 
-                    disabled
-                    className="w-full py-3 text-lg font-semibold bg-slate-400 cursor-not-allowed"
+                    onClick={() => handlePurchase(pkg.package_type)}
+                    disabled={purchasing === pkg.package_type}
+                    className={`w-full py-3 text-lg font-semibold transition-colors ${
+                      pkg.package_type === 'cv_search_unlimited' 
+                        ? 'bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700' 
+                        : 'bg-blue-600 hover:bg-blue-700'
+                    }`}
                   >
-                    Coming Soon
+                    {purchasing === pkg.package_type ? (
+                      <div className="flex items-center space-x-2">
+                        <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
+                        <span>Processing...</span>
+                      </div>
+                    ) : (
+                      `Purchase ${pkg.name}`
+                    )}
                   </Button>
                 </CardContent>
               </Card>
