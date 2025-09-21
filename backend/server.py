@@ -3915,15 +3915,21 @@ async def get_discount_code_usage_stats(
 # Include the router in the main app
 app.include_router(api_router)
 
-# Mount static files for uploaded files (using /api prefix for proper routing)
+# Static files configuration for cPanel hosting
 backend_dir = Path(__file__).parent
-uploads_path = backend_dir / "uploads"
+uploads_path = Path(UPLOAD_PATH) if os.path.exists(UPLOAD_PATH) else backend_dir / "uploads"
+
+# Ensure uploads directory exists
+uploads_path.mkdir(parents=True, exist_ok=True)
+
+# Mount static files - adjust path for production
 app.mount("/api/uploads", StaticFiles(directory=str(uploads_path)), name="uploads")
 
+# CORS configuration for production
 app.add_middleware(
     CORSMiddleware,
     allow_credentials=True,
-    allow_origins=os.environ.get('CORS_ORIGINS', '*').split(','),
+    allow_origins=os.environ.get('CORS_ORIGINS', 'https://jobrocket.co.za').split(','),
     allow_methods=["*"],
     allow_headers=["*"],
 )
