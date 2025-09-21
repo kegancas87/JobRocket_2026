@@ -376,33 +376,6 @@ const RecruiterDashboard = ({ user, onUpdateUser }) => {
 
               {/* Company Overview Tab */}
               <TabsContent value="overview" className="space-y-6 mt-6">
-                {/* Job Credits Display */}
-                <Card>
-                  <CardContent className="p-6">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <h3 className="text-lg font-semibold text-slate-900">Job Credits</h3>
-                        <p className="text-sm text-slate-600">Available credits for job postings</p>
-                      </div>
-                      <div className="text-right">
-                        <div className="text-2xl font-bold text-blue-600">
-                          {profile.job_credits || 0}
-                        </div>
-                        <p className="text-xs text-slate-500">Credits</p>
-                      </div>
-                    </div>
-                    <div className="mt-4 pt-4 border-t border-slate-200">
-                      <Button 
-                        className="w-full"
-                        onClick={() => window.location.href = '/pricing'}
-                      >
-                        <DollarSign className="w-4 h-4 mr-2" />
-                        Buy More Credits
-                      </Button>
-                    </div>
-                  </CardContent>
-                </Card>
-
                 {/* Company Overview */}
                 <Card className="bg-white/80 backdrop-blur-sm border-0 shadow-xl">
                   <CardHeader>
