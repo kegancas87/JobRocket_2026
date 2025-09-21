@@ -38,7 +38,10 @@ PAYFAST_MERCHANT_ID = os.environ.get('PAYFAST_MERCHANT_ID')
 PAYFAST_MERCHANT_KEY = os.environ.get('PAYFAST_MERCHANT_KEY')
 PAYFAST_PASSPHRASE = os.environ.get('PAYFAST_PASSPHRASE')
 PAYFAST_SANDBOX = os.environ.get('PAYFAST_SANDBOX', 'False').lower() == 'true'
-BASE_URL = os.environ.get('BASE_URL', 'https://job-expiry-fix.preview.emergentagent.com')
+# Production Configuration for cPanel Hosting
+BASE_URL = os.environ.get('BASE_URL', 'https://jobrocket.co.za')
+UPLOAD_PATH = os.environ.get('UPLOAD_PATH', '/home/yourusername/public_html/uploads')
+MAX_FILE_SIZE = int(os.environ.get('MAX_FILE_SIZE', '10485760'))  # 10MB default
 
 # MongoDB connection
 mongo_url = os.environ['MONGO_URL']
