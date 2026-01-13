@@ -1,5 +1,6 @@
 from fastapi import FastAPI, APIRouter, HTTPException, Query, Depends, status, UploadFile, File, Form, BackgroundTasks, Request
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+from fastapi.staticfiles import StaticFiles
 from dotenv import load_dotenv
 from starlette.middleware.cors import CORSMiddleware
 from motor.motor_asyncio import AsyncIOMotorClient
@@ -37,7 +38,10 @@ PAYFAST_MERCHANT_ID = os.environ.get('PAYFAST_MERCHANT_ID')
 PAYFAST_MERCHANT_KEY = os.environ.get('PAYFAST_MERCHANT_KEY')
 PAYFAST_PASSPHRASE = os.environ.get('PAYFAST_PASSPHRASE')
 PAYFAST_SANDBOX = os.environ.get('PAYFAST_SANDBOX', 'False').lower() == 'true'
-BASE_URL = os.environ.get('BASE_URL', 'https://recruitrocket.preview.emergentagent.com')
+# Production Configuration for cPanel Hosting
+BASE_URL = os.environ.get('BASE_URL', 'https://jobrocket.co.za')
+UPLOAD_PATH = os.environ.get('UPLOAD_PATH', '/home/yourusername/public_html/uploads')
+MAX_FILE_SIZE = int(os.environ.get('MAX_FILE_SIZE', '10485760'))  # 10MB default
 
 # MongoDB connection
 mongo_url = os.environ['MONGO_URL']
@@ -391,6 +395,58 @@ async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(s
     if "_id" in user:
         del user["_id"]
     
+    # Handle legacy data formats for education and achievements
+    if "education" in user and user["education"]:
+        cleaned_education = []
+        for edu in user["education"]:
+            if isinstance(edu, dict):
+                # Add missing level field if not present
+                if "level" not in edu:
+                    edu["level"] = EducationLevel.BACHELORS  # Default value
+                # Ensure dates are datetime objects
+                if "start_date" in edu and isinstance(edu["start_date"], str):
+                    try:
+                        edu["start_date"] = datetime.fromisoformat(edu["start_date"])
+                    except:
+                        edu["start_date"] = datetime.utcnow()
+                if "end_date" in edu and isinstance(edu["end_date"], str):
+                    try:
+                        edu["end_date"] = datetime.fromisoformat(edu["end_date"])
+                    except:
+                        edu["end_date"] = None
+                cleaned_education.append(edu)
+        user["education"] = cleaned_education
+    
+    # Handle legacy achievements (convert strings to Achievement objects)
+    if "achievements" in user and user["achievements"]:
+        cleaned_achievements = []
+        for achievement in user["achievements"]:
+            if isinstance(achievement, str):
+                # Convert string to Achievement object
+                achievement_obj = {
+                    "title": achievement,
+                    "description": achievement,
+                    "date_achieved": datetime.utcnow(),
+                    "issuer": None,
+                    "credential_url": None
+                }
+                cleaned_achievements.append(achievement_obj)
+            elif isinstance(achievement, dict):
+                # Ensure required fields exist
+                if "title" not in achievement:
+                    achievement["title"] = "Achievement"
+                if "description" not in achievement:
+                    achievement["description"] = achievement.get("title", "Achievement")
+                if "date_achieved" not in achievement:
+                    achievement["date_achieved"] = datetime.utcnow()
+                elif isinstance(achievement["date_achieved"], str):
+                    try:
+                        achievement["date_achieved"] = datetime.fromisoformat(achievement["date_achieved"])
+                    except:
+                        achievement["date_achieved"] = datetime.utcnow()
+                cleaned_achievements.append(achievement)
+        user["achievements"] = cleaned_achievements
+    
     return User(**user)
 
 def calculate_profile_progress(user: User) -> ProfileProgress:
@@ -555,6 +611,7 @@ class Job(BaseModel):
     closing_date: Optional[datetime] = None
     is_active: bool = True
     featured: bool = False
+    logo_url: Optional[str] = None  # Company logo URL
     
     @property
     def is_expired(self) -> bool:
@@ -727,6 +784,11 @@ class DiscountCodeUpdate(BaseModel):
 class BulkJobCreate(BaseModel):
     jobs: List[JobCreate]
     company_id: Optional[str] = None  # Can override individual job company_id
+
+class DiscountValidationRequest(BaseModel):
+    code: str
+    package_type: PackageType
+    package_price: Optional[float] = None
 
 # Initialize default packages
 DEFAULT_PACKAGES = [
@@ -1638,8 +1700,11 @@ async def create_job(
     if job_data.company_id == current_user.id:
         # Using current user's company
         company_name = "Company Name Not Set"
+        company_logo_url = None
         if current_user.company_profile and current_user.company_profile.company_name:
             company_name = current_user.company_profile.company_name
+        if current_user.company_profile and current_user.company_profile.company_logo_url:
+            company_logo_url = current_user.company_profile.company_logo_url
     else:
         # Check if user is a member of this company
         member = await db.company_members.find_one({
@@ -1661,6 +1726,7 @@ async def create_job(
                 detail="Company not found"
             )
         company_name = company_owner.get("company_profile", {}).get("company_name", "Company Name Not Set")
+        company_logo_url = company_owner.get("company_profile", {}).get("company_logo_url")
     
     # Find the best package to use (prioritize non-unlimited packages first to preserve unlimited)
     selected_package = None
@@ -1689,6 +1755,7 @@ async def create_job(
     # Create job object with appropriate expiry
     job_dict = job_data.dict()
     job_dict["company_name"] = company_name
+    job_dict["logo_url"] = company_logo_url
     job_dict["posted_by"] = current_user.id
     job_dict["expiry_date"] = datetime.utcnow() + timedelta(days=job_expiry_days)
     
@@ -1744,9 +1811,66 @@ async def create_jobs_bulk(
         contents = await file.read()
         
         if file.filename.lower().endswith('.csv'):
-            df = pd.read_csv(io.StringIO(contents.decode('utf-8')))
+            # Try multiple encodings for CSV files
+            df = None
+            encodings_to_try = ['utf-8', 'utf-8-sig', 'windows-1252', 'iso-8859-1', 'cp1252']
+            
+            for encoding in encodings_to_try:
+                try:
+                    text_content = contents.decode(encoding)
+                    
+                    # Try multiple CSV parsing strategies
+                    parsing_strategies = [
+                        # Strategy 1: Standard parsing
+                        lambda content: pd.read_csv(io.StringIO(content)),
+                        # Strategy 2: Skip bad lines and warn
+                        lambda content: pd.read_csv(io.StringIO(content), on_bad_lines='skip'),
+                        # Strategy 3: More flexible parsing with quoting
+                        lambda content: pd.read_csv(io.StringIO(content), quoting=1, skipinitialspace=True),
+                        # Strategy 4: Use different separator detection
+                        lambda content: pd.read_csv(io.StringIO(content), sep=None, engine='python'),
+                        # Strategy 5: Very permissive parsing
+                        lambda content: pd.read_csv(io.StringIO(content), on_bad_lines='skip', quoting=1, skipinitialspace=True, engine='python')
+                    ]
+                    
+                    for i, strategy in enumerate(parsing_strategies):
+                        try:
+                            df = strategy(text_content)
+                            if len(df.columns) > 1 and len(df) > 0:  # Basic validation
+                                break
+                        except Exception as parse_error:
+                            if i == len(parsing_strategies) - 1:  # Last strategy failed
+                                raise parse_error
+                            continue
+                    
+                    if df is not None and len(df.columns) > 1:
+                        break
+                        
+                except (UnicodeDecodeError, UnicodeError):
+                    continue
+                except Exception as e:
+                    # If this encoding worked but parsing failed, continue to next encoding
+                    continue
+            
+            if df is None:
+                # If all encodings fail, try with error handling
+                try:
+                    text_content = contents.decode('utf-8', errors='replace')
+                    df = pd.read_csv(io.StringIO(text_content), on_bad_lines='skip', engine='python')
+                except Exception:
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail="Unable to read CSV file. Please ensure it's properly formatted with consistent columns and properly quoted text fields. Common issues: commas in text fields should be within quotes, consistent number of columns per row."
+                    )
         else:
-            df = pd.read_excel(io.BytesIO(contents))
+            # Excel files are binary, no encoding issues
+            try:
+                df = pd.read_excel(io.BytesIO(contents))
+            except Exception as e:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"Unable to read Excel file: {str(e)}"
+                )
         
         # Validate required columns
         required_columns = ['title', 'location', 'salary', 'job_type', 'work_type', 'industry', 'description']
@@ -1776,14 +1900,18 @@ async def create_jobs_bulk(
                         errors.append(f"Row {index + 1}: No permission for company {job_company_id}")
                         continue
                 
-                # Get company name
+                # Get company name and logo
                 if job_company_id == current_user.id:
                     company_name = "Company Name Not Set"
+                    company_logo_url = None
                     if current_user.company_profile and current_user.company_profile.company_name:
                         company_name = current_user.company_profile.company_name
+                    if current_user.company_profile and current_user.company_profile.company_logo_url:
+                        company_logo_url = current_user.company_profile.company_logo_url
                 else:
                     company_owner = await db.users.find_one({"id": job_company_id})
                     company_name = company_owner.get("company_profile", {}).get("company_name", "Company Name Not Set") if company_owner else "Unknown Company"
+                    company_logo_url = company_owner.get("company_profile", {}).get("company_logo_url") if company_owner else None
                 
                 # Validate enum values
                 try:
@@ -1808,7 +1936,10 @@ async def create_jobs_bulk(
                     "application_email": str(row.get('application_email', '')) if pd.notna(row.get('application_email')) else None,
                     "company_id": job_company_id,
                     "company_name": company_name,
-                    "posted_by": current_user.id
+                    "logo_url": company_logo_url,
+                    "posted_by": current_user.id,
+                    "posted_date": datetime.utcnow(),
+                    "expiry_date": datetime.utcnow() + timedelta(days=35)  # Set proper expiry date
                 }
                 
                 job_obj = Job(**job_data)
@@ -1841,6 +1972,60 @@ async def create_jobs_bulk(
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"Error processing file: {str(e)}"
+        )
+
+@api_router.post("/upload-cv")
+async def upload_cv(
+    file: UploadFile = File(...),
+    current_user: User = Depends(get_current_user)
+):
+    """Upload CV/Resume file for job applications"""
+    
+    # Validate file type
+    allowed_types = ['application/pdf', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document']
+    if file.content_type not in allowed_types:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Only PDF, DOC, and DOCX files are allowed"
+        )
+    
+    # Validate file size (max 5MB)
+    if file.size > 5 * 1024 * 1024:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="File size must be less than 5MB"
+        )
+    
+    try:
+        # Create uploads directory if it doesn't exist (relative to backend directory)
+        backend_dir = Path(__file__).parent
+        uploads_dir = backend_dir / "uploads" / "cvs"
+        uploads_dir.mkdir(parents=True, exist_ok=True)
+        
+        # Generate unique filename
+        file_extension = file.filename.split('.')[-1] if '.' in file.filename else 'pdf'
+        unique_filename = f"{current_user.id}_{uuid.uuid4()}.{file_extension}"
+        file_path = uploads_dir / unique_filename
+        
+        # Save file
+        with open(file_path, "wb") as buffer:
+            content = await file.read()
+            buffer.write(content)
+        
+        # Return file URL for use in applications
+        base_url = os.getenv('BASE_URL', 'http://localhost:8001')
+        file_url = f"{base_url}/api/uploads/cvs/{unique_filename}"
+        
+        return {
+            "message": "CV uploaded successfully",
+            "file_url": file_url,
+            "filename": file.filename
+        }
+        
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error uploading file: {str(e)}"
         )
 
 @api_router.get("/jobs", response_model=List[Job])
@@ -1911,7 +2096,7 @@ async def get_public_jobs(
     work_type: Optional[str] = Query(None),
     industry: Optional[str] = Query(None),
     search: Optional[str] = Query(None),
-    limit: Optional[int] = Query(20)
+    limit: Optional[int] = Query(1000)
 ):
     """Get active jobs for job seekers (public endpoint with filtering)"""
     query = {
@@ -1951,7 +2136,67 @@ async def get_public_jobs(
     
     return result
 
-@api_router.get("/jobs/archived", response_model=List[Job])
+@api_router.get("/public/company/{company_id}")
+async def get_public_company_profile(company_id: str):
+    """Get public company profile information"""
+    company_user = await db.users.find_one({"id": company_id, "role": "recruiter"})
+    if not company_user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Company not found"
+        )
+    
+    if "_id" in company_user:
+        del company_user["_id"]
+    
+    # Get active jobs count for this company
+    active_jobs_count = await db.jobs.count_documents({
+        "company_id": company_id,
+        "is_active": True,
+        "expiry_date": {"$gt": datetime.utcnow()}
+    })
+    
+    # Get company profile information
+    company_profile = company_user.get("company_profile", {})
+    
+    return {
+        "id": company_user["id"],
+        "company_name": company_profile.get("company_name", "Company Name Not Set"),
+        "company_logo_url": company_profile.get("company_logo_url"),
+        "company_cover_image_url": company_profile.get("company_cover_image_url"),
+        "company_description": company_profile.get("company_description"),
+        "company_website": company_profile.get("company_website"),
+        "company_linkedin": company_profile.get("company_linkedin"),
+        "company_size": company_profile.get("company_size"),
+        "company_industry": company_profile.get("company_industry"),
+        "company_location": company_profile.get("company_location"),
+        "active_jobs_count": active_jobs_count,
+        "created_at": company_user.get("created_at")
+    }
+
+@api_router.get("/public/company/{company_id}/jobs", response_model=List[Job])
+async def get_company_jobs(
+    company_id: str,
+    limit: Optional[int] = Query(100)
+):
+    """Get active jobs for a specific company"""
+    query = {
+        "company_id": company_id,
+        "is_active": True,
+        "expiry_date": {"$gt": datetime.utcnow()}
+    }
+    
+    jobs = await db.jobs.find(query).sort("posted_date", -1).limit(limit).to_list(limit)
+    
+    result = []
+    for job in jobs:
+        if "_id" in job:
+            del job["_id"]
+        result.append(Job(**job))
+    
+    return result
+
+
 async def get_archived_jobs(
     company_id: Optional[str] = Query(None),
     current_user: User = Depends(get_current_user)
@@ -2549,8 +2794,9 @@ async def initiate_payment(
     if discount_info:
         payfast_data['item_description'] += f" (Discount: {discount_info['code']})"
     
-    # Generate signature
-    signature = generate_payfast_signature(payfast_data, PAYFAST_PASSPHRASE)
+    # Generate signature (no passphrase for sandbox)
+    passphrase = PAYFAST_PASSPHRASE if PAYFAST_PASSPHRASE else None
+    signature = generate_payfast_signature(payfast_data, passphrase)
     payfast_data['signature'] = signature
     
     # Determine Payfast URL based on environment
@@ -3194,70 +3440,64 @@ async def seed_data():
     return {"message": "Sample data seeded successfully", "companies": len(sample_companies), "jobs": len(sample_jobs)}
 
 
-# Include the router in the main app
-app.include_router(api_router)
-
-app.add_middleware(
-    CORSMiddleware,
-    allow_credentials=True,
-    allow_origins=os.environ.get('CORS_ORIGINS', '*').split(','),
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
 # Public discount code validation endpoint
 @api_router.post("/discount-codes/validate")
 async def validate_discount_code_endpoint(
-    code: str,
-    package_type: PackageType,
-    current_user: User = Depends(get_current_user)
+    validation_request: DiscountValidationRequest
 ):
-    """Validate a discount code for a specific package (Public endpoint for logged-in users)"""
+    """Validate a discount code for a specific package (Public endpoint - no auth required)"""
+    code = validation_request.code
+    package_type = validation_request.package_type
+    package_price = validation_request.package_price
+    
     if not code or not code.strip():
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Discount code is required"
-        )
+        return {
+            "valid": False,
+            "error": "Discount code is required"
+        }
     
-    # Get package details to get the price
-    package = await db.packages.find_one({
-        "package_type": package_type,
-        "is_active": True
-    })
+    # Get package details to get the price if not provided
+    if package_price is None:
+        package = await db.packages.find_one({
+            "package_type": package_type,
+            "is_active": True
+        })
+        
+        if not package:
+            return {
+                "valid": False,
+                "error": "Package not found"
+            }
+        package_price = package["price"]
     
-    if not package:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Package not found"
-        )
-    
+    # Use a dummy user ID for public validation (we'll use "public" as user_id)
     validation_result = await validate_discount_code(
         code.strip(), 
-        current_user.id, 
+        "public",  # Use dummy user ID for public validation
         package_type, 
-        package["price"]
+        package_price
     )
     
     if not validation_result["valid"]:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=validation_result["error"]
-        )
+        return {
+            "valid": False,
+            "error": validation_result["error"]
+        }
     
     discount_info = validation_result["discount"]
     
     return {
         "valid": True,
-        "discount": {
+        "discount_details": {
             "code": code.upper(),
             "name": discount_info.name,
             "description": discount_info.description,
             "discount_type": discount_info.discount_type,
-            "discount_value": discount_info.discount_value,
-            "discount_amount": validation_result["discount_amount"],
-            "original_price": package["price"],
-            "final_price": validation_result["final_price"]
-        }
+            "discount_value": discount_info.discount_value
+        },
+        "original_price": package_price,
+        "discount_amount": validation_result["discount_amount"],
+        "final_price": validation_result["final_price"]
     }
 
 # Admin Routes for Discount Codes
@@ -3331,6 +3571,143 @@ async def list_discount_codes(
         result.append(DiscountCode(**code_doc))
     
     return result
+
+@api_router.get("/cv-search")
+async def search_cvs(
+    position: Optional[str] = Query(None, description="Job title or position"),
+    location: Optional[str] = Query(None, description="Location"),
+    skills: Optional[str] = Query(None, description="Skills (comma-separated)"),
+    current_user: User = Depends(get_current_user)
+):
+    """Search CVs/profiles with filters - requires CV search package credits"""
+    if current_user.role != UserRole.RECRUITER:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only recruiters can search CVs"
+        )
+    
+    # Check if user has active CV search package with remaining credits
+    active_cv_package = await db.user_packages.find_one({
+        "user_id": current_user.id,
+        "package_type": {"$in": ["cv_search_10", "cv_search_20", "cv_search_unlimited", "unlimited_listings"]},
+        "is_active": True,
+        "$and": [
+            {
+                "$or": [
+                    {"expiry_date": {"$gt": datetime.utcnow()}},  # For subscription packages
+                    {"expiry_date": None}  # For one-time packages
+                ]
+            },
+            {
+                "$or": [
+                    {"cv_searches_remaining": {"$gt": 0}},
+                    {"cv_searches_remaining": None}  # Unlimited
+                ]
+            }
+        ]
+    })
+    
+    if not active_cv_package:
+        raise HTTPException(
+            status_code=status.HTTP_402_PAYMENT_REQUIRED,
+            detail="No active CV search credits available. Please purchase a CV search package."
+        )
+    
+    # Build search query for job seekers
+    query = {"role": "job_seeker"}
+    search_conditions = []
+    
+    if position:
+        # Search in desired job title, skills, and experience
+        position_regex = {"$regex": position, "$options": "i"}
+        search_conditions.append({
+            "$or": [
+                {"profile.desired_job_title": position_regex},
+                {"profile.skills": {"$elemMatch": position_regex}},
+                {"profile.experience.0.job_title": position_regex},
+                {"profile.experience.1.job_title": position_regex},
+                {"profile.experience.2.job_title": position_regex}
+            ]
+        })
+    
+    if location:
+        location_regex = {"$regex": location, "$options": "i"}
+        search_conditions.append({
+            "$or": [
+                {"profile.location": location_regex},
+                {"profile.experience.0.company": location_regex}
+            ]
+        })
+    
+    if skills:
+        skill_list = [skill.strip() for skill in skills.split(",") if skill.strip()]
+        if skill_list:
+            skill_conditions = []
+            for skill in skill_list:
+                skill_regex = {"$regex": skill, "$options": "i"}
+                skill_conditions.append({"profile.skills": {"$elemMatch": skill_regex}})
+            search_conditions.append({"$or": skill_conditions})
+    
+    if search_conditions:
+        query["$and"] = search_conditions
+    
+    # Execute search with limit of 10
+    cv_results = await db.users.find(query).limit(10).to_list(10)
+    
+    # Process results to return relevant profile information
+    processed_results = []
+    for user in cv_results:
+        if "_id" in user:
+            del user["_id"]
+        
+        profile = user.get("profile", {})
+        
+        cv_result = {
+            "id": user["id"],
+            "first_name": user.get("first_name", ""),
+            "last_name": user.get("last_name", ""),
+            "email": user.get("email", ""),
+            "profile_picture_url": user.get("profile_picture_url"),
+            "location": profile.get("location", ""),
+            "phone": profile.get("phone", ""),
+            "desired_job_title": profile.get("desired_job_title", ""),
+            "skills": profile.get("skills", []),
+            "experience": profile.get("experience", []),
+            "education": profile.get("education", []),
+            "resume_url": profile.get("resume_url", ""),
+            "profile_completeness": profile.get("profile_completeness", 0),
+            "created_at": user.get("created_at")
+        }
+        processed_results.append(cv_result)
+    
+    # Deduct search credit (only if not unlimited)
+    remaining_searches = active_cv_package.get("cv_searches_remaining", "unlimited")
+    if active_cv_package.get("cv_searches_remaining") is not None:
+        new_count = active_cv_package["cv_searches_remaining"] - 1
+        remaining_searches = new_count
+        
+        # Update package credits
+        update_data = {"cv_searches_remaining": new_count}
+        
+        # Deactivate package if no credits left
+        if new_count <= 0:
+            update_data["is_active"] = False
+        
+        await db.user_packages.update_one(
+            {"_id": active_cv_package["_id"]},
+            {"$set": update_data}
+        )
+    
+    return {
+        "results": processed_results,
+        "total_found": len(processed_results),
+        "search_criteria": {
+            "position": position,
+            "location": location,
+            "skills": skills
+        },
+        "remaining_searches": remaining_searches
+    }
 
 @api_router.get("/admin/discount-codes/{code_id}", response_model=DiscountCode)
 async def get_discount_code(
@@ -3436,6 +3813,69 @@ async def deactivate_discount_code(
     
     return {"message": "Discount code deactivated successfully"}
 
+@api_router.post("/upload-image")
+async def upload_image(
+    file: UploadFile = File(...),
+    image_type: str = Form(...),  # 'profile', 'cover', or 'logo'
+    current_user: User = Depends(get_current_user)
+):
+    """Upload profile, cover, or logo images"""
+    
+    # Validate file type
+    allowed_types = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp']
+    if file.content_type not in allowed_types:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Only JPEG, PNG, and WebP images are allowed"
+        )
+    
+    # Validate file size (max 10MB for images)
+    if file.size > 10 * 1024 * 1024:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="File size must be less than 10MB"
+        )
+    
+    # Validate image type
+    if image_type not in ['profile', 'cover', 'logo']:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Image type must be 'profile', 'cover', or 'logo'"
+        )
+    
+    try:
+        # Create uploads directory if it doesn't exist
+        backend_dir = Path(__file__).parent
+        uploads_dir = backend_dir / "uploads" / "images"
+        uploads_dir.mkdir(parents=True, exist_ok=True)
+        
+        # Generate unique filename
+        file_extension = file.filename.split('.')[-1] if '.' in file.filename else 'jpg'
+        unique_filename = f"{current_user.id}_{image_type}_{uuid.uuid4()}.{file_extension}"
+        file_path = uploads_dir / unique_filename
+        
+        # Save file
+        with open(file_path, "wb") as buffer:
+            content = await file.read()
+            buffer.write(content)
+        
+        # Return file URL
+        base_url = os.getenv('BASE_URL', 'http://localhost:8001')
+        file_url = f"{base_url}/api/uploads/images/{unique_filename}"
+        
+        return {
+            "message": f"{image_type.title()} image uploaded successfully",
+            "file_url": file_url,
+            "filename": file.filename,
+            "image_type": image_type
+        }
+        
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error uploading image: {str(e)}"
+        )
+
 @api_router.get("/admin/discount-codes/stats/usage")
 async def get_discount_code_usage_stats(
     admin_user: User = Depends(verify_admin_user)
@@ -3471,6 +3911,28 @@ async def get_discount_code_usage_stats(
         "total_savings": total_savings,
         "code_usage": usage_stats
     }
+
+# Include the router in the main app
+app.include_router(api_router)
+
+# Static files configuration for cPanel hosting
+backend_dir = Path(__file__).parent
+uploads_path = Path(UPLOAD_PATH) if os.path.exists(UPLOAD_PATH) else backend_dir / "uploads"
+
+# Ensure uploads directory exists
+uploads_path.mkdir(parents=True, exist_ok=True)
+
+# Mount static files - adjust path for production
+app.mount("/api/uploads", StaticFiles(directory=str(uploads_path)), name="uploads")
+
+# CORS configuration for production
+app.add_middleware(
+    CORSMiddleware,
+    allow_credentials=True,
+    allow_origins=os.environ.get('CORS_ORIGINS', 'https://jobrocket.co.za').split(','),
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 # Configure logging
 logging.basicConfig(

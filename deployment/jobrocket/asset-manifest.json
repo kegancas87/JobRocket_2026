@@ -1,0 +1,11 @@
+{
+  "files": {
+    "main.css": "https://jobrocket.co.za/static/css/main.153b9527.css",
+    "main.js": "https://jobrocket.co.za/static/js/main.5073b83f.js",
+    "index.html": "https://jobrocket.co.za/index.html"
+  },
+  "entrypoints": [
+    "static/css/main.153b9527.css",
+    "static/js/main.5073b83f.js"
+  ]
+}

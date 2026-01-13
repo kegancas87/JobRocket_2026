@@ -35,7 +35,7 @@ async def add_cv_packages_to_demo_recruiters():
         }
     ]
     
-    base_url = "https://job-expiry-fix.preview.emergentagent.com/api"
+    base_url = "https://recruitrocket.preview.emergentagent.com/api"
     
     try:
         added_count = 0

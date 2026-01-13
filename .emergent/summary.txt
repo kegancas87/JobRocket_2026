@@ -1,107 +1,235 @@
-<analysis>
-The AI engineer successfully guided the Job Rocket application through significant feature enhancements and debugging cycles. Initially, the focus was on implementing CV file uploads and making cover letters optional in the Easy Apply process. This led to a series of critical backend and frontend fixes: resolving Pydantic validation errors affecting user authentication, integrating a comprehensive navigation bar and footer across all user roles (job seeker, recruiter, admin), and fixing recruiter-specific issues like dashboard routing, package purchase errors, and image uploads. A major challenge involved troubleshooting static file serving, where images were not displaying due to incorrect Kubernetes ingress routing, which was resolved by serving static assets under the  path. Subsequently, the engineer addressed user feedback on job card images, Payfast payment issues (enum mismatch, sandbox credentials, signature generation), and added unlimited packages for testing. Finally, a robust job filtering system and advanced bulk job upload error handling (encoding, parsing inconsistencies) were implemented, culminating in the current task of fixing why bulk-uploaded jobs are not visible due to incorrect expiry dates.
-</analysis>
+<analysis>**original_problem_statement:**
+The user's initial problem was that jobs created via a bulk CSV upload were not appearing on the main jobs page. This led to a series of fixes and feature requests.
 
-<product_requirements>
-The Job Rocket platform connects job seekers, recruiters, and administrators with features like ATS, subscription models, and Payfast integration.
-**Core Features & Implemented State:**
-- **UI & Theme:** Modern techie, rocket feel with dark greys, blues, and animations.
-- **Gamified Onboarding:** Registration/login for Job Seekers (profile completion, trophy progress) and Recruiters (company profile).
-- **Company Structure & Team Management:** Recruiters manage branches and invite team members.
-- **Job Listing & Posting:** Recruiters post jobs (single/bulk) with mandatory/optional fields. Jobs expire in 35 days, are archived, and can be reposted.
-- **Job Application System:** Easy Apply pre-populates data. Job seekers track applications; recruiters manage them. Cover letter made optional, CV document upload implemented.
-- **Pricing & Payment Packages:** Defined packages displayed. Purchase flow and  errors resolved, Payfast sandbox mode verified, and payment errors fixed.
-- **Admin Discount Codes:** Admin can create, manage, validate discount codes.
-- **Enhanced Navigation:** Global navigation and footer implemented, role-based navigation for all user types.
-- **Improved Job Listings Display:** Job data fixes, expanded dummy jobs, correct rendering of job cards (including image fallbacks), and layout fixes.
-- **Job Details Modal:** Comprehensive job details on click.
-- **UI/UX Fixes:** Easy Apply button and general rendering errors fixed. Mobile responsiveness implemented for key pages. Dollar symbols changed to money notes.
-- **Filter System:** Functional filter pane for jobs screen with toggle and Clear All features.
-- **Bulk Upload Reliability:** UTF-8 decoding and CSV parsing errors fixed.
-- **Package Visibility:** Unlimited packages successfully added to users and made visible.
-</product_requirements>
+The user has since requested and overseen the implementation of several new features and fixes:
+1.  **Bulk Upload Fix:** Ensure all uploaded jobs are visible, not just the first 20.
+2.  **Company Branding:** Display the company's logo on job cards. If no logo exists, use a default image.
+3.  **Company Profile Pages:** Create a public page for each recruiter/company that displays their company info, active job listings, and provides navigation from the job card.
+4.  **UI/UX Fixes:** Address issues on the company profile page, such as a placeholder About Us section and a non-scrollable list of jobs.
+5.  **CV Search Functionality:** Implement a feature for recruiters to search for candidate CVs based on job title, location, and skills. This should be tied to purchasable packages.
+6.  **Data Population:** Add numerous diverse job seeker profiles to make CV search testing effective.
+7.  **Layout/Responsive Fixes:** Remove the horizontal scrollbar visible on the web view and ensure the layout is responsive and fits well on mobile devices.
+8.  **Profile Gamification:** Add a profile completion tracker to the recruiter dashboard, showing what's outstanding and providing quick links to complete the sections. Fix inconsistencies in the points system.
+9.  **Dashboard Cleanup:** Remove the Job Credits block from the recruiter dashboard.
+10. **Database/Hosting Migration:** The user expressed a desire to move the application to their own hosting ( on cPanel, which later changed to Render) and potentially migrate the database from MongoDB to MySQL.
+11. **Production Data Population:** After deploying to Render, the user found the database was empty and requested it be populated with realistic data, including an admin user .
+12. **Admin Login Fix:** The created admin user login was failing. The user requested a fix without modifying existing files to avoid git conflicts.
 
-<key_technical_concepts>
-- **Full-stack Architecture**: React (frontend), FastAPI (backend), MongoDB (database).
-- **UI/UX**: Tailwind CSS, Shadcn UI components, Lucide-React icons.
-- **Authentication**: JWT for role-based authentication.
-- **Database**: PyMongo/Motor for MongoDB, UUIDs for IDs.
-- **Payment Gateway**: Payfast integration (sandbox mode).
-- **File Uploads**:  (FastAPI),  (FastAPI).
-- **Data Processing**: Pandas for CSV/Excel bulk uploads.
-</key_technical_concepts>
+**User's preferred language**: English
 
-<code_architecture>
-The application follows a standard full-stack structure:
+**what currently exists?**
+The project is a full-stack Job Rocket application built with a React frontend, FastAPI backend, and MongoDB database. It includes user roles (Job Seeker, Recruiter, Admin), job posting/management, an Easy Apply feature, a gamified profile completion dashboard for recruiters, a company profile page, and a CV search functionality for recruiters. It also has a package and payment system integrated with Payfast (in sandbox mode). The UI has been made responsive, and several data-seeding scripts have been created to populate the database with test data.
+
+**Last working item**:
+-   **Last item agent was working**: The agent was tasked with fixing the login for , which was failing after an attempt to populate the production database on Render. The agent diagnosed that no admin user existed in the database and was about to create a standalone script to create the admin user without modifying other project files, as requested by the user to avoid git conflicts.
+-   **Status**: IN PROGRESS
+-   **Agent Testing Done**: N
+-   **Which testing method agent to use?**: manual testing by curl/ python -c
+-   **User Testing Done**: N
+
+**All Pending/In progress Issue list**:
+-   **Issue 1**: Admin user login is failing. (P0)
+
+**Issues Detail**:
+-   **Issue 1: Admin user login is failing.**
+    -   **Attempted fixes**: The agent's  script was intended to create the admin user, but it seems to have failed or been incorrect. A check of the database confirmed  admin users exist.
+    -   **Next debug checklist**:
+        1.  Create a new, simple, standalone Python script (e.g., ).
+        2.  The script should connect to the MongoDB database using the connection string from .
+        3.  It should check if  already exists.
+        4.  If not, it should create a new user with the role , hashing the provided password.
+        5.  Run the script to insert the admin user into the  collection.
+        6.  Verify the user's creation directly in the database.
+    -   **Why fix this issue and what will be achieved with the fix?**: The user needs administrator access to manage the application on their new production environment.
+    -   **Status**: IN PROGRESS
+    -   **Is recurring issue?**: N
+    -   **Should Test frontend/backend/both after fix?**: Frontend (by attempting to log in as the admin user).
+    -   **Blocked on other issue**: None.
+
+**In progress Task List**:
+-   **Task 1**: Populate production database on Render.
+
+**Task Detail**:
+-   **Task 1: Populate production database on Render.**
+    -   **Where to resume**: The agent created  and a script to add 100 job seekers (). The population was partially successful (job seekers were created), but the admin user creation failed. The script to create 100 jobs () also failed because it could not find recruiter users to assign the jobs to. The next step is to fix the admin user creation (covered in the issue above) and debug the job creation script.
+    -   **What will be achieved with this?**: The user's production application on Render will be populated with a realistic and comprehensive dataset for launch and testing.
+    -   **Status**: IN PROGRESS
+    -   **Should Test frontend/backend/both after fix?**: Both.
+    -   **Blocked on something**: Blocked on fixing the admin user creation.
+
+**Upcoming and Future Tasks**
+-   **Upcoming Tasks**:
+    -   **P1: Debug and Run Job Creation Script**: The script  failed because it could not find any recruiter users. This needs to be debugged and re-run to populate the production database with jobs.
+-   **Future Tasks**:
+    -   **P2: Database Migration from MongoDB to MySQL**: The user initially requested this to be compatible with cPanel hosting. However, they have since moved to **Render**, which has excellent MongoDB support. **The agent MUST confirm with the user if this migration is still necessary**, as it might be an obsolete requirement. If it is still required, the agent has a pre-defined plan involving schema conversion, backend code refactoring (Motor to SQLAlchemy), and data migration.
+
+**Completed work in this session**
+-   Fixed bulk-uploaded jobs not appearing on the jobs page by increasing the API query limit from 20 to 1000.
+-   Made the  page publicly accessible without requiring authentication.
+-   Implemented company logo display on job cards, with a fallback to a default image.
+-   Created public recruiter/company profile pages, accessible via links on job cards.
+-   Fixed UI issues on the company page, including adding a dynamic About Us section and making the job list scrollable.
+-   Implemented a full-featured CV Search for recruiters (API, frontend page, filters).
+-   Enabled the purchase of CV search packages on the pricing page.
+-   Created scripts to add CV search packages to demo users for testing.
+-   Fixed various layout issues, including removing the horizontal scrollbar and improving mobile/tablet responsiveness.
+-   Implemented a Profile Completion Tracker on the recruiter dashboard to gamify profile setup.
+-   Fixed logic and point calculation inconsistencies in the Profile Completion Tracker.
+-   Removed the Job Credits section from the recruiter dashboard as requested.
+-   Prepared the application for deployment to a new host by creating configuration templates and a deployment guide.
+-   Created scripts to populate the database with 100+ diverse job seeker profiles.
+
+**Earlier issues found/mentioned but not fixed**
+-   **Issue 1: Job Creation Script Fails**
+    -   **Debug checklist**: The script at  fails with the error No recruiter users found.
+        1.  Examine the script to see how it queries for recruiter users.
+        2.  Run a separate query on the production database to confirm that users with  actually exist.
+        3.  The demo data population script () should create recruiters. Verify this was successful.
+        4.  Adjust the job creation script to correctly query for existing recruiters before attempting to assign jobs to them.
+    -   **Why to solve this issue and what will be achieved with this?**: To populate the production application with a realistic set of jobs for testing and launch.
+    -   **Should Test frontend/backend/both after fix?**: Frontend (verify jobs appear on the jobs page).
+    -   **Is recurring issue?**: N
+
+**Known issue recurrence from previous fork**
+-   None.
+
+**Code Architecture**
 
 
+**Key Technical Concepts**
+-   **Full-stack Architecture**: React (frontend), FastAPI (backend), MongoDB (database).
+-   **UI/UX**: Tailwind CSS, Shadcn UI components, Lucide-React icons.
+-   **Authentication**: JWT for role-based authentication.
+-   **Database**: AsyncIOMotorClient for asynchronous MongoDB communication.
+-   **Payment Gateway**: Payfast integration (sandbox mode).
+-   **File Uploads**: FastAPI's  and .
+-   **Data Generation**: Extensive use of Python scripts with  library to create realistic test data.
+-   **Deployment Prep**: Creation of , shell scripts, and documentation for cPanel-style deployment.
 
-**Key Files and Changes:**
+**key DB schema**
+-   **users**: {uid=0(root) gid=0(root) groups=0(root), , ,  (, , ),  (object),  (object),  (object)}
+-   **jobs**: {uid=0(root) gid=0(root) groups=0(root), , , , , , , , }
+-   **user_packages**: {uid=0(root) gid=0(root) groups=0(root), , , , , }
+-   **payments**: {uid=0(root) gid=0(root) groups=0(root), , , , , }
 
-- :
-  - **Importance**: Core backend logic for APIs, database interactions, and service configuration.
-  - **Changes**:
-    - **Payfast**:  enum fixed (), sandbox credentials updated,  modified to handle  passphrase for sandbox.
-    - **Uploads**: Added  and  endpoints for file uploads. Modified static file serving to mount  for correct Kubernetes ingress routing, and updated file URL generation to use the full  with  prefix. Fixed relative path issues for file storage.
-    - **Authentication**:  updated to handle Pydantic validation issues with legacy  and  data.
-    - **Bulk Upload**: Implemented robust CSV encoding detection (UTF-8, Windows-1252, etc.) and flexible parsing (skip bad lines, quoting, separator detection) in  endpoint.
-    - **Database**: Added logic for  and  models.
-- :
-  - **Importance**: Backend environment variables.
-  - **Changes**: Updated Payfast credentials to sandbox values. Added  for constructing absolute URLs.
-- :
-  - **Importance**: Main React component, global state, routing, and layout.
-  - **Changes**:
-    - **Navigation/Footer**: Integrated  and  components into the main layout.
-    - **Routing**: Adjusted role-based routing (e.g., recruiter dashboard on ). Added a new route for .
-    - **Job Listing**: Removed redundant header/navigation from . Implemented a functional filter system (state, , ,  logic) within . Fixed   handler for unselection.
-    - **Images**: Added  helper function to construct correct image URLs (handling both  and  prefixes). Added a fallback image for job cards.
-    - **JobCard**: Rewrote the  component for mobile responsiveness and fixed layout issues, replaced  with  icon.
-- :
-  - **Importance**: Job application modal.
-  - **Changes**: Modified cover letter field to be optional. Replaced CV URL input with a file upload input ().
-- :
-  - **Importance**: Displays pricing packages and handles purchase.
-  - **Changes**: Enhanced error handling in  and  to convert  errors to readable strings. Modified how  is sent to the backend.
-- :
-  - **Importance**: Recruiter's profile and company management.
-  - **Changes**:
-    - **Routing**: Corrected dashboard route to display this component for recruiters.
-    - **Image Upload**: Implemented proper file upload for company logo and cover images using the new backend  endpoint. Added  helper.
-    - **Job Credits**: Added a display section for recruiter job credits.
-- :
-  - **Importance**: New, global navigation bar.
-  - **Changes**: Created to provide role-based navigation links, logo, and user info. Replaced  with  icon for Pricing.
-- :
-  - **Importance**: New, global footer.
-  - **Changes**: Created for consistent footer across all pages.
-- :
-  - **Importance**: New placeholder page.
-  - **Changes**: Created as a simple component for future notification features.
-- :
-  - **Importance**: Utility script.
-  - **Changes**: Created to add job listing credits to recruiter users for testing.
-- :
-  - **Importance**: Utility script.
-  - **Changes**: Created to add unlimited job listing and CV search packages to specified users, and fixed package  field to  for frontend compatibility.
-</code_architecture>
+**changes in tech stack**
+-   None implemented. A potential migration from **MongoDB to MySQL** is a pending future task, but its necessity is questionable now that the user is on Render.
 
-<pending_tasks>
-- Implementing the full Applicant Tracking System (ATS).
-- Building the Admin Dashboard for comprehensive platform management (beyond discount codes).
-- Completing the team member invitation email flow (SendGrid integration).
-- Developing the CV Search functionality.
-- Database migration to Postgres (deferred).
-- Storing files on Google Drive (deferred).
-- Fixing the job expiry date in the bulk upload logic.
-</pending_tasks>
+**All files of reference**
+*   : Major changes to add company logo logic to jobs, create the  and  endpoints, and update CORS/URL settings for production.
+*   : Major changes to add public routing for the  page, add routes for  and , and fix responsive layout issues.
+*   : Heavily modified to integrate the  and remove the Job Credits section.
+*   : New component to display gamified profile completion steps.
+*   : New component to display company details and their job listings.
+*   : New component for recruiters to search for candidates.
+*   : Updated to make CV search packages purchasable.
+*   : New script to seed the production database on Render.
+*   : **(To be created)** New standalone script to fix the admin user creation.
+*   : New file documenting all created demo user credentials.
+*   , , 🚀 Job Rocket Production Deployment Script
+==========================================
+[0;34m📋 Deployment Configuration:[0m
+   Domain: [0;32mjobrocket.co.za[0m
+   Project: [0;32mjobrocket[0m
 
-<current_work>
-The immediate work being addressed is resolving an issue where jobs created via bulk upload are not appearing on the jobs screen. The AI engineer has successfully confirmed that the jobs are indeed being created and stored in the MongoDB database, with 122 jobs total. However, upon inspecting the backend  endpoint, it was discovered that this endpoint defaults to a  of 20 jobs and filters by . Further investigation revealed that all existing jobs (including the newly bulk-uploaded ones) are appearing as expired.
+[1;33m📦 Step 1: Building React Frontend...[0m
+Building production React app...
 
-The root cause was traced to the bulk upload logic in . The  model has a  that sets the  to 35 days from . However, the bulk upload process calls  without explicitly providing an . This causes the default factory to be invoked, but for reasons currently being investigated, the resulting  is making the jobs appear as expired, preventing them from being displayed by the  endpoint. The engineer is in the process of fixing this  calculation during bulk job creation.
-</current_work>
+> frontend@0.1.0 build
+> craco build
 
-<optional_next_step>
-Fix the  calculation during bulk job creation in  to ensure jobs are active.
-</optional_next_step>
+Creating an optimized production build...
+Compiled successfully.
+
+File sizes after gzip:
+
+  149.85 kB  build/static/js/main.5073b83f.js
+  15.87 kB   build/static/css/main.153b9527.css
+
+The project was built assuming it is hosted at https://jobrocket.co.za/.
+You can control this with the homepage field in your package.json.
+
+The build folder is ready to be deployed.
+
+Find out more about deployment here:
+
+  https://cra.link/deployment
+
+[0;32m✅ Frontend build successful![0m
+[1;33m📦 Step 2: Preparing Backend...[0m
+Copying frontend build files...
+Copying backend files...
+[0;32m✅ Files copied successfully![0m
+[1;33m📝 Step 3: Creating production environment template...[0m
+[1;33m📋 Step 4: Creating deployment instructions...[0m
+[1;33m💾 Step 5: Creating database migration helper...[0m
+[1;33m📦 Step 6: Creating deployment package...[0m
+[0;32m🎉 Deployment package created successfully![0m
+
+[0;34m📋 Next Steps:[0m
+1. Extract the deployment package
+2. Upload files to your cPanel hosting
+3. Follow DEPLOYMENT_INSTRUCTIONS.md
+4. Update .env with your server details
+5. Test the deployment
+
+[1;33m📁 Files ready in: [0mdeployment/jobrocket/
+[1;33m📦 Package: [0mdeployment/jobrocket_production_*.tar.gz
+
+[0;32m🚀 Ready for deployment to jobrocket.co.za![0m: New files created to assist with deployment to a cPanel-like environment.
+
+**Areas that need refactoring**:
+-   The data seeding is spread across multiple scripts. This could be consolidated into a single, more robust management script or command.
+-   A lot of component logic resides directly in  (e.g., , ). These could be moved to their own files in the  directory for better organization.
+
+**key api endpoints**
+-   : Lists all active jobs.
+-   : Bulk-uploads jobs from a CSV file.
+-   : Gets public details for a company.
+-   : Gets all active jobs for a specific company.
+-   : Allows recruiters to search for job seekers based on criteria.
+-   : Starts the Payfast payment process for a package.
+
+**Critical Info for New Agent**
+-   **Hosting Environment Mismatch**: The user initially specified migration to cPanel shared hosting and requested a MongoDB-to-MySQL database migration for compatibility. However, their latest messages state they have deployed to **Render**. Render has excellent native MongoDB support. **You MUST clarify with the user if the MySQL migration is still needed.** It is very likely obsolete and would be a waste of effort.
+-   **Avoid Git Conflicts**: The user explicitly requested to create the admin user via a new, standalone script to avoid conflicts with their existing files for a . Apply this principle for any other one-off administrative tasks.
+-   **Production Database**: The user is now working with what they consider their production database on Render. Be cautious with any scripts that modify data.
+-   **Data Seeding Scripts are Flaky**: The scripts to create demo users and jobs have failed before (e.g., not finding recruiters). They need to be made more robust, especially the job creation script which is currently blocked.
+
+**documents and test reports created in this job**
+-   
+-   
+-   
+-   
+
+**Last 10 User Messages and any pending HUMAN messages**
+1.  **User**:  login is not working.
+2.  **Agent**: Acknowledges and investigates. Finds 0 admin users in DB.
+3.  **User**: Asks to recreate the admin user without changing other files to avoid git conflicts.
+4.  **Agent**: Agrees to create a standalone script.
+5.  **User**: Asks to remove the zero credit block on the dashboard.
+6.  **Agent**: Removes the block and confirms with a screenshot.
+7.  **User**: Asks to use Firebase as the backend.
+8.  **Agent**: Asks for clarification on the major architectural change.
+9.  **User**: Asks what the current DB is.
+10. **Agent**: Explains the current DB is MongoDB.
+
+**Project Health Check:**
+-   **Broken**: Admin user creation/login. The job creation script () is also broken.
+-   **Mocked**: The Payfast integration is still in sandbox mode. The database is populated with mocked/generated data via scripts.
+
+**3rd Party Integrations**
+-   Payfast (Payments) - requires User API Key for production, currently using sandbox credentials.
+
+**Testing status**
+-   **Testing agent used after significant changes**: NO
+-   **Troubleshoot agent used after agent stuck in loop**: NO
+-   **Test files created**: None.
+-   **Known regressions**: None.
+
+**Credentials to test flow:**
+A comprehensive list of user credentials for job seekers and recruiters has been created and is available in . The password for all demo users is . The admin user () needs to be created.
+
+**What agent forgot to execute**
+-   The agent never fixed or re-ran the  script after it failed due to not finding any recruiter users.
+-   The agent was interrupted right before creating the standalone script to add the admin user, which is the current highest-priority task.</analysis>
