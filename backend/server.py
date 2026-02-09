@@ -1561,6 +1561,10 @@ async def health_check():
 # Include router
 app.include_router(api_router)
 
+# Mount static files AFTER router include to avoid shadowing upload POST endpoints
+# The StaticFiles mount was previously shadowing /api/uploads/cv, /api/uploads/profile-picture etc.
+app.mount("/api/uploads", StaticFiles(directory=UPLOAD_PATH), name="uploads")
+
 
 # Root redirect
 @app.get("/")
