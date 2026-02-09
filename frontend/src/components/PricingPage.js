@@ -198,7 +198,8 @@ const PricingPage = ({ user }) => {
   // Feature categories for display
   const featureCategories = {
     'Job Posting': [
-      { id: 'JOB_UNLIMITED_POSTS', label: 'Unlimited Job Posts', tiers: ['starter', 'growth', 'pro', 'enterprise'] },
+      { id: 'JOB_UNLIMITED_POSTS', label: 'Unlimited Job Posts', tiers: ['growth', 'pro', 'enterprise'] },
+      { id: 'JOB_30_POSTS', label: '30 Job Posts/month', tiers: ['starter'] },
       { id: 'JOB_TEMPLATES', label: 'Job Templates', tiers: ['growth', 'pro', 'enterprise'] },
       { id: 'JOB_BULK_UPLOAD', label: 'Bulk Job Upload', tiers: ['pro', 'enterprise'] },
     ],
