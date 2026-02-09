@@ -42,16 +42,23 @@ const Navigation = ({ user, onLogout }) => {
     ];
 
     if (user?.role === 'recruiter') {
-      return [
+      const features = user?.account?.features || [];
+      const hasBulkUpload = features.includes('JOB_BULK_UPLOAD');
+      const items = [
         { name: 'Dashboard', path: '/', icon: Home },
         { name: 'Jobs', path: '/jobs', icon: Briefcase },
         { name: 'My Jobs', path: '/my-jobs', icon: Building2 },
-        { name: 'Bulk Upload', path: '/bulk-upload', icon: FileSpreadsheet },
+      ];
+      if (hasBulkUpload) {
+        items.push({ name: 'Bulk Upload', path: '/bulk-upload', icon: FileSpreadsheet });
+      }
+      items.push(
         { name: 'CV Search', path: '/cv-search', icon: Search },
         { name: 'Applications', path: '/applications', icon: FileText },
         { name: 'Billing', path: '/billing', icon: CreditCard },
         { name: 'Profile', path: '/profile', icon: User }
-      ];
+      );
+      return items;
     } else if (user?.role === 'admin') {
       return [
         { name: 'Dashboard', path: '/', icon: Home },
