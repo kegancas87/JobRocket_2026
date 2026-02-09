@@ -542,6 +542,21 @@ async def create_job(
             detail="Active subscription required to post jobs"
         )
     
+    # Check job post limit for Starter tier
+    tier_config = get_tier_config(TierId(account.get("tier_id", "starter")))
+    job_post_limit = tier_config.get("job_post_limit")
+    if job_post_limit:
+        thirty_days_ago = datetime.utcnow() - timedelta(days=30)
+        job_count = await db.jobs.count_documents({
+            "account_id": current_user.account_id,
+            "posted_date": {"$gte": thirty_days_ago}
+        })
+        if job_count >= job_post_limit:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=f"Job posting limit reached ({job_post_limit} posts/month). Upgrade to Growth for unlimited posting."
+            )
+    
     job_dict = {
         "id": str(uuid.uuid4()),
         "account_id": current_user.account_id,
