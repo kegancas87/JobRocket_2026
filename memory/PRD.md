@@ -104,6 +104,32 @@ Account (Tenant)
   - All job CRUD endpoints
   - All application endpoints
 
+### Phase 2: Frontend & Payments ✅ (December 2025)
+
+- [x] **Pricing Page** - New 4-tier pricing with feature comparison
+  - Displays all tiers with prices, user counts, features
+  - Most Popular badge for Pro tier
+  - Subscribe buttons initiate Payfast payment
+  - Feature comparison table
+  - Public access (no login required)
+  
+- [x] **Admin Account Dashboard** - Admin-only view of all accounts
+  - Stats: Total Accounts, Users, Jobs, Monthly Revenue
+  - Tier distribution cards
+  - Accounts list with filtering and search
+  - Access restricted to admin users only
+  
+- [x] **Payment Result Pages** - Success and Cancel pages
+  - Payment success page with confirmation
+  - Payment cancel page with retry option
+  - Public access (no login required for redirect from Payfast)
+  
+- [x] **Payfast Integration** - Complete subscription payment flow
+  - Generates payment with correct tier amount
+  - Signature generation for security
+  - Return/Cancel URLs use BASE_URL from environment
+  - Webhook endpoint for payment notifications
+
 ### Reference Documents Created
 
 - `/app/memory/FEATURES.md` - Complete feature definitions
@@ -115,20 +141,7 @@ Account (Tenant)
 
 ## Backlog / Roadmap
 
-### P0 - Critical (Next)
-
-1. **Frontend Updates**
-   - Update pricing page with new tiers
-   - Account dashboard with tier/feature display
-   - User management UI (invite, remove)
-   - Feature-gated UI components
-
-2. **Payment Integration**
-   - Complete Payfast subscription flow
-   - Add-on purchase flow
-   - Extra user purchase flow
-
-### P1 - High Priority
+### P1 - High Priority (Next)
 
 3. **Feature Implementation**
    - Bulk job upload (Pro+)
