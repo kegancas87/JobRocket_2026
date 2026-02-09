@@ -96,6 +96,22 @@ const CVSearchPage = ({ user }) => {
   const [hasSearched, setHasSearched] = useState(false);
   const [remainingSearches, setRemainingSearches] = useState(null);
   const [error, setError] = useState('');
+  const [matchingMethod, setMatchingMethod] = useState(null);
+
+  useEffect(() => {
+    const fetchMatchingStatus = async () => {
+      try {
+        const token = localStorage.getItem('token');
+        const response = await axios.get(`${API}/admin/ai-matching/status`, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        setMatchingMethod(response.data.method);
+      } catch {
+        setMatchingMethod('keyword');
+      }
+    };
+    fetchMatchingStatus();
+  }, []);
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
