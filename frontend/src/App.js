@@ -103,7 +103,7 @@ const CVSearchPage = ({ user }) => {
     const fetchMatchingStatus = async () => {
       try {
         const token = localStorage.getItem('token');
-        const response = await axios.get(`${API}/admin/ai-matching/status`, {
+        const response = await axios.get(`${API}/ai-matching/status`, {
           headers: { Authorization: `Bearer ${token}` }
         });
         setMatchingMethod(response.data.method);
