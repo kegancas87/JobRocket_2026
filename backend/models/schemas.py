@@ -165,8 +165,28 @@ class User(BaseModel):
     achievements: List[dict] = []  # List of Achievement as dicts
     intro_video_url: Optional[str] = None
     
+    # Onboarding
+    onboarding_completed: bool = False
+    onboarding_step: int = 0
+    onboarding_progress: int = 0
+    
+    # Job Seeker onboarding fields
+    desired_job_title: Optional[str] = None
+    years_of_experience: Optional[str] = None
+    industry_preference: Optional[str] = None
+    employment_type_preference: List[str] = []
+    seniority_level: Optional[str] = None
+    key_strengths: List[str] = []
+    resume_url: Optional[str] = None
+    linkedin_url: Optional[str] = None
+    availability: Optional[str] = None
+    notice_period: Optional[str] = None
+    open_to_opportunities: bool = True
+    additional_documents: List[dict] = []
+    
     # Gamification (job seekers)
     profile_progress: Optional[ProfileProgress] = Field(default_factory=ProfileProgress)
+    badges: List[str] = []
     
     # Timestamps
     created_at: datetime = Field(default_factory=datetime.utcnow)
