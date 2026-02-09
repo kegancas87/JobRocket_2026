@@ -9,6 +9,7 @@ import AdminDashboard from "./components/AdminDashboard";
 import AccountDashboard from "./components/AccountDashboard";
 import BillingPage from "./components/BillingPage";
 import BulkUploadPage from "./components/BulkUploadPage";
+import JobSeekerOnboarding from "./components/JobSeekerOnboarding";
 import InvitationPage from "./components/InvitationPage";
 import PricingPage from "./components/PricingPage";
 import MyApplications from "./components/MyApplications";
