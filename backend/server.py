@@ -1033,6 +1033,14 @@ async def get_admin_stats(
 from services.ai_matching_service import get_ai_matching_service, set_ai_matching_enabled
 ai_service = get_ai_matching_service(db)
 
+@api_router.get("/ai-matching/status")
+async def get_ai_matching_status_public(current_user: User = Depends(get_current_user)):
+    """Check if AI matching is enabled (for any authenticated user)"""
+    return {
+        "ai_enabled": ai_service.is_ai_enabled,
+        "method": "ai" if ai_service.is_ai_enabled else "keyword"
+    }
+
 @api_router.get("/admin/ai-matching/status")
 async def get_ai_matching_status(current_user: User = Depends(verify_admin_user)):
     """Check if AI matching is enabled"""
