@@ -935,7 +935,10 @@ async def save_onboarding_step(
         raise HTTPException(status_code=400, detail="Invalid step number")
     
     body = await request.json()
-    progress = ONBOARDING_STEP_PROGRESS.get(step, 0)
+    is_recruiter = current_user.role == UserRole.RECRUITER
+    step_progress = RECRUITER_STEP_PROGRESS if is_recruiter else ONBOARDING_STEP_PROGRESS
+    step_badges = RECRUITER_BADGES if is_recruiter else ONBOARDING_BADGES
+    progress = step_progress.get(step, 0)
     
     update_data = {
         "onboarding_step": max(step, current_user.onboarding_step),
@@ -945,40 +948,79 @@ async def save_onboarding_step(
     
     # Add badge if applicable
     current_badges = list(getattr(current_user, 'badges', []))
-    badge = ONBOARDING_BADGES.get(step)
+    badge = step_badges.get(step)
     if badge and badge not in current_badges:
         current_badges.append(badge)
         update_data["badges"] = current_badges
     
-    # Step-specific field mappings
-    if step == 1:
-        if "location" in body:
-            update_data["location"] = body["location"]
-    elif step == 2:
-        for field in ["desired_job_title", "years_of_experience", "industry_preference", "employment_type_preference"]:
-            if field in body:
-                update_data[field] = body[field]
-    elif step == 3:
-        for field in ["skills", "seniority_level", "key_strengths"]:
-            if field in body:
-                update_data[field] = body[field]
-    elif step == 4:
-        for field in ["resume_url", "linkedin_url", "desired_salary_range"]:
-            if field in body:
-                update_data[field] = body[field]
-    elif step == 5:
-        for field in ["work_experience", "availability", "notice_period"]:
-            if field in body:
-                update_data[field] = body[field]
-    elif step == 6:
-        for field in ["profile_picture_url", "about_me", "open_to_opportunities", "additional_documents"]:
-            if field in body:
-                update_data[field] = body[field]
-        if step == 6:
+    # Account update data (for recruiter company fields)
+    account_update = {}
+    
+    if is_recruiter:
+        # Recruiter step field mappings
+        if step == 1:
+            # Company basics - update account
+            for field in ["company_size", "company_industry", "company_location"]:
+                if field in body:
+                    account_update[field] = body[field]
+            if "company_name" in body:
+                account_update["name"] = body["company_name"]
+        elif step == 2:
+            # Hiring preferences - store on user
+            for field in ["hiring_roles", "hiring_locations", "hiring_employment_types", "hiring_volume"]:
+                if field in body:
+                    update_data[field] = body[field]
+        elif step == 3:
+            # Candidate access setup
+            for field in ["sourcing_methods", "alerts_enabled", "match_preferences"]:
+                if field in body:
+                    update_data[field] = body[field]
+        elif step == 4:
+            # Post first job or browse - just record the action taken
+            if "action_taken" in body:
+                update_data["onboarding_action_step4"] = body["action_taken"]
+        elif step == 5:
+            # Distribution & visibility
+            for field in ["distribution_email", "distribution_whatsapp", "distribution_social"]:
+                if field in body:
+                    update_data[field] = body[field]
+        elif step == 6:
+            update_data["onboarding_completed"] = True
+            update_data["onboarding_progress"] = 100
+    else:
+        # Job seeker step field mappings
+        if step == 1:
+            if "location" in body:
+                update_data["location"] = body["location"]
+        elif step == 2:
+            for field in ["desired_job_title", "years_of_experience", "industry_preference", "employment_type_preference"]:
+                if field in body:
+                    update_data[field] = body[field]
+        elif step == 3:
+            for field in ["skills", "seniority_level", "key_strengths"]:
+                if field in body:
+                    update_data[field] = body[field]
+        elif step == 4:
+            for field in ["resume_url", "linkedin_url", "desired_salary_range"]:
+                if field in body:
+                    update_data[field] = body[field]
+        elif step == 5:
+            for field in ["work_experience", "availability", "notice_period"]:
+                if field in body:
+                    update_data[field] = body[field]
+        elif step == 6:
+            for field in ["profile_picture_url", "about_me", "open_to_opportunities", "additional_documents"]:
+                if field in body:
+                    update_data[field] = body[field]
             update_data["onboarding_completed"] = True
             update_data["onboarding_progress"] = 100
     
     await db.users.update_one({"id": current_user.id}, {"$set": update_data})
+    
+    # Update account if needed (recruiter company info)
+    if account_update and current_user.account_id:
+        account_update["updated_at"] = datetime.utcnow()
+        await db.accounts.update_one({"id": current_user.account_id}, {"$set": account_update})
     
     return {
         "success": True,
