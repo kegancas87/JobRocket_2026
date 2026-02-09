@@ -46,6 +46,19 @@ JobRocket is a B2B SaaS recruitment platform targeting recruiters, businesses, a
 - [x] Billing Page, Bulk Job Upload (Pro+), CV Search AI Indicator
 - [x] Admin Stats Caching, AI Matching Kill Switch
 
+### Phase 6: Admin Analytics Dashboard (Feb 2026)
+- [x] **Comprehensive Analytics Dashboard** (`/analytics`) - Admin only
+  - 8 snapshot stat cards: Revenue, Accounts, Users, Jobs, Applications, New Accounts, Add-ons, Seats
+  - Monthly Trends bar chart (6-month history)
+  - Tier Distribution pie chart
+  - Onboarding Completion rates (job seekers & recruiters)
+  - Job Analytics: by Industry, Location, Work Type, Job Type (bar + pie charts)
+  - Account Details drill-down table (company, tier, owner, MRR, usage)
+  - CSV export with all sections for offline analysis
+  - Refresh button with force-refresh of cached stats
+  - Collapsible sections for drill-down
+- [x] **Starter tier job limit**: 30 posts/month (Growth+ unlimited)
+
 ### Phase 4: Job Seeker Onboarding (Feb 2026)
 - [x] 7-step gamified wizard (Welcome, Location, Professional, Skills, CV Upload, Experience, Profile Boost)
 - [x] Progress bar 0-100%, 3 badges, confetti, skip/resume, file uploads
