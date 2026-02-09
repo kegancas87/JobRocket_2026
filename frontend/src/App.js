@@ -8,6 +8,7 @@ import RecruiterDashboard from "./components/RecruiterDashboard";
 import AdminDashboard from "./components/AdminDashboard";
 import AccountDashboard from "./components/AccountDashboard";
 import BillingPage from "./components/BillingPage";
+import BulkUploadPage from "./components/BulkUploadPage";
 import InvitationPage from "./components/InvitationPage";
 import PricingPage from "./components/PricingPage";
 import MyApplications from "./components/MyApplications";
