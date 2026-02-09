@@ -190,13 +190,26 @@ const CVSearchPage = ({ user }) => {
           <div className="mb-8">
             <h1 className="text-3xl font-bold text-slate-800 mb-2">CV Search</h1>
             <p className="text-slate-600">Search and discover talented candidates for your open positions</p>
-            {remainingSearches !== null && (
-              <div className="mt-4">
+            <div className="mt-4 flex flex-wrap items-center gap-3">
+              {remainingSearches !== null && (
                 <span className="bg-blue-100 text-blue-800 px-3 py-1 rounded-full text-sm font-medium">
                   {remainingSearches === 'unlimited' ? 'Unlimited searches' : `${remainingSearches} searches remaining`}
                 </span>
-              </div>
-            )}
+              )}
+              {matchingMethod && (
+                <span data-testid="matching-method-badge" className={`px-3 py-1 rounded-full text-sm font-medium inline-flex items-center gap-1.5 ${
+                  matchingMethod === 'ai'
+                    ? 'bg-purple-100 text-purple-800'
+                    : 'bg-slate-100 text-slate-700'
+                }`}>
+                  {matchingMethod === 'ai' ? (
+                    <><Zap className="w-3.5 h-3.5" /> AI Matching Active</>
+                  ) : (
+                    <><Search className="w-3.5 h-3.5" /> Keyword Matching</>
+                  )}
+                </span>
+              )}
+            </div>
           </div>
 
           {/* Search Form */}
