@@ -1787,6 +1787,14 @@ function App() {
                   </div>
                 )
               } />
+
+              <Route path="/analytics" element={
+                user && user.role === 'admin' ? (
+                  <AnalyticsDashboard user={user} />
+                ) : (
+                  <Navigate to="/" replace />
+                )
+              } />
               
               <Route path="*" element={<Navigate to="/" replace />} />
             </Routes>
