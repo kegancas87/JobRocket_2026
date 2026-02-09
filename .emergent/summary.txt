@@ -1,235 +1,151 @@
 <analysis>**original_problem_statement:**
-The user's initial problem was that jobs created via a bulk CSV upload were not appearing on the main jobs page. This led to a series of fixes and feature requests.
+The user has requested a complete architectural refactor of the Job Rocket application into a multi-tenant SaaS platform. This was driven by a new business model detailed in two documents provided by the user: one defining feature tiers and pricing, and another detailing each feature.
 
-The user has since requested and overseen the implementation of several new features and fixes:
-1.  **Bulk Upload Fix:** Ensure all uploaded jobs are visible, not just the first 20.
-2.  **Company Branding:** Display the company's logo on job cards. If no logo exists, use a default image.
-3.  **Company Profile Pages:** Create a public page for each recruiter/company that displays their company info, active job listings, and provides navigation from the job card.
-4.  **UI/UX Fixes:** Address issues on the company profile page, such as a placeholder About Us section and a non-scrollable list of jobs.
-5.  **CV Search Functionality:** Implement a feature for recruiters to search for candidate CVs based on job title, location, and skills. This should be tied to purchasable packages.
-6.  **Data Population:** Add numerous diverse job seeker profiles to make CV search testing effective.
-7.  **Layout/Responsive Fixes:** Remove the horizontal scrollbar visible on the web view and ensure the layout is responsive and fits well on mobile devices.
-8.  **Profile Gamification:** Add a profile completion tracker to the recruiter dashboard, showing what's outstanding and providing quick links to complete the sections. Fix inconsistencies in the points system.
-9.  **Dashboard Cleanup:** Remove the Job Credits block from the recruiter dashboard.
-10. **Database/Hosting Migration:** The user expressed a desire to move the application to their own hosting ( on cPanel, which later changed to Render) and potentially migrate the database from MongoDB to MySQL.
-11. **Production Data Population:** After deploying to Render, the user found the database was empty and requested it be populated with realistic data, including an admin user .
-12. **Admin Login Fix:** The created admin user login was failing. The user requested a fix without modifying existing files to avoid git conflicts.
+The core requirements are:
+1.  **Multi-Tenant Architecture:** The system must support multiple, isolated company accounts. Each account has one owner and can have multiple users.
+2.  **Tiered Subscriptions:** Implement four pricing tiers (Starter, Growth, Pro, Enterprise), each with different user limits, features, and pricing.
+3.  **Feature Gating:** Access to specific features (e.g., AI Matching, Bulk Upload, CV Database) must be restricted based on the account's subscription tier.
+4.  **Purchasable Add-ons & Seats:** Users should be able to purchase add-on features and additional user seats on a recurring monthly basis.
+5.  **Recurring Payments:** Use Payfast to handle all recurring monthly billing for subscriptions, add-ons, and user seats. Provision for a future Stripe integration.
+6.  **Admin Dashboard:** A dashboard for the  user to view system-wide analytics (revenue, user/account counts) and manage accounts. This dashboard's data should be cached and refreshed twice daily.
+7.  **AI Candidate Matching:** Integrate an LLM via the Emergent LLM Key to provide AI-powered candidate matching, with a kill switch in the backend to revert to basic keyword search if costs are too high.
+8.  **Billing Management Page:** A dedicated page for customers () to manage their subscription, view billing history, and purchase add-ons/seats.
+9.  **Data Reset:** All previous data and user structures are considered obsolete and have been replaced by the new SaaS model.
 
 **User's preferred language**: English
 
 **what currently exists?**
-The project is a full-stack Job Rocket application built with a React frontend, FastAPI backend, and MongoDB database. It includes user roles (Job Seeker, Recruiter, Admin), job posting/management, an Easy Apply feature, a gamified profile completion dashboard for recruiters, a company profile page, and a CV search functionality for recruiters. It also has a package and payment system integrated with Payfast (in sandbox mode). The UI has been made responsive, and several data-seeding scripts have been created to populate the database with test data.
+The application's backend has been completely refactored to support a multi-tenant SaaS architecture. A new, modular structure with distinct services for accounts, billing, AI matching, and more has been implemented in . New Pydantic models in  define the schema for accounts, users, and tiers. The database has been initialized with the new tiers, and a seeding script exists to create demo data.
+
+On the frontend, the P0 tasks are complete: a new public pricing page displays the four tiers, a comprehensive admin dashboard shows system-wide analytics, and the Payfast subscription flow for base tiers is functional. The backend APIs for the P1 tasks (billing management, AI matching, bulk upload, cached admin stats) have been created and passed initial tests.
 
 **Last working item**:
--   **Last item agent was working**: The agent was tasked with fixing the login for , which was failing after an attempt to populate the production database on Render. The agent diagnosed that no admin user existed in the database and was about to create a standalone script to create the admin user without modifying other project files, as requested by the user to avoid git conflicts.
+-   **Last item agent was working**: The agent was implementing the P1 features. It had just finished creating the backend services and APIs for admin stats, AI matching, bulk upload, and billing. On the frontend, it created the new  component and updated  and  to add the corresponding route and navigation links for authenticated recruiter users.
 -   **Status**: IN PROGRESS
 -   **Agent Testing Done**: N
--   **Which testing method agent to use?**: manual testing by curl/ python -c
+-   **Which testing method agent to use?**: manual testing by curl/ python -c. Once all P1 frontend work is complete, use the frontend testing agent.
 -   **User Testing Done**: N
 
 **All Pending/In progress Issue list**:
--   **Issue 1**: Admin user login is failing. (P0)
-
-**Issues Detail**:
--   **Issue 1: Admin user login is failing.**
-    -   **Attempted fixes**: The agent's  script was intended to create the admin user, but it seems to have failed or been incorrect. A check of the database confirmed  admin users exist.
-    -   **Next debug checklist**:
-        1.  Create a new, simple, standalone Python script (e.g., ).
-        2.  The script should connect to the MongoDB database using the connection string from .
-        3.  It should check if  already exists.
-        4.  If not, it should create a new user with the role , hashing the provided password.
-        5.  Run the script to insert the admin user into the  collection.
-        6.  Verify the user's creation directly in the database.
-    -   **Why fix this issue and what will be achieved with the fix?**: The user needs administrator access to manage the application on their new production environment.
-    -   **Status**: IN PROGRESS
-    -   **Is recurring issue?**: N
-    -   **Should Test frontend/backend/both after fix?**: Frontend (by attempting to log in as the admin user).
-    -   **Blocked on other issue**: None.
+There are no outstanding bugs. The work is focused on new feature development.
 
 **In progress Task List**:
--   **Task 1**: Populate production database on Render.
-
-**Task Detail**:
--   **Task 1: Populate production database on Render.**
-    -   **Where to resume**: The agent created  and a script to add 100 job seekers (). The population was partially successful (job seekers were created), but the admin user creation failed. The script to create 100 jobs () also failed because it could not find recruiter users to assign the jobs to. The next step is to fix the admin user creation (covered in the issue above) and debug the job creation script.
-    -   **What will be achieved with this?**: The user's production application on Render will be populated with a realistic and comprehensive dataset for launch and testing.
+-   **Task 1: Complete P1 Features Implementation (P0)**
+    -   **Where to resume**: The agent just finished adding the  component and updating navigation. The immediate next step is to run the linter to check the frontend code and then restart the frontend server to ensure it compiles correctly.
+    -   **What will be achieved with this?**: This will complete the foundational work for the P1 features, enabling the full implementation of the billing page, AI matching, and bulk upload functionalities.
     -   **Status**: IN PROGRESS
-    -   **Should Test frontend/backend/both after fix?**: Both.
-    -   **Blocked on something**: Blocked on fixing the admin user creation.
+    -   **Should Test frontend/backend/both after fix?**: Both
+    -   **Blocked on something**: None.
 
 **Upcoming and Future Tasks**
 -   **Upcoming Tasks**:
-    -   **P1: Debug and Run Job Creation Script**: The script  failed because it could not find any recruiter users. This needs to be debugged and re-run to populate the production database with jobs.
+    -   **P1: Build out Frontend for P1 Features**:
+        -   **Billing Page UI**: Fully implement the UI for . This page must allow users to:
+            -   View their current subscription and billing history.
+            -   Purchase and cancel add-on features.
+            -   Purchase additional user seats.
+        -   **Bulk Job Upload UI**: Create a frontend interface for recruiters to upload jobs via CSV and Excel files, which will use the  endpoint.
+        -   **CV Search UI**: Update the CV Search page to show whether AI matching or keyword matching is active.
+
 -   **Future Tasks**:
-    -   **P2: Database Migration from MongoDB to MySQL**: The user initially requested this to be compatible with cPanel hosting. However, they have since moved to **Render**, which has excellent MongoDB support. **The agent MUST confirm with the user if this migration is still necessary**, as it might be an obsolete requirement. If it is still required, the agent has a pre-defined plan involving schema conversion, backend code refactoring (Motor to SQLAlchemy), and data migration.
+    -   **P2: Paid Features for Job Seekers**: The user has requested to focus on recruiter features first and implement job seeker monetization later.
+    -   **P2: Stripe Integration**: The user has expressed potential future interest in Stripe. The system was designed with this in mind, but Payfast is the current priority.
 
 **Completed work in this session**
--   Fixed bulk-uploaded jobs not appearing on the jobs page by increasing the API query limit from 20 to 1000.
--   Made the  page publicly accessible without requiring authentication.
--   Implemented company logo display on job cards, with a fallback to a default image.
--   Created public recruiter/company profile pages, accessible via links on job cards.
--   Fixed UI issues on the company page, including adding a dynamic About Us section and making the job list scrollable.
--   Implemented a full-featured CV Search for recruiters (API, frontend page, filters).
--   Enabled the purchase of CV search packages on the pricing page.
--   Created scripts to add CV search packages to demo users for testing.
--   Fixed various layout issues, including removing the horizontal scrollbar and improving mobile/tablet responsiveness.
--   Implemented a Profile Completion Tracker on the recruiter dashboard to gamify profile setup.
--   Fixed logic and point calculation inconsistencies in the Profile Completion Tracker.
--   Removed the Job Credits section from the recruiter dashboard as requested.
--   Prepared the application for deployment to a new host by creating configuration templates and a deployment guide.
--   Created scripts to populate the database with 100+ diverse job seeker profiles.
-
-**Earlier issues found/mentioned but not fixed**
--   **Issue 1: Job Creation Script Fails**
-    -   **Debug checklist**: The script at  fails with the error No recruiter users found.
-        1.  Examine the script to see how it queries for recruiter users.
-        2.  Run a separate query on the production database to confirm that users with  actually exist.
-        3.  The demo data population script () should create recruiters. Verify this was successful.
-        4.  Adjust the job creation script to correctly query for existing recruiters before attempting to assign jobs to them.
-    -   **Why to solve this issue and what will be achieved with this?**: To populate the production application with a realistic set of jobs for testing and launch.
-    -   **Should Test frontend/backend/both after fix?**: Frontend (verify jobs appear on the jobs page).
-    -   **Is recurring issue?**: N
+-   **Phase 1: Multi-Tenant Refactor (Complete)**:
+    -   Analyzed user-provided requirements and refactored the entire backend to a multi-tenant, service-oriented architecture.
+    -   Implemented a new database schema with , , and  collections.
+    -   Created scripts to initialize the database () and seed it with demo data ().
+-   **P0 Features (Complete)**:
+    -   **New Pricing Page**: A dynamic, public page showing the four subscription tiers ().
+    -   **Admin Dashboard**: An admin-only dashboard to view system-wide stats and manage all accounts ().
+    -   **Payfast Subscription Flow**: A complete, working flow for subscribing to a base tier, with configurable redirect URLs.
+-   **P1 Backend Services (Complete)**:
+    -   : Provides cached, system-wide analytics.
+    -   : Integrates with an LLM for AI candidate matching, with a fallback mechanism.
+    -   : Handles job uploads from CSV and  files.
+    -   : Manages recurring subscriptions, add-ons, and user seats.
+-   **Testing**: Ran  after P0 implementation, and all tests passed.
 
 **Known issue recurrence from previous fork**
--   None.
+-   None. The project was reset with a new architecture, making previous issues obsolete.
 
 **Code Architecture**
 
 
 **Key Technical Concepts**
--   **Full-stack Architecture**: React (frontend), FastAPI (backend), MongoDB (database).
--   **UI/UX**: Tailwind CSS, Shadcn UI components, Lucide-React icons.
--   **Authentication**: JWT for role-based authentication.
--   **Database**: AsyncIOMotorClient for asynchronous MongoDB communication.
--   **Payment Gateway**: Payfast integration (sandbox mode).
--   **File Uploads**: FastAPI's  and .
--   **Data Generation**: Extensive use of Python scripts with  library to create realistic test data.
--   **Deployment Prep**: Creation of , shell scripts, and documentation for cPanel-style deployment.
+-   **Multi-Tenancy**: The architecture is built around an  collection, with  belonging to an account. Tiers and features are managed at the account level.
+-   **Service-Oriented Backend**: Business logic is encapsulated in distinct services (e.g., , ) for modularity.
+-   **Cached Services**: The  uses time-based caching to reduce DB load, with refresh times set to 6am/6pm SAST as requested.
+-   **LLM Integration**: The  uses the  library and  for AI features, including a kill switch to fall back to keyword search.
+-   **Recurring Payments**: Payfast is integrated to handle recurring monthly subscriptions for tiers, add-ons, and extra seats, managed via a webhook.
 
 **key DB schema**
--   **users**: {uid=0(root) gid=0(root) groups=0(root), , ,  (, , ),  (object),  (object),  (object)}
--   **jobs**: {uid=0(root) gid=0(root) groups=0(root), , , , , , , , }
--   **user_packages**: {uid=0(root) gid=0(root) groups=0(root), , , , , }
--   **payments**: {uid=0(root) gid=0(root) groups=0(root), , , , , }
+-   **accounts**: 
+-   **users**: 
+-   **tiers**: 
+-   **payments**: 
 
 **changes in tech stack**
--   None implemented. A potential migration from **MongoDB to MySQL** is a pending future task, but its necessity is questionable now that the user is on Render.
+-   : Added for LLM-based AI matching.
+-   : Added to support  file uploads.
 
 **All files of reference**
-*   : Major changes to add company logo logic to jobs, create the  and  endpoints, and update CORS/URL settings for production.
-*   : Major changes to add public routing for the  page, add routes for  and , and fix responsive layout issues.
-*   : Heavily modified to integrate the  and remove the Job Credits section.
-*   : New component to display gamified profile completion steps.
-*   : New component to display company details and their job listings.
-*   : New component for recruiters to search for candidates.
-*   : Updated to make CV search packages purchasable.
-*   : New script to seed the production database on Render.
-*   : **(To be created)** New standalone script to fix the admin user creation.
-*   : New file documenting all created demo user credentials.
-*   , , 🚀 Job Rocket Production Deployment Script
-==========================================
-[0;34m📋 Deployment Configuration:[0m
-   Domain: [0;32mjobrocket.co.za[0m
-   Project: [0;32mjobrocket[0m
-
-[1;33m📦 Step 1: Building React Frontend...[0m
-Building production React app...
-
-> frontend@0.1.0 build
-> craco build
-
-Creating an optimized production build...
-Compiled successfully.
-
-File sizes after gzip:
-
-  149.85 kB  build/static/js/main.5073b83f.js
-  15.87 kB   build/static/css/main.153b9527.css
-
-The project was built assuming it is hosted at https://jobrocket.co.za/.
-You can control this with the homepage field in your package.json.
-
-The build folder is ready to be deployed.
-
-Find out more about deployment here:
-
-  https://cra.link/deployment
-
-[0;32m✅ Frontend build successful![0m
-[1;33m📦 Step 2: Preparing Backend...[0m
-Copying frontend build files...
-Copying backend files...
-[0;32m✅ Files copied successfully![0m
-[1;33m📝 Step 3: Creating production environment template...[0m
-[1;33m📋 Step 4: Creating deployment instructions...[0m
-[1;33m💾 Step 5: Creating database migration helper...[0m
-[1;33m📦 Step 6: Creating deployment package...[0m
-[0;32m🎉 Deployment package created successfully![0m
-
-[0;34m📋 Next Steps:[0m
-1. Extract the deployment package
-2. Upload files to your cPanel hosting
-3. Follow DEPLOYMENT_INSTRUCTIONS.md
-4. Update .env with your server details
-5. Test the deployment
-
-[1;33m📁 Files ready in: [0mdeployment/jobrocket/
-[1;33m📦 Package: [0mdeployment/jobrocket_production_*.tar.gz
-
-[0;32m🚀 Ready for deployment to jobrocket.co.za![0m: New files created to assist with deployment to a cPanel-like environment.
-
-**Areas that need refactoring**:
--   The data seeding is spread across multiple scripts. This could be consolidated into a single, more robust management script or command.
--   A lot of component logic resides directly in  (e.g., , ). These could be moved to their own files in the  directory for better organization.
+-   : All new service files containing the core business logic.
+-   : New component for customer billing management.
+-   : New component for the admin dashboard.
+-   : Overwritten to display the new SaaS tiers.
+-    & : New reference documents defining the SaaS model.
+-   : Updated to reflect all new requirements and completed work.
 
 **key api endpoints**
--   : Lists all active jobs.
--   : Bulk-uploads jobs from a CSV file.
--   : Gets public details for a company.
--   : Gets all active jobs for a specific company.
--   : Allows recruiters to search for job seekers based on criteria.
--   : Starts the Payfast payment process for a package.
+-   : (New) Gets cached system-wide statistics for the admin dashboard.
+-   : (New) Endpoint for purchasing/cancelling add-on features.
+-   : (New) Endpoint for purchasing extra user seats.
+-   : (New) Gets a comprehensive billing summary for the current user's account.
+-   : (New) Handles CSV and Excel job uploads.
+-   : (Updated) Handles various recurring payment notifications from Payfast.
 
 **Critical Info for New Agent**
--   **Hosting Environment Mismatch**: The user initially specified migration to cPanel shared hosting and requested a MongoDB-to-MySQL database migration for compatibility. However, their latest messages state they have deployed to **Render**. Render has excellent native MongoDB support. **You MUST clarify with the user if the MySQL migration is still needed.** It is very likely obsolete and would be a waste of effort.
--   **Avoid Git Conflicts**: The user explicitly requested to create the admin user via a new, standalone script to avoid conflicts with their existing files for a . Apply this principle for any other one-off administrative tasks.
--   **Production Database**: The user is now working with what they consider their production database on Render. Be cautious with any scripts that modify data.
--   **Data Seeding Scripts are Flaky**: The scripts to create demo users and jobs have failed before (e.g., not finding recruiters). They need to be made more robust, especially the job creation script which is currently blocked.
+-   **SaaS Model is the Source of Truth**: The application has been fundamentally rebuilt. All work must align with the multi-tenant SaaS model defined in  and .
+-   **Recurring Billing Logic**: Payfast is used for recurring monthly billing. The logic in  and the payment webhook in  are critical for handling subscriptions for tiers, add-ons, and extra user seats.
+-   **User Seat Management Rule**: The user specified that if a team member is removed, the purchased seat remains active and billed until the seat subscription itself is explicitly cancelled by the user. This logic must be handled correctly in the  UI and the backend billing service.
+-   **AI Matching Fallback**: The  has a kill switch ( env var). The frontend and backend must gracefully handle the fallback to keyword search when this is disabled.
 
 **documents and test reports created in this job**
 -   
 -   
--   
+-    (updated)
 -   
 
 **Last 10 User Messages and any pending HUMAN messages**
-1.  **User**:  login is not working.
-2.  **Agent**: Acknowledges and investigates. Finds 0 admin users in DB.
-3.  **User**: Asks to recreate the admin user without changing other files to avoid git conflicts.
-4.  **Agent**: Agrees to create a standalone script.
-5.  **User**: Asks to remove the zero credit block on the dashboard.
-6.  **Agent**: Removes the block and confirms with a screenshot.
-7.  **User**: Asks to use Firebase as the backend.
-8.  **Agent**: Asks for clarification on the major architectural change.
-9.  **User**: Asks what the current DB is.
-10. **Agent**: Explains the current DB is MongoDB.
+1.  **User**: Asks agent to build the P1 items.
+2.  **Agent**: Asks clarifying questions about P1 implementation details.
+3.  **User**: Provides detailed requirements for P1 items: stats caching every 12 hours, recurring monthly payments for add-ons/seats via Payfast, seat cancellation policy, AI matching kill switch, CSV/Excel for bulk upload, and location of the new billing page.
+4.  **Agent**: Confirms understanding of P1 requirements and begins implementation.
+5.  **User**: Approved the Phase 1 refactoring plan and provided specifics on user limits per tier (2 for Growth, 3 for Pro) and payment gateway choice (Payfast now, Stripe later).
+6.  **Agent**: Presented a detailed, multi-phase refactoring plan based on the user's documents.
+7.  **User**: Uploaded the feature and pricing documents.
+8.  **Agent**: Confirmed it can read the attached documents.
+9.  **User**: Asked if the agent could read an attached spreadsheet.
+10. **Agent**: Recommended sharing the tier spreadsheet first to inform the database schema design.
 
 **Project Health Check:**
--   **Broken**: Admin user creation/login. The job creation script () is also broken.
--   **Mocked**: The Payfast integration is still in sandbox mode. The database is populated with mocked/generated data via scripts.
+-   **Broken**: No features are currently broken.
+-   **Mocked**: Payfast integration is in sandbox mode. The  is likely for a test environment.
 
 **3rd Party Integrations**
--   Payfast (Payments) - requires User API Key for production, currently using sandbox credentials.
+-   **Payfast**: Used for recurring payments (sandbox mode).
+-   **OpenAI/Gemini (via )**: Used for AI candidate matching, powered by the .
 
 **Testing status**
--   **Testing agent used after significant changes**: NO
+-   **Testing agent used after significant changes**: YES, after the P0 features were completed.
 -   **Troubleshoot agent used after agent stuck in loop**: NO
--   **Test files created**: None.
+-   **Test files created**: []
 -   **Known regressions**: None.
 
 **Credentials to test flow:**
-A comprehensive list of user credentials for job seekers and recruiters has been created and is available in . The password for all demo users is . The admin user () needs to be created.
-
-**What agent forgot to execute**
--   The agent never fixed or re-ran the  script after it failed due to not finding any recruiter users.
--   The agent was interrupted right before creating the standalone script to add the admin user, which is the current highest-priority task.</analysis>
+Demo users for each tier are created by the  script. The password for all is  except for the admin.
+-   **Admin**:  (password: )
+-   **Recruiter (Growth Tier)**:  (has access to CV search)
+-   **Recruiter (Pro Tier)**:  (has access to bulk upload)</analysis>
