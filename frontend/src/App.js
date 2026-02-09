@@ -1495,6 +1495,15 @@ function App() {
             <Route path="/company/:companyId" element={
               <CompanyProfileWrapper />
             } />
+            <Route path="/pricing" element={
+              <PricingPage user={null} />
+            } />
+            <Route path="/payment/success" element={
+              <PaymentSuccessPage user={null} />
+            } />
+            <Route path="/payment/cancel" element={
+              <PaymentCancelPage user={null} />
+            } />
             <Route path="*" element={
               authPage === 'login' ? (
                 <LoginPage 
