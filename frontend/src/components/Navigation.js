@@ -17,7 +17,8 @@ import {
   Shield,
   Bell,
   Search,
-  CreditCard
+  CreditCard,
+  FileSpreadsheet
 } from "lucide-react";
 
 const Navigation = ({ user, onLogout }) => {
