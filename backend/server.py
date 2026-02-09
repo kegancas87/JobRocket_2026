@@ -1021,6 +1021,359 @@ async def payment_webhook(request: Request):
 
 
 # ============================================
+# Admin Stats Endpoints
+# ============================================
+
+from services.admin_stats_service import create_admin_stats_service
+admin_stats_service = create_admin_stats_service(db)
+
+@api_router.get("/admin/stats")
+async def get_admin_stats(
+    force_refresh: bool = False,
+    current_user: User = Depends(verify_admin_user)
+):
+    """Get admin dashboard statistics (cached, refreshes at 6am/6pm SAST)"""
+    stats = await admin_stats_service.get_stats(force_refresh=force_refresh)
+    return stats
+
+
+# ============================================
+# AI Matching Endpoints
+# ============================================
+
+from services.ai_matching_service import get_ai_matching_service, set_ai_matching_enabled
+ai_service = get_ai_matching_service(db)
+
+@api_router.get("/admin/ai-matching/status")
+async def get_ai_matching_status(current_user: User = Depends(verify_admin_user)):
+    """Check if AI matching is enabled"""
+    return {
+        "ai_enabled": ai_service.is_ai_enabled,
+        "method": "ai" if ai_service.is_ai_enabled else "keyword"
+    }
+
+@api_router.post("/admin/ai-matching/toggle")
+async def toggle_ai_matching(
+    enabled: bool,
+    current_user: User = Depends(verify_admin_user)
+):
+    """Enable/disable AI matching (kill switch)"""
+    set_ai_matching_enabled(enabled)
+    return {
+        "success": True,
+        "ai_enabled": enabled,
+        "message": f"AI matching {'enabled' if enabled else 'disabled'}. Using {'AI' if enabled else 'keyword'} matching."
+    }
+
+@api_router.post("/cv-search/match")
+async def match_candidates(
+    job_id: str,
+    current_user: User = Depends(get_current_recruiter)
+):
+    """Get AI/keyword match scores for candidates against a job"""
+    # Check feature access
+    await check_feature(current_user, FeatureId.TALENT_CV_DATABASE)
+    
+    # Get job
+    job = await db.jobs.find_one({"id": job_id, "account_id": current_user.account_id})
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found")
+    
+    # Get all job seekers
+    candidates = []
+    cursor = db.users.find({"role": "job_seeker"}).limit(100)
+    async for user in cursor:
+        if "_id" in user:
+            del user["_id"]
+        if "password_hash" in user:
+            del user["password_hash"]
+        candidates.append(user)
+    
+    # Get match scores
+    results = await ai_service.batch_match(job, candidates)
+    
+    return {
+        "job_id": job_id,
+        "job_title": job.get("title"),
+        "matching_method": "ai" if ai_service.is_ai_enabled else "keyword",
+        "candidates": results
+    }
+
+
+# ============================================
+# CV Database / Talent Pool Endpoints
+# ============================================
+
+@api_router.get("/cv-search")
+async def search_candidates(
+    current_user: User = Depends(get_current_recruiter),
+    q: Optional[str] = None,
+    skills: Optional[str] = None,
+    location: Optional[str] = None,
+    skip: int = 0,
+    limit: int = 50
+):
+    """Search the CV database / talent pool"""
+    # Check feature access
+    await check_feature(current_user, FeatureId.TALENT_CV_DATABASE)
+    
+    # Build query
+    query = {"role": "job_seeker"}
+    
+    if q:
+        query["$or"] = [
+            {"first_name": {"$regex": q, "$options": "i"}},
+            {"last_name": {"$regex": q, "$options": "i"}},
+            {"about_me": {"$regex": q, "$options": "i"}},
+            {"skills": {"$elemMatch": {"$regex": q, "$options": "i"}}}
+        ]
+    
+    if skills:
+        skill_list = [s.strip() for s in skills.split(",")]
+        query["skills"] = {"$in": skill_list}
+    
+    if location:
+        query["location"] = {"$regex": location, "$options": "i"}
+    
+    # Execute search
+    candidates = []
+    cursor = db.users.find(query).skip(skip).limit(limit)
+    async for user in cursor:
+        if "_id" in user:
+            del user["_id"]
+        if "password_hash" in user:
+            del user["password_hash"]
+        candidates.append(user)
+    
+    total = await db.users.count_documents(query)
+    
+    return {
+        "candidates": candidates,
+        "total": total,
+        "skip": skip,
+        "limit": limit
+    }
+
+
+# ============================================
+# Bulk Upload Endpoints
+# ============================================
+
+from services.bulk_upload_service import create_bulk_upload_service
+bulk_upload_service = create_bulk_upload_service(db)
+
+@api_router.post("/jobs/bulk")
+async def bulk_upload_jobs(
+    file: UploadFile = File(...),
+    current_user: User = Depends(get_current_recruiter)
+):
+    """Bulk upload jobs from CSV or Excel file (Pro+ only)"""
+    # Check feature access
+    await check_feature(current_user, FeatureId.JOB_BULK_UPLOAD)
+    
+    # Get account for company details
+    account = await account_service.get_account(current_user.account_id)
+    if not account:
+        raise HTTPException(status_code=404, detail="Account not found")
+    
+    # Read file content
+    content = await file.read()
+    
+    # Process file
+    result = await bulk_upload_service.process_file(
+        file_content=content,
+        filename=file.filename,
+        account_id=current_user.account_id,
+        user_id=current_user.id,
+        company_name=account["name"],
+        logo_url=account.get("company_logo_url")
+    )
+    
+    return result
+
+@api_router.get("/jobs/bulk/template")
+async def get_bulk_upload_template(
+    format: str = "csv",
+    current_user: User = Depends(get_current_recruiter)
+):
+    """Download bulk upload template file"""
+    from fastapi.responses import Response
+    
+    try:
+        content, filename = bulk_upload_service.generate_template(format)
+        
+        content_type = "text/csv" if format == "csv" else "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        
+        return Response(
+            content=content,
+            media_type=content_type,
+            headers={
+                "Content-Disposition": f"attachment; filename={filename}"
+            }
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+# ============================================
+# Billing Endpoints
+# ============================================
+
+from services.billing_service import create_billing_service
+billing_service = create_billing_service(db)
+
+@api_router.get("/billing")
+async def get_billing_summary(current_user: User = Depends(get_current_recruiter)):
+    """Get billing summary for current account"""
+    return await billing_service.get_billing_summary(current_user.account_id)
+
+@api_router.get("/billing/history")
+async def get_billing_history(
+    current_user: User = Depends(get_current_recruiter),
+    limit: int = 50,
+    skip: int = 0
+):
+    """Get payment/billing history"""
+    history = await billing_service.get_billing_history(
+        current_user.account_id, limit, skip
+    )
+    return {"history": history, "total": len(history)}
+
+@api_router.post("/billing/addon")
+async def purchase_addon(
+    addon_id: str,
+    current_user: User = Depends(get_current_recruiter)
+):
+    """Initiate add-on purchase via Payfast"""
+    from models.tiers import get_addon_config
+    from models.enums import AddonId
+    
+    try:
+        addon = get_addon_config(AddonId(addon_id))
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid add-on")
+    
+    if not addon:
+        raise HTTPException(status_code=404, detail="Add-on not found")
+    
+    # Calculate price
+    amount = addon.get("price_monthly") or addon.get("price_once", 0)
+    
+    # Create payment record
+    payment = await billing_service.create_payment_record(
+        account_id=current_user.account_id,
+        user_id=current_user.id,
+        payment_type="addon",
+        amount=amount,
+        addon_id=AddonId(addon_id)
+    )
+    
+    # Generate Payfast data
+    payfast_data = {
+        "merchant_id": PAYFAST_MERCHANT_ID,
+        "merchant_key": PAYFAST_MERCHANT_KEY,
+        "return_url": f"{BASE_URL}/payment/success?payment_id={payment['id']}",
+        "cancel_url": f"{BASE_URL}/payment/cancel?payment_id={payment['id']}",
+        "notify_url": f"{BASE_URL}/api/payments/webhook",
+        "name_first": current_user.first_name,
+        "name_last": current_user.last_name,
+        "email_address": current_user.email,
+        "m_payment_id": payment['id'],
+        "amount": f"{amount:.2f}",
+        "item_name": f"JobRocket Add-on: {addon['name']}",
+        "item_description": addon.get("description", "Feature add-on"),
+    }
+    
+    payfast_data["signature"] = generate_payfast_signature(payfast_data, PAYFAST_PASSPHRASE)
+    payfast_url = "https://sandbox.payfast.co.za/eng/process" if PAYFAST_SANDBOX else "https://www.payfast.co.za/eng/process"
+    
+    return {
+        "payment_id": payment['id'],
+        "payfast_url": payfast_url,
+        "payfast_data": payfast_data
+    }
+
+@api_router.delete("/billing/addon/{addon_purchase_id}")
+async def cancel_addon(
+    addon_purchase_id: str,
+    current_user: User = Depends(get_current_recruiter)
+):
+    """Cancel an add-on subscription"""
+    result = await billing_service.cancel_addon(
+        current_user.account_id, addon_purchase_id
+    )
+    if not result["success"]:
+        raise HTTPException(status_code=400, detail=result["error"])
+    return result
+
+@api_router.post("/billing/extra-seats")
+async def purchase_extra_seats(
+    quantity: int,
+    current_user: User = Depends(get_current_recruiter)
+):
+    """Purchase extra user seats via Payfast"""
+    if quantity < 1 or quantity > 100:
+        raise HTTPException(status_code=400, detail="Quantity must be between 1 and 100")
+    
+    amount = quantity * billing_service.EXTRA_USER_PRICE
+    
+    # Create payment record
+    payment = await billing_service.create_payment_record(
+        account_id=current_user.account_id,
+        user_id=current_user.id,
+        payment_type="extra_seats",
+        amount=amount,
+        extra_seats=quantity
+    )
+    
+    # Generate Payfast data
+    payfast_data = {
+        "merchant_id": PAYFAST_MERCHANT_ID,
+        "merchant_key": PAYFAST_MERCHANT_KEY,
+        "return_url": f"{BASE_URL}/payment/success?payment_id={payment['id']}",
+        "cancel_url": f"{BASE_URL}/payment/cancel?payment_id={payment['id']}",
+        "notify_url": f"{BASE_URL}/api/payments/webhook",
+        "name_first": current_user.first_name,
+        "name_last": current_user.last_name,
+        "email_address": current_user.email,
+        "m_payment_id": payment['id'],
+        "amount": f"{amount:.2f}",
+        "item_name": f"JobRocket Extra User Seats ({quantity})",
+        "item_description": f"{quantity} additional user seat(s) at R899/month each",
+    }
+    
+    payfast_data["signature"] = generate_payfast_signature(payfast_data, PAYFAST_PASSPHRASE)
+    payfast_url = "https://sandbox.payfast.co.za/eng/process" if PAYFAST_SANDBOX else "https://www.payfast.co.za/eng/process"
+    
+    return {
+        "payment_id": payment['id'],
+        "quantity": quantity,
+        "total": amount,
+        "payfast_url": payfast_url,
+        "payfast_data": payfast_data
+    }
+
+@api_router.get("/billing/extra-seats")
+async def get_extra_seats(current_user: User = Depends(get_current_recruiter)):
+    """Get extra user seats for account"""
+    seats = await billing_service.get_extra_seats(current_user.account_id)
+    return {"seats": seats, "total": len(seats)}
+
+@api_router.delete("/billing/extra-seats/{seat_id}")
+async def cancel_extra_seat(
+    seat_id: str,
+    current_user: User = Depends(get_current_recruiter)
+):
+    """Cancel an extra user seat"""
+    result = await billing_service.cancel_extra_seat(
+        current_user.account_id, seat_id
+    )
+    if not result["success"]:
+        raise HTTPException(status_code=400, detail=result["error"])
+    return result
+
+
+# ============================================
 # Health Check
 # ============================================
 
