@@ -480,6 +480,7 @@ async def get_tiers():
             "included_users": tier["included_users"],
             "extra_user_price": tier["extra_user_price"],
             "multi_user_access": tier["multi_user_access"],
+            "job_post_limit": tier.get("job_post_limit"),
             "company_profile_level": tier["company_profile_level"].value,
             "features": [f.value for f in tier["features"]],
             "available_addons": [a.value for a in tier["available_addons"]],
