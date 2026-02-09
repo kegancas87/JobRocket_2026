@@ -63,6 +63,7 @@ const Navigation = ({ user, onLogout }) => {
     } else if (user?.role === 'admin') {
       return [
         { name: 'Dashboard', path: '/', icon: Home },
+        { name: 'Analytics', path: '/analytics', icon: BarChart3 },
         { name: 'Jobs', path: '/jobs', icon: Briefcase },
         { name: 'Account', path: '/account', icon: Building2 },
         { name: 'Admin Panel', path: '/admin', icon: Shield },
