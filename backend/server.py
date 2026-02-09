@@ -96,9 +96,11 @@ app.add_middleware(
 
 # Ensure upload directory exists
 Path(UPLOAD_PATH).mkdir(parents=True, exist_ok=True)
+for subdir in ["cvs", "profile_pictures", "documents", "images"]:
+    (Path(UPLOAD_PATH) / subdir).mkdir(parents=True, exist_ok=True)
 
-# Mount static files
-app.mount("/uploads", StaticFiles(directory=UPLOAD_PATH), name="uploads")
+# Mount static files under /api/uploads so K8s ingress can route them
+app.mount("/api/uploads", StaticFiles(directory=UPLOAD_PATH), name="uploads")
 
 
 # ============================================
