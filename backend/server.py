@@ -1260,6 +1260,137 @@ async def get_admin_stats(
     return stats
 
 
+@api_router.get("/admin/analytics")
+async def get_admin_analytics(current_user: User = Depends(verify_admin_user)):
+    """Get detailed analytics data for admin analytics dashboard"""
+    now = datetime.utcnow()
+    
+    # --- Time-series data: last 6 months ---
+    months_data = []
+    for i in range(5, -1, -1):
+        month_start = (now.replace(day=1) - timedelta(days=i * 30)).replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+        if i > 0:
+            month_end = (month_start.replace(day=28) + timedelta(days=4)).replace(day=1)
+        else:
+            month_end = now
+        
+        label = month_start.strftime("%b %Y")
+        
+        new_accounts = await db.accounts.count_documents({"created_at": {"$gte": month_start, "$lt": month_end}})
+        new_users = await db.users.count_documents({"created_at": {"$gte": month_start, "$lt": month_end}})
+        new_jobs = await db.jobs.count_documents({"posted_date": {"$gte": month_start, "$lt": month_end}})
+        new_apps = await db.job_applications.count_documents({"applied_date": {"$gte": month_start, "$lt": month_end}})
+        
+        months_data.append({
+            "month": label,
+            "accounts": new_accounts,
+            "users": new_users,
+            "jobs": new_jobs,
+            "applications": new_apps,
+        })
+    
+    # --- Job analytics ---
+    # By industry
+    job_industry_pipeline = [
+        {"$group": {"_id": "$industry", "count": {"$sum": 1}}},
+        {"$sort": {"count": -1}},
+        {"$limit": 10}
+    ]
+    industry_data = await db.jobs.aggregate(job_industry_pipeline).to_list(10)
+    
+    # By location
+    job_location_pipeline = [
+        {"$group": {"_id": "$location", "count": {"$sum": 1}}},
+        {"$sort": {"count": -1}},
+        {"$limit": 10}
+    ]
+    location_data = await db.jobs.aggregate(job_location_pipeline).to_list(10)
+    
+    # By work type
+    work_type_pipeline = [
+        {"$group": {"_id": "$work_type", "count": {"$sum": 1}}},
+        {"$sort": {"count": -1}}
+    ]
+    work_type_data = await db.jobs.aggregate(work_type_pipeline).to_list(10)
+    
+    # By job type
+    job_type_pipeline = [
+        {"$group": {"_id": "$job_type", "count": {"$sum": 1}}},
+        {"$sort": {"count": -1}}
+    ]
+    job_type_data = await db.jobs.aggregate(job_type_pipeline).to_list(10)
+    
+    # --- Application analytics ---
+    app_status_pipeline = [
+        {"$group": {"_id": "$status", "count": {"$sum": 1}}},
+        {"$sort": {"count": -1}}
+    ]
+    app_status_data = await db.job_applications.aggregate(app_status_pipeline).to_list(20)
+    
+    # --- User analytics ---
+    # Onboarding completion
+    onboarded_seekers = await db.users.count_documents({"role": "job_seeker", "onboarding_completed": True})
+    total_seekers = await db.users.count_documents({"role": "job_seeker"})
+    onboarded_recruiters = await db.users.count_documents({"role": "recruiter", "onboarding_completed": True})
+    total_recruiters = await db.users.count_documents({"role": "recruiter"})
+    
+    # --- Account detail table ---
+    accounts_detail = []
+    async for acc in db.accounts.find({}).sort("created_at", -1):
+        if "_id" in acc:
+            del acc["_id"]
+        owner = await db.users.find_one({"id": acc.get("owner_user_id", "")}, {"_id": 0, "email": 1, "first_name": 1, "last_name": 1})
+        job_count = await db.jobs.count_documents({"account_id": acc["id"]})
+        app_count = await db.job_applications.count_documents({"account_id": acc["id"]})
+        
+        tier_prices = {"starter": 6899, "growth": 10499, "pro": 19999, "enterprise": 39999}
+        extra = acc.get("extra_users_count", 0)
+        mrr = tier_prices.get(acc.get("tier_id", "starter"), 0) + (extra * 899)
+        
+        accounts_detail.append({
+            "id": acc["id"],
+            "name": acc.get("name", ""),
+            "tier_id": acc.get("tier_id", "starter"),
+            "subscription_status": acc.get("subscription_status", "pending"),
+            "owner_name": f"{owner.get('first_name','')} {owner.get('last_name','')}" if owner else "N/A",
+            "owner_email": owner.get("email", "N/A") if owner else "N/A",
+            "user_count": acc.get("current_user_count", 1),
+            "extra_users": extra,
+            "job_count": job_count,
+            "application_count": app_count,
+            "mrr": mrr,
+            "created_at": acc.get("created_at", now).isoformat() if isinstance(acc.get("created_at"), datetime) else str(acc.get("created_at", "")),
+        })
+    
+    # --- Top jobs by applications ---
+    top_jobs_pipeline = [
+        {"$group": {"_id": "$job_id", "count": {"$sum": 1}}},
+        {"$sort": {"count": -1}},
+        {"$limit": 10}
+    ]
+    top_jobs_raw = await db.job_applications.aggregate(top_jobs_pipeline).to_list(10)
+    top_jobs = []
+    for tj in top_jobs_raw:
+        job = await db.jobs.find_one({"id": tj["_id"]}, {"_id": 0, "title": 1, "company_name": 1, "location": 1})
+        if job:
+            top_jobs.append({**job, "application_count": tj["count"]})
+    
+    return {
+        "monthly_trends": months_data,
+        "jobs_by_industry": [{"name": d["_id"] or "Other", "count": d["count"]} for d in industry_data],
+        "jobs_by_location": [{"name": d["_id"] or "Other", "count": d["count"]} for d in location_data],
+        "jobs_by_work_type": [{"name": d["_id"] or "Other", "count": d["count"]} for d in work_type_data],
+        "jobs_by_job_type": [{"name": d["_id"] or "Other", "count": d["count"]} for d in job_type_data],
+        "applications_by_status": [{"name": d["_id"] or "Other", "count": d["count"]} for d in app_status_data],
+        "onboarding": {
+            "job_seekers": {"completed": onboarded_seekers, "total": total_seekers},
+            "recruiters": {"completed": onboarded_recruiters, "total": total_recruiters},
+        },
+        "accounts_detail": accounts_detail,
+        "top_jobs": top_jobs,
+    }
+
+
 # ============================================
 # AI Matching Endpoints
 # ============================================
