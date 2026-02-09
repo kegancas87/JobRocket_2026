@@ -904,6 +904,178 @@ async def update_profile(
 
 
 # ============================================
+# Onboarding Endpoints
+# ============================================
+
+ONBOARDING_STEP_PROGRESS = {0: 0, 1: 15, 2: 35, 3: 55, 4: 75, 5: 90, 6: 100}
+ONBOARDING_BADGES = {2: "profile_started", 5: "almost_there", 6: "profile_complete"}
+
+@api_router.get("/onboarding/status")
+async def get_onboarding_status(current_user: User = Depends(get_current_user)):
+    """Get current onboarding status"""
+    return {
+        "onboarding_completed": current_user.onboarding_completed,
+        "onboarding_step": current_user.onboarding_step,
+        "onboarding_progress": current_user.onboarding_progress,
+        "badges": getattr(current_user, 'badges', []),
+    }
+
+@api_router.put("/onboarding/step/{step}")
+async def save_onboarding_step(
+    step: int,
+    request: Request,
+    current_user: User = Depends(get_current_user)
+):
+    """Save data for a specific onboarding step"""
+    if step < 0 or step > 6:
+        raise HTTPException(status_code=400, detail="Invalid step number")
+    
+    body = await request.json()
+    progress = ONBOARDING_STEP_PROGRESS.get(step, 0)
+    
+    update_data = {
+        "onboarding_step": max(step, current_user.onboarding_step),
+        "onboarding_progress": max(progress, current_user.onboarding_progress),
+        "updated_at": datetime.utcnow(),
+    }
+    
+    # Add badge if applicable
+    current_badges = list(getattr(current_user, 'badges', []))
+    badge = ONBOARDING_BADGES.get(step)
+    if badge and badge not in current_badges:
+        current_badges.append(badge)
+        update_data["badges"] = current_badges
+    
+    # Step-specific field mappings
+    if step == 1:
+        if "location" in body:
+            update_data["location"] = body["location"]
+    elif step == 2:
+        for field in ["desired_job_title", "years_of_experience", "industry_preference", "employment_type_preference"]:
+            if field in body:
+                update_data[field] = body[field]
+    elif step == 3:
+        for field in ["skills", "seniority_level", "key_strengths"]:
+            if field in body:
+                update_data[field] = body[field]
+    elif step == 4:
+        for field in ["resume_url", "linkedin_url", "desired_salary_range"]:
+            if field in body:
+                update_data[field] = body[field]
+    elif step == 5:
+        for field in ["work_experience", "availability", "notice_period"]:
+            if field in body:
+                update_data[field] = body[field]
+    elif step == 6:
+        for field in ["profile_picture_url", "about_me", "open_to_opportunities", "additional_documents"]:
+            if field in body:
+                update_data[field] = body[field]
+        if step == 6:
+            update_data["onboarding_completed"] = True
+            update_data["onboarding_progress"] = 100
+    
+    await db.users.update_one({"id": current_user.id}, {"$set": update_data})
+    
+    return {
+        "success": True,
+        "step": step,
+        "progress": update_data.get("onboarding_progress", progress),
+        "badges": update_data.get("badges", current_badges),
+    }
+
+@api_router.post("/onboarding/skip")
+async def skip_onboarding(current_user: User = Depends(get_current_user)):
+    """Mark onboarding as skipped"""
+    await db.users.update_one(
+        {"id": current_user.id},
+        {"$set": {"onboarding_completed": True, "updated_at": datetime.utcnow()}}
+    )
+    return {"success": True}
+
+@api_router.post("/uploads/cv")
+async def upload_cv(
+    file: UploadFile = File(...),
+    current_user: User = Depends(get_current_user)
+):
+    """Upload a CV file"""
+    if not file.filename.lower().endswith(('.pdf', '.doc', '.docx')):
+        raise HTTPException(status_code=400, detail="Only PDF, DOC, and DOCX files are allowed")
+    
+    content = await file.read()
+    if len(content) > MAX_FILE_SIZE:
+        raise HTTPException(status_code=400, detail="File too large (max 10MB)")
+    
+    cv_dir = Path(UPLOAD_PATH) / "cvs"
+    cv_dir.mkdir(parents=True, exist_ok=True)
+    
+    ext = Path(file.filename).suffix
+    filename = f"{current_user.id}_cv_{uuid.uuid4().hex[:8]}{ext}"
+    filepath = cv_dir / filename
+    
+    with open(filepath, "wb") as f:
+        f.write(content)
+    
+    file_url = f"/api/uploads/cvs/{filename}"
+    await db.users.update_one({"id": current_user.id}, {"$set": {"resume_url": file_url, "updated_at": datetime.utcnow()}})
+    
+    return {"url": file_url, "filename": file.filename}
+
+@api_router.post("/uploads/profile-picture")
+async def upload_profile_picture(
+    file: UploadFile = File(...),
+    current_user: User = Depends(get_current_user)
+):
+    """Upload a profile picture"""
+    if not file.filename.lower().endswith(('.jpg', '.jpeg', '.png', '.webp')):
+        raise HTTPException(status_code=400, detail="Only JPG, PNG, and WebP images are allowed")
+    
+    content = await file.read()
+    if len(content) > 5 * 1024 * 1024:
+        raise HTTPException(status_code=400, detail="File too large (max 5MB)")
+    
+    pic_dir = Path(UPLOAD_PATH) / "profile_pictures"
+    pic_dir.mkdir(parents=True, exist_ok=True)
+    
+    ext = Path(file.filename).suffix
+    filename = f"{current_user.id}_avatar_{uuid.uuid4().hex[:8]}{ext}"
+    filepath = pic_dir / filename
+    
+    with open(filepath, "wb") as f:
+        f.write(content)
+    
+    file_url = f"/api/uploads/profile_pictures/{filename}"
+    await db.users.update_one({"id": current_user.id}, {"$set": {"profile_picture_url": file_url, "updated_at": datetime.utcnow()}})
+    
+    return {"url": file_url, "filename": file.filename}
+
+@api_router.post("/uploads/document")
+async def upload_document(
+    file: UploadFile = File(...),
+    current_user: User = Depends(get_current_user)
+):
+    """Upload an additional document (certificate, award, etc.)"""
+    if not file.filename.lower().endswith(('.pdf', '.doc', '.docx', '.jpg', '.jpeg', '.png')):
+        raise HTTPException(status_code=400, detail="Unsupported file type")
+    
+    content = await file.read()
+    if len(content) > MAX_FILE_SIZE:
+        raise HTTPException(status_code=400, detail="File too large (max 10MB)")
+    
+    doc_dir = Path(UPLOAD_PATH) / "documents"
+    doc_dir.mkdir(parents=True, exist_ok=True)
+    
+    ext = Path(file.filename).suffix
+    filename = f"{current_user.id}_doc_{uuid.uuid4().hex[:8]}{ext}"
+    filepath = doc_dir / filename
+    
+    with open(filepath, "wb") as f:
+        f.write(content)
+    
+    file_url = f"/api/uploads/documents/{filename}"
+    return {"url": file_url, "filename": file.filename}
+
+
+# ============================================
 # Payment Endpoints (Payfast)
 # ============================================
 
