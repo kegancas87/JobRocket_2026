@@ -99,8 +99,8 @@ Path(UPLOAD_PATH).mkdir(parents=True, exist_ok=True)
 for subdir in ["cvs", "profile_pictures", "documents", "images"]:
     (Path(UPLOAD_PATH) / subdir).mkdir(parents=True, exist_ok=True)
 
-# Mount static files under /api/uploads so K8s ingress can route them
-app.mount("/api/uploads", StaticFiles(directory=UPLOAD_PATH), name="uploads")
+# NOTE: Static files mount is done AFTER router include to avoid shadowing upload POST endpoints
+# See end of file for static file mount
 
 
 # ============================================
