@@ -1557,24 +1557,25 @@ function App() {
     );
   }
 
-  // Check if job seeker needs onboarding
-  const needsOnboarding = user && user.role === 'job_seeker' && !user.onboarding_completed;
+  // Check if user needs onboarding (job seekers and recruiters)
+  const needsOnboarding = user && !user.onboarding_completed && (user.role === 'job_seeker' || user.role === 'recruiter');
 
   const handleOnboardingComplete = () => {
     const updatedUser = { ...user, onboarding_completed: true, onboarding_progress: 100 };
     setUser(updatedUser);
     localStorage.setItem('user', JSON.stringify(updatedUser));
-    setCurrentPage('jobs');
+    setCurrentPage(user.role === 'recruiter' ? 'dashboard' : 'jobs');
   };
 
-  // Show onboarding for job seekers who haven't completed it
+  // Show onboarding for users who haven't completed it
   if (needsOnboarding) {
+    const OnboardingComponent = user.role === 'recruiter' ? RecruiterOnboarding : JobSeekerOnboarding;
     return (
       <div className="App">
         <BrowserRouter>
           <Routes>
             <Route path="/onboarding" element={
-              <JobSeekerOnboarding user={user} onComplete={handleOnboardingComplete} />
+              <OnboardingComponent user={user} onComplete={handleOnboardingComplete} />
             } />
             <Route path="/invitation/:token" element={
               <InvitationPage />
