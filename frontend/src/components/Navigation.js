@@ -16,7 +16,8 @@ import {
   Users,
   Shield,
   Bell,
-  Search
+  Search,
+  CreditCard
 } from "lucide-react";
 
 const Navigation = ({ user, onLogout }) => {
@@ -46,7 +47,7 @@ const Navigation = ({ user, onLogout }) => {
         { name: 'My Jobs', path: '/my-jobs', icon: Building2 },
         { name: 'CV Search', path: '/cv-search', icon: Search },
         { name: 'Applications', path: '/applications', icon: FileText },
-        { name: 'Pricing', path: '/pricing', icon: Banknote },
+        { name: 'Billing', path: '/billing', icon: CreditCard },
         { name: 'Profile', path: '/profile', icon: User }
       ];
     } else if (user?.role === 'admin') {
