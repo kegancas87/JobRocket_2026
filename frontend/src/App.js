@@ -1670,6 +1670,24 @@ function App() {
                 )
               } />
 
+              {/* Billing Page - For Recruiters */}
+              <Route path="/billing" element={
+                user && user.role === 'recruiter' ? (
+                  <BillingPage user={user} />
+                ) : (
+                  <Navigate to="/" replace />
+                )
+              } />
+
+              {/* Settings redirects to billing for recruiters */}
+              <Route path="/settings" element={
+                user && user.role === 'recruiter' ? (
+                  <Navigate to="/billing" replace />
+                ) : (
+                  <Navigate to="/profile" replace />
+                )
+              } />
+
               {/* Payment Result Pages */}
               <Route path="/payment/success" element={
                 <PaymentSuccessPage user={user} />
