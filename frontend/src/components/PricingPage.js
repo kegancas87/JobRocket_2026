@@ -355,7 +355,7 @@ const PricingPage = ({ user }) => {
                     </div>
                     <div className="flex items-center space-x-3">
                       <Check className="w-5 h-5 text-green-600 flex-shrink-0" />
-                      <span className="text-slate-700">{tier.company_profile_level} Company Profile</span>
+                      <span className="text-slate-700">{formatProfileLevel(tier.company_profile_level)} Company Profile</span>
                     </div>
                     
                     {tier.id !== 'starter' && (
