@@ -976,7 +976,7 @@ async def initiate_subscription_payment(
 
 @api_router.post("/payments/webhook")
 async def payment_webhook(request: Request):
-    """Handle Payfast payment notification"""
+    """Handle Payfast payment notification for all payment types"""
     
     form_data = await request.form()
     data = dict(form_data)
@@ -992,29 +992,18 @@ async def payment_webhook(request: Request):
         return {"status": "error", "message": "Payment not found"}
     
     if payment_status == "COMPLETE":
-        # Update payment status
-        await db.payments.update_one(
-            {"id": payment_id},
-            {"$set": {
-                "status": PaymentStatus.COMPLETED,
-                "provider_reference": data.get("pf_payment_id"),
-                "completed_at": datetime.utcnow()
-            }}
+        # Use billing service to complete payment (handles all types)
+        success, result = await billing_service.complete_payment(
+            payment_id,
+            data.get("pf_payment_id", "")
         )
         
-        # Activate subscription
-        if payment.get("tier_id"):
-            await account_service.activate_subscription(
-                payment["account_id"],
-                TierId(payment["tier_id"])
-            )
+        if not success:
+            logger.error(f"Failed to complete payment {payment_id}")
     else:
-        await db.payments.update_one(
-            {"id": payment_id},
-            {"$set": {
-                "status": PaymentStatus.FAILED,
-                "failure_reason": data.get("payment_status")
-            }}
+        await billing_service.fail_payment(
+            payment_id,
+            data.get("payment_status", "Unknown error")
         )
     
     return {"status": "ok"}
