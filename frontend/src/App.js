@@ -1555,6 +1555,35 @@ function App() {
     );
   }
 
+  // Check if job seeker needs onboarding
+  const needsOnboarding = user && user.role === 'job_seeker' && !user.onboarding_completed;
+
+  const handleOnboardingComplete = () => {
+    const updatedUser = { ...user, onboarding_completed: true, onboarding_progress: 100 };
+    setUser(updatedUser);
+    localStorage.setItem('user', JSON.stringify(updatedUser));
+    setCurrentPage('jobs');
+  };
+
+  // Show onboarding for job seekers who haven't completed it
+  if (needsOnboarding) {
+    return (
+      <div className="App">
+        <BrowserRouter>
+          <Routes>
+            <Route path="/onboarding" element={
+              <JobSeekerOnboarding user={user} onComplete={handleOnboardingComplete} />
+            } />
+            <Route path="/invitation/:token" element={
+              <InvitationPage />
+            } />
+            <Route path="*" element={<Navigate to="/onboarding" replace />} />
+          </Routes>
+        </BrowserRouter>
+      </div>
+    );
+  }
+
   return (
     <div className="App">
       <BrowserRouter>
