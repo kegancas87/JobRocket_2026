@@ -1639,6 +1639,35 @@ function App() {
                   user={user}
                 />
               } />
+
+              {/* Account Dashboard - Admin Only */}
+              <Route path="/account" element={
+                user && user.role === 'admin' ? (
+                  <AccountDashboard 
+                    user={user}
+                    onUpdateUser={handleUpdateUser}
+                  />
+                ) : (
+                  <div className="min-h-screen bg-slate-50 flex items-center justify-center">
+                    <div className="text-center">
+                      <h1 className="text-2xl font-bold text-slate-900 mb-4">Access Denied</h1>
+                      <p className="text-slate-600 mb-4">Only administrators can access the account dashboard.</p>
+                      <Button onClick={() => window.location.href = '/'} className="bg-blue-600 hover:bg-blue-700">
+                        Return to Home
+                      </Button>
+                    </div>
+                  </div>
+                )
+              } />
+
+              {/* Payment Result Pages */}
+              <Route path="/payment/success" element={
+                <PaymentSuccessPage user={user} />
+              } />
+              
+              <Route path="/payment/cancel" element={
+                <PaymentCancelPage user={user} />
+              } />
               
               <Route path="/admin" element={
                 user && user.role === 'admin' ? (
