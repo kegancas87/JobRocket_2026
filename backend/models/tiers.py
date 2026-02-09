@@ -22,10 +22,10 @@ TIER_CONFIG = {
         "multi_user_access": False,
         "role_based_permissions": False,
         "company_profile_level": CompanyProfileLevel.BASIC,
+        "job_post_limit": 30,  # 30 posts per month
         "features": [
             FeatureId.ACCOUNT_RECRUITER_ACCOUNT,
             FeatureId.ACCOUNT_COMPANY_PROFILE,
-            FeatureId.JOB_UNLIMITED_POSTS,
             FeatureId.JOB_DURATION_35_DAYS,
             FeatureId.CANDIDATE_APPLICANT_INBOX,
             FeatureId.TALENT_CONTACT_ACCESS,
