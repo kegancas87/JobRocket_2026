@@ -348,7 +348,9 @@ const PricingPage = ({ user }) => {
                   <div className="space-y-3 mb-6">
                     <div className="flex items-center space-x-3">
                       <Check className="w-5 h-5 text-green-600 flex-shrink-0" />
-                      <span className="text-slate-700">Unlimited Job Posts</span>
+                      <span className="text-slate-700">
+                        {tier.job_post_limit ? `${tier.job_post_limit} Job Posts/month` : 'Unlimited Job Posts'}
+                      </span>
                     </div>
                     <div className="flex items-center space-x-3">
                       <Check className="w-5 h-5 text-green-600 flex-shrink-0" />
