@@ -265,7 +265,7 @@ const PricingPage = ({ user }) => {
           </h1>
           <p className="text-lg sm:text-xl text-slate-600 max-w-3xl mx-auto">
             Unlock powerful recruitment tools to find the perfect candidates. 
-            All plans include unlimited job posts and 35-day job durations.
+            All plans include 35-day job durations. Growth and above get unlimited posting.
           </p>
           
           {/* Current Plan Indicator */}
