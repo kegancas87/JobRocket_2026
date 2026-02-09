@@ -910,7 +910,9 @@ async def update_profile(
 # ============================================
 
 ONBOARDING_STEP_PROGRESS = {0: 0, 1: 15, 2: 35, 3: 55, 4: 75, 5: 90, 6: 100}
+RECRUITER_STEP_PROGRESS = {0: 0, 1: 20, 2: 40, 3: 60, 4: 80, 5: 90, 6: 100}
 ONBOARDING_BADGES = {2: "profile_started", 5: "almost_there", 6: "profile_complete"}
+RECRUITER_BADGES = {1: "company_live", 3: "sourcing_ready", 6: "ready_to_hire"}
 
 @api_router.get("/onboarding/status")
 async def get_onboarding_status(current_user: User = Depends(get_current_user)):
