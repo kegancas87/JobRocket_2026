@@ -67,6 +67,15 @@ const PricingPage = ({ user }) => {
     }
   };
 
+  const formatProfileLevel = (level) => {
+    if (!level) return 'Basic';
+    return level
+      .replace(/_/g, ' ')
+      .split(' ')
+      .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+      .join(' ');
+  };
+
   const fetchCurrentAccount = async () => {
     try {
       const response = await axios.get(`${API}/account`, getAuthHeaders());
