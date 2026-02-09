@@ -1,7 +1,7 @@
 # JobRocket - Product Requirements Document
 
-> **Last Updated**: December 2025
-> **Version**: 2.0.0 (Multi-tenant SaaS Architecture)
+> **Last Updated**: February 2026
+> **Version**: 2.1.0 (P1 Features Complete)
 
 ---
 
@@ -30,18 +30,18 @@ JobRocket is a B2B SaaS recruitment platform targeting recruiters, businesses, a
 
 ---
 
-## Architecture (v2.0.0)
+## Architecture (v2.1.0)
 
 ### Multi-Tenant Model
 
 ```
 Account (Tenant)
-├── Owner User (account_role: owner)
-├── Team Members (account_role: admin/recruiter/viewer)
-├── Subscription (tier_id: starter/growth/pro/enterprise)
-├── Add-ons (purchased features)
-├── Jobs (posted by team members)
-└── Applications (received from job seekers)
+- Owner User (account_role: owner)
+- Team Members (account_role: admin/recruiter/viewer)
+- Subscription (tier_id: starter/growth/pro/enterprise)
+- Add-ons (purchased features)
+- Jobs (posted by team members)
+- Applications (received from job seekers)
 ```
 
 ### Tech Stack
@@ -51,6 +51,7 @@ Account (Tenant)
 - **Database**: MongoDB
 - **Payments**: Payfast (primary), Stripe (future)
 - **Auth**: JWT with role-based access
+- **AI**: OpenAI GPT-5.2 via emergentintegrations (with kill switch)
 
 ### Key Collections
 
@@ -84,7 +85,7 @@ Account (Tenant)
 
 ## What's Been Implemented
 
-### Phase 1: Multi-Tenant Core ✅ (December 2025)
+### Phase 1: Multi-Tenant Core (December 2025)
 
 - [x] New database schema for accounts, tiers, add-ons
 - [x] Account auto-creation on recruiter signup
@@ -95,95 +96,91 @@ Account (Tenant)
 - [x] Updated auth flow with account context
 - [x] User invitation system
 - [x] Demo data seeding script
-- [x] API endpoints:
-  - `/api/tiers` - List subscription tiers
-  - `/api/account` - Get/update account
-  - `/api/account/users` - List account users
-  - `/api/account/invite` - Invite team member
-  - `/api/addons` - Available add-ons
-  - All job CRUD endpoints
-  - All application endpoints
 
-### Phase 2: Frontend & Payments ✅ (December 2025)
+### Phase 2: P0 - Frontend & Payments (December 2025)
 
-- [x] **Pricing Page** - New 4-tier pricing with feature comparison
-  - Displays all tiers with prices, user counts, features
-  - Most Popular badge for Pro tier
-  - Subscribe buttons initiate Payfast payment
-  - Feature comparison table
-  - Public access (no login required)
-  
-- [x] **Admin Account Dashboard** - Admin-only view of all accounts
-  - Stats: Total Accounts, Users, Jobs, Monthly Revenue
-  - Tier distribution cards
-  - Accounts list with filtering and search
-  - Access restricted to admin users only
-  
+- [x] **Pricing Page** - 4-tier pricing with feature comparison
+- [x] **Admin Account Dashboard** - Stats, tier distribution, account list
 - [x] **Payment Result Pages** - Success and Cancel pages
-  - Payment success page with confirmation
-  - Payment cancel page with retry option
-  - Public access (no login required for redirect from Payfast)
-  
-- [x] **Payfast Integration** - Complete subscription payment flow
-  - Generates payment with correct tier amount
-  - Signature generation for security
-  - Return/Cancel URLs use BASE_URL from environment
-  - Webhook endpoint for payment notifications
+- [x] **Payfast Integration** - Subscription payment flow (sandbox)
 
-### Reference Documents Created
+### Phase 3: P1 Features (February 2026)
 
-- `/app/memory/FEATURES.md` - Complete feature definitions
-- `/app/memory/TIERS.md` - Tier configuration reference
-- `/app/backend/models/` - New model architecture
-- `/app/backend/services/` - Business logic services
+- [x] **Billing Page** (`/billing`) - Full customer billing management
+  - Overview tab: Current plan, monthly charges, user seats
+  - Add-ons tab: View active add-ons, purchase new ones
+  - Users tab: View/purchase/cancel extra user seats
+  - History tab: Payment history with status badges
+  - Payfast redirect for add-on and seat purchases
+
+- [x] **Bulk Job Upload** (`/bulk-upload`) - Pro+ tier feature
+  - Drag & drop file upload for CSV and Excel (.xlsx)
+  - Template download (CSV and Excel formats)
+  - Upload results with success/failure counts and error details
+  - Feature-gated: Navigation link hidden for non-Pro tiers
+  - API returns 403 for unauthorized tier access
+
+- [x] **CV Search AI Indicator** - Shows matching method on CV Search page
+  - Purple badge when AI matching is active
+  - Gray badge when using keyword matching
+  - Non-admin API endpoint for recruiter access
+
+- [x] **Admin Stats Caching** - Cached analytics for admin dashboard
+  - Refreshes every 12 hours (6am/6pm SAST)
+  - Includes revenue, user counts, tier distribution
+
+- [x] **AI Matching Kill Switch** - Admin can toggle AI on/off
+  - POST /api/admin/ai-matching/toggle endpoint
+  - Falls back to keyword matching when disabled
+  - Status visible to all recruiters on CV Search page
 
 ---
 
 ## Backlog / Roadmap
 
-### P1 - High Priority (Next)
+### P2 - Medium Priority (User to reprioritize)
 
-3. **Feature Implementation**
-   - Bulk job upload (Pro+)
+1. **Feature Implementation**
    - Applicant filtering (Growth+)
    - Applicant status tracking (Growth+)
    - CV database/talent pool (Growth+)
    - Export candidates CSV (Growth+)
 
-4. **AI Features**
+2. **AI Features**
    - AI match scoring (Growth+)
    - Auto-ranked candidates (Growth+)
    - Skills matching (Growth+)
 
-### P2 - Medium Priority
-
-5. **Analytics**
+3. **Analytics**
    - Job performance metrics (Growth+)
    - Applicant conversion rates (Pro+)
    - Monthly hiring reports (Pro+)
 
-6. **Distribution**
+4. **Distribution**
    - Email distribution (Growth+)
    - WhatsApp distribution (add-on)
    - Social media distribution (add-on)
 
-7. **Employer Branding**
+5. **Employer Branding**
    - Enhanced company profiles by tier
    - Featured job listings
    - Employer video support
 
 ### P3 - Future
 
-8. **Enterprise Features**
+6. **Enterprise Features**
    - Role-based permissions
    - API access
    - Custom listing styling
    - White-label branding
 
-9. **Integrations**
+7. **Integrations**
    - ATS export
    - Stripe payments
    - Calendar integration
+
+8. **Job Seeker Monetization**
+   - Paid features for job seekers (user requested later)
 
 ---
 
@@ -211,7 +208,7 @@ Account (Tenant)
 ## API Reference
 
 ### Authentication
-- `POST /api/auth/register` - Register user (auto-creates account for recruiters)
+- `POST /api/auth/register` - Register user
 - `POST /api/auth/login` - Login
 - `GET /api/auth/me` - Get current user with account details
 
@@ -233,13 +230,33 @@ Account (Tenant)
 - `PUT /api/jobs/{id}` - Update job
 - `DELETE /api/jobs/{id}` - Delete job
 - `GET /api/public/jobs` - Public job listings
-- `GET /api/public/jobs/{id}` - Public job detail
+- `POST /api/jobs/bulk` - Bulk upload jobs (Pro+)
+- `GET /api/jobs/bulk/template` - Download bulk upload template
 
 ### Applications
-- `POST /api/applications` - Apply to job (job seekers)
+- `POST /api/applications` - Apply to job
 - `GET /api/applications` - Get applications
 - `GET /api/jobs/{id}/applications` - Get job applications
-- `PUT /api/applications/{id}/status` - Update status (requires feature)
+- `PUT /api/applications/{id}/status` - Update status
+
+### Billing
+- `GET /api/billing` - Billing summary for account
+- `GET /api/billing/history` - Payment history
+- `POST /api/billing/addon` - Purchase add-on
+- `DELETE /api/billing/addon/{id}` - Cancel add-on
+- `POST /api/billing/extra-seats` - Purchase extra seats
+- `GET /api/billing/extra-seats` - List extra seats
+- `DELETE /api/billing/extra-seats/{id}` - Cancel seat
+
+### AI Matching
+- `GET /api/ai-matching/status` - Get AI matching status (any user)
+- `GET /api/admin/ai-matching/status` - Get AI matching status (admin)
+- `POST /api/admin/ai-matching/toggle` - Toggle AI on/off (admin)
+- `POST /api/cv-search/match` - Match candidates to job
+- `GET /api/cv-search` - Search candidates
+
+### Admin
+- `GET /api/admin/stats` - Cached system-wide statistics
 
 ### Payments
 - `POST /api/payments/subscription` - Initiate subscription payment
@@ -249,7 +266,9 @@ Account (Tenant)
 
 ## Notes
 
-- MongoDB is used (not MySQL) - compatible with Render hosting
-- Payfast is in sandbox mode - switch to production for live payments
-- Feature gating is implemented at API level - frontend should also hide unavailable features
-- All demo accounts have active subscriptions for testing
+- MongoDB is used (not MySQL)
+- Payfast is in sandbox mode
+- Feature gating at API level + UI level (nav links hidden)
+- AI matching has kill switch (env var + admin endpoint)
+- Billing uses recurring monthly payments via Payfast
+- User seat policy: cancelled seats stay active until billing period ends
