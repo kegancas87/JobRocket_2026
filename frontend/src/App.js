@@ -1,11 +1,12 @@
 import React, { useState, useEffect } from "react";
 import "./App.css";
-import { BrowserRouter, Routes, Route, Navigate, useParams } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate, useParams, useSearchParams, useNavigate } from "react-router-dom";
 import axios from "axios";
 import { LoginPage, RegisterPage } from "./components/AuthPages";
 import ProfileDashboard from "./components/ProfileDashboard";
 import RecruiterDashboard from "./components/RecruiterDashboard";
 import AdminDashboard from "./components/AdminDashboard";
+import AccountDashboard from "./components/AccountDashboard";
 import InvitationPage from "./components/InvitationPage";
 import PricingPage from "./components/PricingPage";
 import MyApplications from "./components/MyApplications";
