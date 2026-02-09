@@ -18,7 +18,8 @@ import {
   Bell,
   Search,
   CreditCard,
-  FileSpreadsheet
+  FileSpreadsheet,
+  BarChart3
 } from "lucide-react";
 
 const Navigation = ({ user, onLogout }) => {
