@@ -392,7 +392,29 @@ const RegisterPage = ({ onRegister, onSwitchToLogin }) => {
             </Button>
           </form>
           
-          <div className="mt-8">
+          <div className="mt-6">
+            <div className="relative">
+              <div className="absolute inset-0 flex items-center">
+                <Separator />
+              </div>
+              <div className="relative flex justify-center text-sm">
+                <span className="bg-white px-4 text-slate-500">or register with</span>
+              </div>
+            </div>
+            
+            <div className="mt-4 flex justify-center" data-testid="google-register-btn">
+              <GoogleLogin
+                onSuccess={(credentialResponse) => handleGoogleSuccess(credentialResponse, onRegister, setError, setLoading, formData.role)}
+                onError={() => setError('Google registration failed')}
+                text="signup_with"
+                shape="rectangular"
+                width="360"
+                logo_alignment="center"
+              />
+            </div>
+          </div>
+          
+          <div className="mt-6">
             <div className="relative">
               <div className="absolute inset-0 flex items-center">
                 <Separator />
