@@ -16,10 +16,31 @@ import {
   Zap,
   Briefcase
 } from "lucide-react";
+import { GoogleLogin } from '@react-oauth/google';
 import axios from 'axios';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
+
+// REMINDER: DO NOT HARDCODE THE URL, OR ADD ANY FALLBACKS OR REDIRECT URLS, THIS BREAKS THE AUTH
+const handleGoogleSuccess = async (credentialResponse, onAuth, setError, setLoading, role, companyName) => {
+  setLoading(true);
+  setError('');
+  try {
+    const response = await axios.post(`${API}/auth/google`, {
+      credential: credentialResponse.credential,
+      role: role || 'job_seeker',
+      company_name: companyName || undefined,
+    });
+    localStorage.setItem('token', response.data.access_token);
+    localStorage.setItem('user', JSON.stringify(response.data.user));
+    onAuth(response.data.user);
+  } catch (error) {
+    setError(error.response?.data?.detail || 'Google authentication failed');
+  } finally {
+    setLoading(false);
+  }
+};
 
 const LoginPage = ({ onLogin, onSwitchToRegister }) => {
   const [formData, setFormData] = useState({
