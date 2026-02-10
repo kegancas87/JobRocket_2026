@@ -1392,6 +1392,229 @@ async def get_admin_analytics(current_user: User = Depends(verify_admin_user)):
 
 
 # ============================================
+# Admin Account Management Endpoints
+# ============================================
+
+@api_router.get("/admin/accounts/{account_id}")
+async def admin_get_account(account_id: str, current_user: User = Depends(verify_admin_user)):
+    """Get detailed account info for admin management"""
+    account = await db.accounts.find_one({"id": account_id}, {"_id": 0})
+    if not account:
+        raise HTTPException(status_code=404, detail="Account not found")
+    
+    tier_config = get_tier_config(TierId(account.get("tier_id", "starter")))
+    owner = await db.users.find_one({"id": account.get("owner_user_id", "")}, {"_id": 0, "email": 1, "first_name": 1, "last_name": 1})
+    job_count = await db.jobs.count_documents({"account_id": account_id})
+    
+    # Get active addons
+    addons = []
+    async for addon in db.account_addons.find({"account_id": account_id, "is_active": True}, {"_id": 0}):
+        addons.append(addon)
+    
+    # Get audit log
+    audit_log = []
+    async for log in db.admin_audit_log.find({"account_id": account_id}, {"_id": 0}).sort("created_at", -1).limit(50):
+        if isinstance(log.get("created_at"), datetime):
+            log["created_at"] = log["created_at"].isoformat()
+        audit_log.append(log)
+    
+    return {
+        **account,
+        "tier_name": tier_config["name"],
+        "tier_price": tier_config["price_monthly"],
+        "owner": owner,
+        "job_count": job_count,
+        "active_addons": addons,
+        "credit_balance": account.get("credit_balance", 0),
+        "audit_log": audit_log,
+    }
+
+async def _admin_audit(account_id: str, admin_id: str, action: str, details: dict):
+    """Log an admin action to the audit trail"""
+    await db.admin_audit_log.insert_one({
+        "id": str(uuid.uuid4()),
+        "account_id": account_id,
+        "admin_user_id": admin_id,
+        "action": action,
+        "details": details,
+        "created_at": datetime.utcnow(),
+    })
+
+@api_router.put("/admin/accounts/{account_id}/tier")
+async def admin_change_tier(
+    account_id: str,
+    request: Request,
+    current_user: User = Depends(verify_admin_user)
+):
+    """Change an account's subscription tier"""
+    body = await request.json()
+    new_tier_id = body.get("tier_id")
+    reason = body.get("reason", "Admin override")
+    
+    if new_tier_id not in ["starter", "growth", "pro", "enterprise"]:
+        raise HTTPException(status_code=400, detail="Invalid tier ID")
+    
+    account = await db.accounts.find_one({"id": account_id})
+    if not account:
+        raise HTTPException(status_code=404, detail="Account not found")
+    
+    old_tier = account.get("tier_id", "starter")
+    new_tier_config = get_tier_config(TierId(new_tier_id))
+    
+    await db.accounts.update_one({"id": account_id}, {"$set": {
+        "tier_id": new_tier_id,
+        "subscription_status": "active",
+        "subscription_start_date": datetime.utcnow(),
+        "subscription_end_date": datetime.utcnow() + timedelta(days=30),
+        "updated_at": datetime.utcnow(),
+    }})
+    
+    await _admin_audit(account_id, current_user.id, "tier_change", {
+        "old_tier": old_tier, "new_tier": new_tier_id, "reason": reason
+    })
+    
+    return {"success": True, "message": f"Tier changed from {old_tier} to {new_tier_id}", "tier_id": new_tier_id}
+
+@api_router.post("/admin/accounts/{account_id}/addon")
+async def admin_grant_addon(
+    account_id: str,
+    request: Request,
+    current_user: User = Depends(verify_admin_user)
+):
+    """Grant an add-on feature to an account for free"""
+    body = await request.json()
+    addon_id = body.get("addon_id")
+    reason = body.get("reason", "Admin grant")
+    
+    account = await db.accounts.find_one({"id": account_id})
+    if not account:
+        raise HTTPException(status_code=404, detail="Account not found")
+    
+    addon_config = None
+    for aid, cfg in ADDON_CONFIG.items():
+        if aid.value == addon_id:
+            addon_config = cfg
+            break
+    
+    if not addon_config:
+        raise HTTPException(status_code=400, detail="Invalid add-on ID")
+    
+    # Check if already active
+    existing = await db.account_addons.find_one({"account_id": account_id, "addon_id": addon_id, "is_active": True})
+    if existing:
+        raise HTTPException(status_code=400, detail="Add-on already active on this account")
+    
+    addon_doc = {
+        "id": str(uuid.uuid4()),
+        "account_id": account_id,
+        "addon_id": addon_id,
+        "feature_id": addon_config["feature_id"].value,
+        "purchased_date": datetime.utcnow(),
+        "expires_date": datetime.utcnow() + timedelta(days=365),
+        "is_active": True,
+        "price_paid": 0,
+        "payment_id": None,
+        "admin_granted": True,
+    }
+    await db.account_addons.insert_one(addon_doc)
+    
+    await _admin_audit(account_id, current_user.id, "addon_grant", {
+        "addon_id": addon_id, "addon_name": addon_config["name"], "reason": reason
+    })
+    
+    return {"success": True, "message": f"Add-on '{addon_config['name']}' granted", "addon_id": addon_id}
+
+@api_router.delete("/admin/accounts/{account_id}/addon/{addon_purchase_id}")
+async def admin_revoke_addon(
+    account_id: str,
+    addon_purchase_id: str,
+    current_user: User = Depends(verify_admin_user)
+):
+    """Revoke an add-on from an account"""
+    result = await db.account_addons.update_one(
+        {"id": addon_purchase_id, "account_id": account_id},
+        {"$set": {"is_active": False, "updated_at": datetime.utcnow()}}
+    )
+    if result.modified_count == 0:
+        raise HTTPException(status_code=404, detail="Add-on not found")
+    
+    await _admin_audit(account_id, current_user.id, "addon_revoke", {"addon_purchase_id": addon_purchase_id})
+    return {"success": True, "message": "Add-on revoked"}
+
+@api_router.post("/admin/accounts/{account_id}/seats")
+async def admin_add_seats(
+    account_id: str,
+    request: Request,
+    current_user: User = Depends(verify_admin_user)
+):
+    """Add extra user seats to an account for free"""
+    body = await request.json()
+    quantity = body.get("quantity", 1)
+    reason = body.get("reason", "Admin grant")
+    
+    if quantity < 1 or quantity > 50:
+        raise HTTPException(status_code=400, detail="Quantity must be between 1 and 50")
+    
+    account = await db.accounts.find_one({"id": account_id})
+    if not account:
+        raise HTTPException(status_code=404, detail="Account not found")
+    
+    current_extra = account.get("extra_users_count", 0)
+    await db.accounts.update_one({"id": account_id}, {"$set": {
+        "extra_users_count": current_extra + quantity,
+        "updated_at": datetime.utcnow(),
+    }})
+    
+    await _admin_audit(account_id, current_user.id, "seats_added", {
+        "quantity": quantity, "previous_extra": current_extra, "reason": reason
+    })
+    
+    return {"success": True, "message": f"{quantity} seat(s) added", "total_extra_seats": current_extra + quantity}
+
+@api_router.post("/admin/accounts/{account_id}/credits")
+async def admin_add_credits(
+    account_id: str,
+    request: Request,
+    current_user: User = Depends(verify_admin_user)
+):
+    """Add credit balance to an account"""
+    body = await request.json()
+    amount = body.get("amount", 0)
+    reason = body.get("reason", "Admin credit")
+    
+    if amount <= 0 or amount > 1000000:
+        raise HTTPException(status_code=400, detail="Amount must be between R1 and R1,000,000")
+    
+    account = await db.accounts.find_one({"id": account_id})
+    if not account:
+        raise HTTPException(status_code=404, detail="Account not found")
+    
+    current_balance = account.get("credit_balance", 0)
+    new_balance = current_balance + amount
+    
+    await db.accounts.update_one({"id": account_id}, {"$set": {
+        "credit_balance": new_balance,
+        "updated_at": datetime.utcnow(),
+    }})
+    
+    await _admin_audit(account_id, current_user.id, "credit_added", {
+        "amount": amount, "previous_balance": current_balance, "new_balance": new_balance, "reason": reason
+    })
+    
+    return {"success": True, "message": f"R{amount:,.0f} credited", "credit_balance": new_balance}
+
+@api_router.get("/admin/accounts/{account_id}/audit-log")
+async def admin_get_audit_log(account_id: str, current_user: User = Depends(verify_admin_user)):
+    """Get audit log for an account"""
+    logs = []
+    async for log in db.admin_audit_log.find({"account_id": account_id}, {"_id": 0}).sort("created_at", -1).limit(100):
+        if isinstance(log.get("created_at"), datetime):
+            log["created_at"] = log["created_at"].isoformat()
+        logs.append(log)
+    return {"logs": logs}
+
+
+# ============================================
 # AI Matching Endpoints
 # ============================================
 
