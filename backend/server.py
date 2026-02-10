@@ -296,7 +296,97 @@ async def login(login_data: UserLogin):
     )
 
 
-@api_router.get("/auth/me")
+@api_router.post("/auth/google")
+async def google_auth(request: Request):
+    """Authenticate or register via Google OAuth"""
+    from google.oauth2 import id_token
+    from google.auth.transport import requests as google_requests
+    
+    body = await request.json()
+    credential = body.get("credential")
+    role = body.get("role", "job_seeker")
+    company_name = body.get("company_name")
+    
+    if not credential:
+        raise HTTPException(status_code=400, detail="Missing Google credential")
+    
+    # REMINDER: DO NOT HARDCODE THE URL, OR ADD ANY FALLBACKS OR REDIRECT URLS, THIS BREAKS THE AUTH
+    try:
+        idinfo = id_token.verify_oauth2_token(credential, google_requests.Request(), GOOGLE_CLIENT_ID)
+    except Exception as e:
+        logger.error(f"Google token verification failed: {e}")
+        raise HTTPException(status_code=401, detail="Invalid Google token")
+    
+    google_email = idinfo.get("email")
+    if not google_email:
+        raise HTTPException(status_code=400, detail="Google account has no email")
+    
+    # Check if user exists
+    existing_user = await db.users.find_one({"email": google_email})
+    
+    if existing_user:
+        # Login existing user
+        await db.users.update_one(
+            {"id": existing_user["id"]},
+            {"$set": {"last_login": datetime.utcnow(), "profile_picture_url": existing_user.get("profile_picture_url") or idinfo.get("picture")}}
+        )
+        access_token = create_access_token(data={"sub": existing_user["id"]})
+        if "_id" in existing_user:
+            del existing_user["_id"]
+        if "password_hash" in existing_user:
+            del existing_user["password_hash"]
+        return Token(access_token=access_token, token_type="bearer", user=existing_user)
+    
+    # Register new user
+    first_name = idinfo.get("given_name", google_email.split("@")[0])
+    last_name = idinfo.get("family_name", "")
+    picture_url = idinfo.get("picture")
+    
+    # Create a random password hash for Google users (they won't use password login)
+    random_password_hash = get_password_hash(secrets.token_urlsafe(32))
+    
+    new_user = User(
+        email=google_email,
+        password_hash=random_password_hash,
+        first_name=first_name,
+        last_name=last_name,
+        role=UserRole(role) if role in [r.value for r in UserRole] else UserRole.JOB_SEEKER,
+        profile_picture_url=picture_url,
+        created_at=datetime.utcnow(),
+        updated_at=datetime.utcnow(),
+        last_login=datetime.utcnow(),
+    )
+    
+    user_dict = new_user.dict()
+    user_dict["google_id"] = idinfo.get("sub")
+    user_dict["auth_provider"] = "google"
+    
+    # For recruiters, create account
+    if new_user.role == UserRole.RECRUITER:
+        account_name = company_name or f"{first_name}'s Company"
+        new_account = Account(
+            name=account_name,
+            owner_user_id=new_user.id,
+            tier_id=TierId.STARTER,
+            subscription_status=SubscriptionStatus.ACTIVE,
+            subscription_start_date=datetime.utcnow(),
+            subscription_end_date=datetime.utcnow() + timedelta(days=30),
+        )
+        await db.accounts.insert_one(new_account.dict())
+        user_dict["account_id"] = new_account.id
+        user_dict["account_role"] = AccountRole.OWNER.value
+    
+    await db.users.insert_one(user_dict)
+    
+    access_token = create_access_token(data={"sub": new_user.id})
+    
+    # Clean response
+    if "_id" in user_dict:
+        del user_dict["_id"]
+    if "password_hash" in user_dict:
+        del user_dict["password_hash"]
+    
+    return Token(access_token=access_token, token_type="bearer", user=user_dict)
 async def get_me(current_user: User = Depends(get_current_user)):
     """Get current user profile with account details"""
     
