@@ -8,6 +8,7 @@ import RecruiterDashboard from "./components/RecruiterDashboard";
 import AdminDashboard from "./components/AdminDashboard";
 import AccountDashboard from "./components/AccountDashboard";
 import AnalyticsDashboard from "./components/AnalyticsDashboard";
+import AdminAccountManager from "./components/AdminAccountManager";
 import BillingPage from "./components/BillingPage";
 import BulkUploadPage from "./components/BulkUploadPage";
 import JobSeekerOnboarding from "./components/JobSeekerOnboarding";
