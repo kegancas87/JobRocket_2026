@@ -159,7 +159,29 @@ const LoginPage = ({ onLogin, onSwitchToRegister }) => {
             </Button>
           </form>
           
-          <div className="mt-8">
+          <div className="mt-6">
+            <div className="relative">
+              <div className="absolute inset-0 flex items-center">
+                <Separator />
+              </div>
+              <div className="relative flex justify-center text-sm">
+                <span className="bg-white px-4 text-slate-500">or continue with</span>
+              </div>
+            </div>
+            
+            <div className="mt-4 flex justify-center" data-testid="google-login-btn">
+              <GoogleLogin
+                onSuccess={(credentialResponse) => handleGoogleSuccess(credentialResponse, onLogin, setError, setLoading)}
+                onError={() => setError('Google login failed')}
+                text="signin_with"
+                shape="rectangular"
+                width="360"
+                logo_alignment="center"
+              />
+            </div>
+          </div>
+          
+          <div className="mt-6">
             <div className="relative">
               <div className="absolute inset-0 flex items-center">
                 <Separator />
