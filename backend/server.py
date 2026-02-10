@@ -70,6 +70,10 @@ BASE_URL = os.environ.get('BASE_URL', 'https://jobrocket.co.za')
 UPLOAD_PATH = os.environ.get('UPLOAD_PATH', str(ROOT_DIR / 'uploads'))
 MAX_FILE_SIZE = int(os.environ.get('MAX_FILE_SIZE', '10485760'))
 
+# Google OAuth Configuration
+GOOGLE_CLIENT_ID = os.environ.get('GOOGLE_CLIENT_ID')
+GOOGLE_CLIENT_SECRET = os.environ.get('GOOGLE_CLIENT_SECRET')
+
 # MongoDB connection
 mongo_url = os.environ['MONGO_URL']
 client = AsyncIOMotorClient(mongo_url)
