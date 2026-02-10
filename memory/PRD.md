@@ -59,6 +59,17 @@ JobRocket is a B2B SaaS recruitment platform targeting recruiters, businesses, a
   - Collapsible sections for drill-down
 - [x] **Starter tier job limit**: 30 posts/month (Growth+ unlimited)
 
+### Phase 7: Admin Account Management (Feb 2026)
+- [x] **Account Management Page** (`/manage-accounts`) - Admin only
+  - Account list with search, tier badges, owner email
+  - Account detail panel: MRR, Users, Jobs, Credit Balance
+  - **Change Tier**: Override account subscription tier (Starter/Growth/Pro/Enterprise)
+  - **Grant Add-on**: Activate any of the 12 add-on features for free (1 year expiry)
+  - **Revoke Add-on**: Deactivate granted add-ons
+  - **Add Seats**: Grant extra user seats without payment
+  - **Add Credits**: Top up account credit balance (for testing or goodwill)
+  - **Audit Trail**: Full log of all admin actions per account with timestamps and reasons
+
 ### Phase 4: Job Seeker Onboarding (Feb 2026)
 - [x] 7-step gamified wizard (Welcome, Location, Professional, Skills, CV Upload, Experience, Profile Boost)
 - [x] Progress bar 0-100%, 3 badges, confetti, skip/resume, file uploads
