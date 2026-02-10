@@ -1796,6 +1796,14 @@ function App() {
                   <Navigate to="/" replace />
                 )
               } />
+
+              <Route path="/manage-accounts" element={
+                user && user.role === 'admin' ? (
+                  <AdminAccountManager user={user} />
+                ) : (
+                  <Navigate to="/" replace />
+                )
+              } />
               
               <Route path="*" element={<Navigate to="/" replace />} />
             </Routes>
