@@ -1094,21 +1094,35 @@ const ProfileDashboard = ({ user, onUpdateUser }) => {
                               id="alert_location"
                               value={newJobAlert.location}
                               onChange={(e) => setNewJobAlert(prev => ({ ...prev, location: e.target.value }))}
-                              placeholder="e.g., Cape Town, Remote"
+                              placeholder="e.g., Cape Town, Johannesburg"
                               required
                             />
                           </div>
                           <div className="space-y-2">
-                            <Label htmlFor="alert_work_type">Work Type</Label>
+                            <Label htmlFor="alert_employment_type">Employment Type</Label>
                             <select
-                              id="alert_work_type"
-                              value={newJobAlert.work_type}
-                              onChange={(e) => setNewJobAlert(prev => ({ ...prev, work_type: e.target.value }))}
+                              id="alert_employment_type"
+                              value={newJobAlert.employment_type}
+                              onChange={(e) => setNewJobAlert(prev => ({ ...prev, employment_type: e.target.value }))}
                               className="w-full px-3 py-2 border border-slate-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                               required
                             >
                               <option value="Permanent">Permanent</option>
                               <option value="Contract">Contract</option>
+                            </select>
+                          </div>
+                          <div className="space-y-2">
+                            <Label htmlFor="alert_work_arrangement">Work Arrangement</Label>
+                            <select
+                              id="alert_work_arrangement"
+                              value={newJobAlert.work_arrangement}
+                              onChange={(e) => setNewJobAlert(prev => ({ ...prev, work_arrangement: e.target.value }))}
+                              className="w-full px-3 py-2 border border-slate-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                              required
+                            >
+                              <option value="In Office">In Office</option>
+                              <option value="Hybrid">Hybrid</option>
+                              <option value="Remote">Remote</option>
                             </select>
                           </div>
                           <div className="space-y-2">
@@ -1138,9 +1152,10 @@ const ProfileDashboard = ({ user, onUpdateUser }) => {
                             {jobAlerts.map((alert) => (
                               <div key={alert.id} className="flex items-center justify-between p-4 bg-slate-50 rounded-lg border border-slate-200">
                                 <div className="flex-1">
-                                  <div className="flex items-center space-x-2">
+                                  <div className="flex items-center space-x-2 flex-wrap gap-1">
                                     <h5 className="font-semibold text-slate-800">{alert.job_title}</h5>
-                                    <Badge variant="outline" className="text-xs">{alert.work_type}</Badge>
+                                    <Badge variant="outline" className="text-xs">{alert.employment_type}</Badge>
+                                    <Badge variant="outline" className="text-xs bg-blue-50">{alert.work_arrangement}</Badge>
                                   </div>
                                   <div className="flex items-center space-x-4 mt-1 text-sm text-slate-600">
                                     <span className="flex items-center">
