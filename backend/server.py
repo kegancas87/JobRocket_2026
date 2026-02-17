@@ -2141,6 +2141,68 @@ async def admin_get_audit_log(account_id: str, current_user: User = Depends(veri
     return {"logs": logs}
 
 
+@api_router.post("/admin/test-email")
+async def admin_test_email(
+    request: Request,
+    current_user: User = Depends(verify_admin_user)
+):
+    """Test email sending functionality (Admin only)"""
+    body = await request.json()
+    test_email = body.get("email")
+    email_type = body.get("type", "job_alerts")
+    
+    if not test_email:
+        raise HTTPException(status_code=400, detail="Email address required")
+    
+    # Send a test email
+    email_content = EmailTemplates.job_alert_notification(
+        user_name="Test User",
+        job_title="Senior Software Developer",
+        company_name="Test Company",
+        location="Cape Town",
+        work_type="Remote",
+        salary_range="R60,000 - R90,000",
+        job_url="https://jobrocket.co.za/jobs/test",
+        alert_name="Software Developer"
+    )
+    
+    result = email_service.send_email(
+        email_type=EmailType.JOB_ALERTS,
+        to_email=test_email,
+        subject="🧪 Job Rocket Email Test - Job Alert",
+        html_content=email_content["html"],
+        plain_content=email_content["plain"]
+    )
+    
+    return {
+        "success": result["success"],
+        "message": result.get("message") or result.get("error"),
+        "sent_to": test_email
+    }
+
+
+@api_router.get("/admin/email-notifications")
+async def get_email_notifications(
+    current_user: User = Depends(verify_admin_user),
+    status: Optional[str] = None,
+    limit: int = 50
+):
+    """Get job alert email notifications (Admin only)"""
+    query = {}
+    if status:
+        query["status"] = status
+    
+    notifications = []
+    async for notif in db.job_alert_notifications.find(query, {"_id": 0}).sort("created_at", -1).limit(limit):
+        if isinstance(notif.get("created_at"), datetime):
+            notif["created_at"] = notif["created_at"].isoformat()
+        if isinstance(notif.get("sent_at"), datetime):
+            notif["sent_at"] = notif["sent_at"].isoformat()
+        notifications.append(notif)
+    
+    return {"notifications": notifications, "total": len(notifications)}
+
+
 # ============================================
 # AI Matching Endpoints
 # ============================================
