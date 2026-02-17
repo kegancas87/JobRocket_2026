@@ -942,15 +942,23 @@ async def get_my_applications(current_user: User = Depends(get_current_user)):
             del app["_id"]
         
         # Add job details
+        job_details = None
         job = await db.jobs.find_one({"id": app["job_id"]})
         if job:
-            app["job"] = {
+            job_details = {
+                "id": job["id"],
                 "title": job["title"],
                 "company_name": job["company_name"],
-                "location": job["location"],
+                "location": job.get("location", ""),
+                "salary_range": job.get("salary_range", ""),
+                "employment_type": job.get("employment_type", ""),
             }
         
-        applications.append(app)
+        # Return in format expected by frontend: { application: {...}, job: {...} }
+        applications.append({
+            "application": app,
+            "job": job_details
+        })
     
     return applications
 
