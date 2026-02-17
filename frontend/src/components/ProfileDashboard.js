@@ -1182,14 +1182,16 @@ const ProfileDashboard = ({ user, onUpdateUser }) => {
                             {jobAlerts.map((alert) => (
                               <div key={alert.id} className="flex items-center justify-between p-4 bg-slate-50 rounded-lg border border-slate-200">
                                 <div className="flex-1">
-                                  <div className="flex items-center space-x-2 flex-wrap gap-1">
-                                    <h5 className="font-semibold text-slate-800">{alert.job_title}</h5>
-                                    {(alert.employment_types || [alert.employment_type]).map((et) => (
+                                  <div className="flex items-center flex-wrap gap-1 mb-1">
+                                    <h5 className="font-semibold text-slate-800 mr-2">{alert.job_title}</h5>
+                                    {(alert.employment_types || []).map((et) => (
                                       <Badge key={et} variant="outline" className="text-xs">{et}</Badge>
                                     ))}
-                                    <Badge variant="outline" className="text-xs bg-blue-50">{alert.work_arrangement}</Badge>
+                                    {(alert.work_types || []).map((wt) => (
+                                      <Badge key={wt} variant="outline" className="text-xs bg-blue-50">{wt}</Badge>
+                                    ))}
                                   </div>
-                                  <div className="flex items-center space-x-4 mt-1 text-sm text-slate-600">
+                                  <div className="flex items-center space-x-4 text-sm text-slate-600">
                                     <span className="flex items-center">
                                       <MapPin className="w-3 h-3 mr-1" />
                                       {alert.location}
