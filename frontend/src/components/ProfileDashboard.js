@@ -261,8 +261,8 @@ const ProfileDashboard = ({ user, onUpdateUser }) => {
       setNewJobAlert({
         job_title: '',
         location: '',
-        employment_type: 'Permanent',
-        work_arrangement: 'In Office',
+        employment_types: [],
+        work_types: [],
         salary_range: ''
       });
       await fetchJobAlerts();
