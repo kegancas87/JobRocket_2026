@@ -225,6 +225,42 @@ const ProfileDashboard = ({ user, onUpdateUser }) => {
     }
   };
 
+  // Job Alerts functions
+  const fetchJobAlerts = async () => {
+    try {
+      const response = await axios.get(`${API}/profile/job-alerts`, getAuthHeaders());
+      setJobAlerts(response.data);
+    } catch (error) {
+      console.error('Error fetching job alerts:', error);
+    }
+  };
+
+  const addJobAlert = async (e) => {
+    e.preventDefault();
+    try {
+      await axios.post(`${API}/profile/job-alerts`, newJobAlert, getAuthHeaders());
+      setNewJobAlert({
+        job_title: '',
+        location: '',
+        work_type: 'Permanent',
+        salary_range: ''
+      });
+      await fetchJobAlerts();
+      await fetchCurrentUser();
+    } catch (error) {
+      console.error('Error adding job alert:', error);
+    }
+  };
+
+  const deleteJobAlert = async (alertId) => {
+    try {
+      await axios.delete(`${API}/profile/job-alerts/${alertId}`, getAuthHeaders());
+      await fetchJobAlerts();
+    } catch (error) {
+      console.error('Error deleting job alert:', error);
+    }
+  };
+
   const onProfileComplete = () => {
     // Trigger completion celebration
     console.log('Profile completed! 🚀');
@@ -232,6 +268,7 @@ const ProfileDashboard = ({ user, onUpdateUser }) => {
 
   useEffect(() => {
     fetchCurrentUser();
+    fetchJobAlerts();
   }, []);
 
   return (
