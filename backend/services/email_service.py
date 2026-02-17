@@ -25,37 +25,41 @@ class EmailType(str, Enum):
 class EmailConfig:
     """Email configuration loaded from environment variables"""
     
-    SMTP_SERVER = os.environ.get("EMAIL_SMTP_SERVER", "mail.jobrocket.co.za")
-    SMTP_PORT = int(os.environ.get("EMAIL_SMTP_PORT", "465"))
+    @classmethod
+    def get_smtp_server(cls):
+        return os.environ.get("EMAIL_SMTP_SERVER", "mail.jobrocket.co.za")
     
-    # Email accounts configuration
-    ACCOUNTS = {
-        EmailType.JOB_ALERTS: {
-            "address": os.environ.get("EMAIL_JOB_ALERTS_ADDRESS"),
-            "password": os.environ.get("EMAIL_JOB_ALERTS_PASSWORD"),
-            "from_name": os.environ.get("EMAIL_JOB_ALERTS_FROM_NAME", "Job Rocket Alerts")
-        },
-        EmailType.JOB_APPLICATIONS: {
-            "address": os.environ.get("EMAIL_JOB_APPLICATIONS_ADDRESS"),
-            "password": os.environ.get("EMAIL_JOB_APPLICATIONS_PASSWORD"),
-            "from_name": os.environ.get("EMAIL_JOB_APPLICATIONS_FROM_NAME", "Job Rocket Applications")
-        },
-        EmailType.ACCOUNT_NOTIFICATIONS: {
-            "address": os.environ.get("EMAIL_ACCOUNT_NOTIFICATIONS_ADDRESS"),
-            "password": os.environ.get("EMAIL_ACCOUNT_NOTIFICATIONS_PASSWORD"),
-            "from_name": os.environ.get("EMAIL_ACCOUNT_NOTIFICATIONS_FROM_NAME", "Job Rocket")
-        },
-        EmailType.SYSTEM: {
-            "address": os.environ.get("EMAIL_SYSTEM_ADDRESS"),
-            "password": os.environ.get("EMAIL_SYSTEM_PASSWORD"),
-            "from_name": os.environ.get("EMAIL_SYSTEM_FROM_NAME", "Job Rocket System")
-        }
-    }
+    @classmethod
+    def get_smtp_port(cls):
+        return int(os.environ.get("EMAIL_SMTP_PORT", "465"))
     
     @classmethod
     def get_account(cls, email_type: EmailType) -> Optional[Dict]:
         """Get email account configuration for a specific type"""
-        account = cls.ACCOUNTS.get(email_type)
+        accounts = {
+            EmailType.JOB_ALERTS: {
+                "address": os.environ.get("EMAIL_JOB_ALERTS_ADDRESS"),
+                "password": os.environ.get("EMAIL_JOB_ALERTS_PASSWORD"),
+                "from_name": os.environ.get("EMAIL_JOB_ALERTS_FROM_NAME", "Job Rocket Alerts")
+            },
+            EmailType.JOB_APPLICATIONS: {
+                "address": os.environ.get("EMAIL_JOB_APPLICATIONS_ADDRESS"),
+                "password": os.environ.get("EMAIL_JOB_APPLICATIONS_PASSWORD"),
+                "from_name": os.environ.get("EMAIL_JOB_APPLICATIONS_FROM_NAME", "Job Rocket Applications")
+            },
+            EmailType.ACCOUNT_NOTIFICATIONS: {
+                "address": os.environ.get("EMAIL_ACCOUNT_NOTIFICATIONS_ADDRESS"),
+                "password": os.environ.get("EMAIL_ACCOUNT_NOTIFICATIONS_PASSWORD"),
+                "from_name": os.environ.get("EMAIL_ACCOUNT_NOTIFICATIONS_FROM_NAME", "Job Rocket")
+            },
+            EmailType.SYSTEM: {
+                "address": os.environ.get("EMAIL_SYSTEM_ADDRESS"),
+                "password": os.environ.get("EMAIL_SYSTEM_PASSWORD"),
+                "from_name": os.environ.get("EMAIL_SYSTEM_FROM_NAME", "Job Rocket System")
+            }
+        }
+        
+        account = accounts.get(email_type)
         if account and account.get("address") and account.get("password"):
             return account
         return None
