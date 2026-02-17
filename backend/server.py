@@ -677,7 +677,55 @@ async def create_job(
     if "_id" in job_dict:
         del job_dict["_id"]
     
+    # Trigger job alert notifications (async background task simulation)
+    await check_and_send_job_alerts(job_dict)
+    
     return job_dict
+
+
+async def check_and_send_job_alerts(job: dict):
+    """Check job alerts and queue email notifications for matching alerts"""
+    try:
+        # Find all active job alerts that might match this job
+        cursor = db.job_alerts.find({"is_active": True})
+        
+        async for alert in cursor:
+            # Check if all criteria match (strict matching)
+            job_title_match = alert.get("job_title", "").lower() in job.get("title", "").lower() or \
+                              job.get("title", "").lower() in alert.get("job_title", "").lower()
+            
+            location_match = alert.get("location", "").lower() in job.get("location", "").lower() or \
+                             job.get("location", "").lower() in alert.get("location", "").lower() or \
+                             alert.get("location", "").lower() == "remote" and "remote" in job.get("location", "").lower()
+            
+            # Work type matching (Permanent/Contract)
+            job_employment_type = job.get("employment_type", "").lower()
+            alert_work_type = alert.get("work_type", "").lower()
+            work_type_match = alert_work_type in job_employment_type or \
+                              (alert_work_type == "permanent" and "full" in job_employment_type) or \
+                              (alert_work_type == "contract" and "contract" in job_employment_type)
+            
+            # All criteria must match
+            if job_title_match and location_match and work_type_match:
+                # Create notification record for email sending
+                notification = {
+                    "id": str(uuid.uuid4()),
+                    "alert_id": alert["id"],
+                    "user_id": alert["user_id"],
+                    "user_email": alert["user_email"],
+                    "job_id": job["id"],
+                    "job_title": job.get("title"),
+                    "company_name": job.get("company_name"),
+                    "location": job.get("location"),
+                    "status": "pending",
+                    "created_at": datetime.utcnow()
+                }
+                await db.job_alert_notifications.insert_one(notification)
+                
+                # Log the match for debugging
+                print(f"Job alert match: {alert['job_title']} -> {job['title']} for user {alert['user_email']}")
+    except Exception as e:
+        print(f"Error checking job alerts: {e}")
 
 
 @api_router.get("/jobs")
