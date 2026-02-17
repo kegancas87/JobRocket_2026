@@ -89,10 +89,28 @@ const ProfileDashboard = ({ user, onUpdateUser }) => {
   const [newJobAlert, setNewJobAlert] = useState({
     job_title: '',
     location: '',
-    employment_type: 'Permanent',
-    work_arrangement: 'In Office',
+    employment_types: [],
+    work_types: [],
     salary_range: ''
   });
+
+  const toggleEmploymentType = (type) => {
+    setNewJobAlert(prev => ({
+      ...prev,
+      employment_types: prev.employment_types.includes(type)
+        ? prev.employment_types.filter(t => t !== type)
+        : [...prev.employment_types, type]
+    }));
+  };
+
+  const toggleWorkType = (type) => {
+    setNewJobAlert(prev => ({
+      ...prev,
+      work_types: prev.work_types.includes(type)
+        ? prev.work_types.filter(t => t !== type)
+        : [...prev.work_types, type]
+    }));
+  };
 
   const getAuthHeaders = () => {
     const token = localStorage.getItem('token');
