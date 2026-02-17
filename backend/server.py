@@ -685,8 +685,10 @@ async def create_job(
 
 
 async def check_and_send_job_alerts(job: dict):
-    """Check job alerts and queue email notifications for matching alerts"""
+    """Check job alerts and send email notifications for matching alerts"""
     try:
+        base_url = os.environ.get("BASE_URL", "https://jobrocket.co.za")
+        
         # Find all active job alerts that might match this job
         cursor = db.job_alerts.find({"is_active": True})
         
@@ -725,7 +727,11 @@ async def check_and_send_job_alerts(job: dict):
             
             # All criteria must match (but within employment_types and work_types, it's OR)
             if job_title_match and location_match and employment_type_match and work_type_match:
-                # Create notification record for email sending
+                # Get user name for personalization
+                user = await db.users.find_one({"id": alert["user_id"]})
+                user_name = f"{user.get('first_name', '')} {user.get('last_name', '')}".strip() if user else "Job Seeker"
+                
+                # Create notification record
                 notification = {
                     "id": str(uuid.uuid4()),
                     "alert_id": alert["id"],
@@ -740,10 +746,42 @@ async def check_and_send_job_alerts(job: dict):
                     "status": "pending",
                     "created_at": datetime.utcnow()
                 }
+                
+                # Generate email content
+                job_url = f"{base_url}/jobs/{job['id']}"
+                email_content = EmailTemplates.job_alert_notification(
+                    user_name=user_name,
+                    job_title=job.get("title", ""),
+                    company_name=job.get("company_name", ""),
+                    location=job.get("location", ""),
+                    work_type=job.get("work_type", ""),
+                    salary_range=job.get("salary_range", ""),
+                    job_url=job_url,
+                    alert_name=alert.get("job_title", "Job Alert")
+                )
+                
+                # Send email
+                result = email_service.send_email(
+                    email_type=EmailType.JOB_ALERTS,
+                    to_email=alert["user_email"],
+                    subject=f"🎯 New Job Match: {job.get('title')} at {job.get('company_name')}",
+                    html_content=email_content["html"],
+                    plain_content=email_content["plain"]
+                )
+                
+                # Update notification status based on email result
+                notification["status"] = "sent" if result["success"] else "failed"
+                notification["email_result"] = result
+                notification["sent_at"] = datetime.utcnow() if result["success"] else None
+                
                 await db.job_alert_notifications.insert_one(notification)
                 
-                # Log the match for debugging
-                print(f"Job alert match: {alert['job_title']} -> {job['title']} for user {alert['user_email']}")
+                # Log the result
+                if result["success"]:
+                    print(f"Job alert email sent: {alert['job_title']} -> {job['title']} to {alert['user_email']}")
+                else:
+                    print(f"Job alert email failed: {alert['user_email']} - {result.get('error', 'Unknown error')}")
+                    
     except Exception as e:
         print(f"Error checking job alerts: {e}")
 
