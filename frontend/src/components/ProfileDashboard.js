@@ -623,6 +623,378 @@ const ProfileDashboard = ({ user, onUpdateUser }) => {
                 </Card>
               </TabsContent>
 
+              {/* Education Tab */}
+              <TabsContent value="education" className="space-y-6 mt-6">
+                <Card className="bg-white/80 backdrop-blur-sm border-0 shadow-xl">
+                  <CardHeader>
+                    <CardTitle className="flex items-center space-x-2">
+                      <GraduationCap className="w-5 h-5 text-blue-600" />
+                      <span>Education</span>
+                      {!progress.education && (
+                        <Badge className="bg-yellow-100 text-yellow-800 text-xs">
+                          +10 points
+                        </Badge>
+                      )}
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <form onSubmit={addEducation} className="space-y-6">
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div className="space-y-2">
+                          <Label htmlFor="institution">Institution</Label>
+                          <Input
+                            id="institution"
+                            value={education.institution}
+                            onChange={(e) => setEducation(prev => ({ ...prev, institution: e.target.value }))}
+                            placeholder="University or school name"
+                            required
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label htmlFor="degree">Degree / Qualification</Label>
+                          <Input
+                            id="degree"
+                            value={education.degree}
+                            onChange={(e) => setEducation(prev => ({ ...prev, degree: e.target.value }))}
+                            placeholder="e.g., BSc Computer Science"
+                            required
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label htmlFor="field_of_study">Field of Study</Label>
+                          <Input
+                            id="field_of_study"
+                            value={education.field_of_study}
+                            onChange={(e) => setEducation(prev => ({ ...prev, field_of_study: e.target.value }))}
+                            placeholder="e.g., Information Technology"
+                            required
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label htmlFor="level">Level</Label>
+                          <select
+                            id="level"
+                            value={education.level}
+                            onChange={(e) => setEducation(prev => ({ ...prev, level: e.target.value }))}
+                            className="w-full px-3 py-2 border border-slate-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                            required
+                          >
+                            <option value="Matric">Matric / Grade 12</option>
+                            <option value="Certificate">Certificate</option>
+                            <option value="Diploma">Diploma</option>
+                            <option value="Bachelors">Bachelor's Degree</option>
+                            <option value="Honours">Honours Degree</option>
+                            <option value="Masters">Master's Degree</option>
+                            <option value="Doctorate">Doctorate / PhD</option>
+                          </select>
+                        </div>
+                        <div className="space-y-2">
+                          <Label htmlFor="edu_start_date">Start Date</Label>
+                          <Input
+                            id="edu_start_date"
+                            type="date"
+                            value={education.start_date}
+                            onChange={(e) => setEducation(prev => ({ ...prev, start_date: e.target.value }))}
+                            required
+                          />
+                        </div>
+                        {!education.current && (
+                          <div className="space-y-2">
+                            <Label htmlFor="edu_end_date">End Date</Label>
+                            <Input
+                              id="edu_end_date"
+                              type="date"
+                              value={education.end_date}
+                              onChange={(e) => setEducation(prev => ({ ...prev, end_date: e.target.value }))}
+                            />
+                          </div>
+                        )}
+                        <div className="space-y-2">
+                          <Label htmlFor="grade">Grade / GPA (Optional)</Label>
+                          <Input
+                            id="grade"
+                            value={education.grade}
+                            onChange={(e) => setEducation(prev => ({ ...prev, grade: e.target.value }))}
+                            placeholder="e.g., Cum Laude, 3.8 GPA"
+                          />
+                        </div>
+                      </div>
+
+                      <div className="flex items-center space-x-2">
+                        <input
+                          type="checkbox"
+                          id="edu_current"
+                          checked={education.current}
+                          onChange={(e) => setEducation(prev => ({ ...prev, current: e.target.checked, end_date: e.target.checked ? '' : prev.end_date }))}
+                          className="w-4 h-4 text-blue-600"
+                        />
+                        <Label htmlFor="edu_current">I'm currently studying here</Label>
+                      </div>
+
+                      <Button 
+                        type="submit"
+                        className="bg-gradient-to-r from-blue-600 to-slate-700 hover:from-blue-700 hover:to-slate-800"
+                      >
+                        <Plus className="w-4 h-4 mr-2" />
+                        Add Education
+                      </Button>
+                    </form>
+
+                    {/* Display existing education */}
+                    <div className="mt-8 space-y-4">
+                      {profile.education?.length > 0 ? (
+                        profile.education.map((edu, index) => (
+                          <div key={index} className="border border-slate-200 rounded-lg p-4">
+                            <div className="flex items-start justify-between">
+                              <div>
+                                <h4 className="font-semibold text-slate-800">{edu.degree}</h4>
+                                <p className="text-blue-600 font-medium">{edu.institution}</p>
+                                <p className="text-sm text-slate-600">{edu.field_of_study}</p>
+                                <p className="text-sm text-slate-500">
+                                  {new Date(edu.start_date).toLocaleDateString('en-ZA', { year: 'numeric', month: 'short' })} - {
+                                    edu.current ? 'Present' : new Date(edu.end_date).toLocaleDateString('en-ZA', { year: 'numeric', month: 'short' })
+                                  }
+                                </p>
+                                {edu.grade && (
+                                  <Badge className="mt-2 bg-green-100 text-green-800">{edu.grade}</Badge>
+                                )}
+                              </div>
+                              <Badge variant="outline" className="capitalize">{edu.level}</Badge>
+                            </div>
+                          </div>
+                        ))
+                      ) : (
+                        <div className="text-center py-8 text-slate-500">
+                          <GraduationCap className="w-12 h-12 mx-auto mb-3 text-slate-300" />
+                          <p>No education added yet</p>
+                          <p className="text-sm">Add your qualifications to improve your profile</p>
+                        </div>
+                      )}
+                    </div>
+                  </CardContent>
+                </Card>
+              </TabsContent>
+
+              {/* Awards/Achievements Tab */}
+              <TabsContent value="achievements" className="space-y-6 mt-6">
+                <Card className="bg-white/80 backdrop-blur-sm border-0 shadow-xl">
+                  <CardHeader>
+                    <CardTitle className="flex items-center space-x-2">
+                      <Award className="w-5 h-5 text-blue-600" />
+                      <span>Awards & Achievements</span>
+                      {!progress.achievements && (
+                        <Badge className="bg-yellow-100 text-yellow-800 text-xs">
+                          +10 points
+                        </Badge>
+                      )}
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <form onSubmit={addAchievement} className="space-y-6">
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div className="space-y-2">
+                          <Label htmlFor="achievement_title">Award / Achievement Title</Label>
+                          <Input
+                            id="achievement_title"
+                            value={achievement.title}
+                            onChange={(e) => setAchievement(prev => ({ ...prev, title: e.target.value }))}
+                            placeholder="e.g., Employee of the Year"
+                            required
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label htmlFor="issuer">Issuing Organization</Label>
+                          <Input
+                            id="issuer"
+                            value={achievement.issuer}
+                            onChange={(e) => setAchievement(prev => ({ ...prev, issuer: e.target.value }))}
+                            placeholder="e.g., Microsoft, SAQA"
+                            required
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label htmlFor="date_achieved">Date Achieved</Label>
+                          <Input
+                            id="date_achieved"
+                            type="date"
+                            value={achievement.date_achieved}
+                            onChange={(e) => setAchievement(prev => ({ ...prev, date_achieved: e.target.value }))}
+                            required
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label htmlFor="credential_url">Credential URL (Optional)</Label>
+                          <Input
+                            id="credential_url"
+                            type="url"
+                            value={achievement.credential_url}
+                            onChange={(e) => setAchievement(prev => ({ ...prev, credential_url: e.target.value }))}
+                            placeholder="https://..."
+                          />
+                        </div>
+                      </div>
+
+                      <div className="space-y-2">
+                        <Label htmlFor="achievement_description">Description</Label>
+                        <Textarea
+                          id="achievement_description"
+                          value={achievement.description}
+                          onChange={(e) => setAchievement(prev => ({ ...prev, description: e.target.value }))}
+                          placeholder="Describe your achievement and its significance..."
+                          rows={3}
+                          required
+                        />
+                      </div>
+
+                      <Button 
+                        type="submit"
+                        className="bg-gradient-to-r from-blue-600 to-slate-700 hover:from-blue-700 hover:to-slate-800"
+                      >
+                        <Plus className="w-4 h-4 mr-2" />
+                        Add Achievement
+                      </Button>
+                    </form>
+
+                    {/* Display existing achievements */}
+                    <div className="mt-8 space-y-4">
+                      {profile.achievements?.length > 0 ? (
+                        profile.achievements.map((ach, index) => (
+                          <div key={index} className="border border-slate-200 rounded-lg p-4">
+                            <div className="flex items-start justify-between">
+                              <div className="flex-1">
+                                <div className="flex items-center space-x-2">
+                                  <Star className="w-5 h-5 text-yellow-500" />
+                                  <h4 className="font-semibold text-slate-800">{ach.title}</h4>
+                                </div>
+                                <p className="text-blue-600 font-medium mt-1">{ach.issuer}</p>
+                                <p className="text-sm text-slate-500">
+                                  {new Date(ach.date_achieved).toLocaleDateString('en-ZA', { year: 'numeric', month: 'long' })}
+                                </p>
+                                <p className="mt-2 text-slate-700 text-sm">{ach.description}</p>
+                                {ach.credential_url && (
+                                  <a 
+                                    href={ach.credential_url} 
+                                    target="_blank" 
+                                    rel="noopener noreferrer"
+                                    className="mt-2 inline-flex items-center text-sm text-blue-600 hover:underline"
+                                  >
+                                    View Credential →
+                                  </a>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        ))
+                      ) : (
+                        <div className="text-center py-8 text-slate-500">
+                          <Award className="w-12 h-12 mx-auto mb-3 text-slate-300" />
+                          <p>No achievements added yet</p>
+                          <p className="text-sm">Add your awards and certifications to stand out</p>
+                        </div>
+                      )}
+                    </div>
+                  </CardContent>
+                </Card>
+              </TabsContent>
+
+              {/* Media Tab */}
+              <TabsContent value="media" className="space-y-6 mt-6">
+                <Card className="bg-white/80 backdrop-blur-sm border-0 shadow-xl">
+                  <CardHeader>
+                    <CardTitle className="flex items-center space-x-2">
+                      <Video className="w-5 h-5 text-blue-600" />
+                      <span>Media & Portfolio</span>
+                      {!progress.media && (
+                        <Badge className="bg-yellow-100 text-yellow-800 text-xs">
+                          +15 points
+                        </Badge>
+                      )}
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="space-y-6">
+                      {/* Video Introduction */}
+                      <div className="border-2 border-dashed border-slate-300 rounded-lg p-8 text-center">
+                        <Video className="w-16 h-16 mx-auto mb-4 text-slate-400" />
+                        <h3 className="text-lg font-semibold text-slate-800 mb-2">Video Introduction</h3>
+                        <p className="text-slate-600 mb-4">
+                          Record a 60-second video introducing yourself to potential employers
+                        </p>
+                        <Button variant="outline" className="border-blue-600 text-blue-600 hover:bg-blue-50">
+                          <Upload className="w-4 h-4 mr-2" />
+                          Upload Video
+                        </Button>
+                        <p className="text-xs text-slate-500 mt-2">MP4 format, max 50MB</p>
+                      </div>
+
+                      {/* Portfolio Links */}
+                      <div className="space-y-4">
+                        <h3 className="text-lg font-semibold text-slate-800">Portfolio Links</h3>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          <div className="space-y-2">
+                            <Label htmlFor="linkedin_url">LinkedIn Profile</Label>
+                            <Input
+                              id="linkedin_url"
+                              type="url"
+                              placeholder="https://linkedin.com/in/yourprofile"
+                              value={profile.linkedin_url || ''}
+                              disabled
+                            />
+                          </div>
+                          <div className="space-y-2">
+                            <Label htmlFor="github_url">GitHub / GitLab</Label>
+                            <Input
+                              id="github_url"
+                              type="url"
+                              placeholder="https://github.com/yourusername"
+                              value={profile.github_url || ''}
+                              disabled
+                            />
+                          </div>
+                          <div className="space-y-2">
+                            <Label htmlFor="portfolio_url">Personal Website / Portfolio</Label>
+                            <Input
+                              id="portfolio_url"
+                              type="url"
+                              placeholder="https://yourportfolio.com"
+                              value={profile.portfolio_url || ''}
+                              disabled
+                            />
+                          </div>
+                          <div className="space-y-2">
+                            <Label htmlFor="other_url">Other Link</Label>
+                            <Input
+                              id="other_url"
+                              type="url"
+                              placeholder="https://..."
+                              value={profile.other_url || ''}
+                              disabled
+                            />
+                          </div>
+                        </div>
+                        <p className="text-sm text-slate-500">
+                          Portfolio link editing coming soon. Add your links during profile setup.
+                        </p>
+                      </div>
+
+                      {/* Display existing video if any */}
+                      {profile.video_intro_url && (
+                        <div className="mt-6">
+                          <h3 className="text-lg font-semibold text-slate-800 mb-3">Your Video Introduction</h3>
+                          <video 
+                            controls 
+                            className="w-full max-w-md rounded-lg shadow-lg"
+                            src={profile.video_intro_url}
+                          >
+                            Your browser does not support the video tag.
+                          </video>
+                        </div>
+                      )}
+                    </div>
+                  </CardContent>
+                </Card>
+              </TabsContent>
+
               {/* Applications Tab */}
               <TabsContent value="applications" className="space-y-6 mt-6">
                 <MyApplications user={profile} />
