@@ -184,8 +184,11 @@ class EmailService:
         results = []
         context = ssl.create_default_context()
         
+        smtp_server = EmailConfig.get_smtp_server()
+        smtp_port = EmailConfig.get_smtp_port()
+        
         try:
-            with smtplib.SMTP_SSL(self.smtp_server, self.smtp_port, context=context) as server:
+            with smtplib.SMTP_SSL(smtp_server, smtp_port, context=context) as server:
                 server.login(account["address"], account["password"])
                 
                 for email_data in emails:
