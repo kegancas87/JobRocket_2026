@@ -390,7 +390,12 @@ async def google_auth(request: Request):
 async def get_me(current_user: User = Depends(get_current_user)):
     """Get current user profile with account details"""
     
-    user_dict = current_user.dict()
+    # Fetch fresh user data from DB to get all fields including arrays
+    user_data = await db.users.find_one({"id": current_user.id})
+    if user_data and "_id" in user_data:
+        del user_data["_id"]
+    
+    user_dict = user_data if user_data else current_user.dict()
     user_dict.pop("password_hash", None)
     
     # Add account details for recruiters
