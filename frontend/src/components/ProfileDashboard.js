@@ -1116,33 +1116,44 @@ const ProfileDashboard = ({ user, onUpdateUser }) => {
                               required
                             />
                           </div>
-                          <div className="space-y-2">
-                            <Label htmlFor="alert_employment_type">Employment Type</Label>
-                            <select
-                              id="alert_employment_type"
-                              value={newJobAlert.employment_type}
-                              onChange={(e) => setNewJobAlert(prev => ({ ...prev, employment_type: e.target.value }))}
-                              className="w-full px-3 py-2 border border-slate-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                              required
-                            >
-                              <option value="Permanent">Permanent</option>
-                              <option value="Contract">Contract</option>
-                            </select>
+                        </div>
+                        
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                          <div className="space-y-3">
+                            <Label>Employment Type (select all that apply)</Label>
+                            <div className="flex flex-wrap gap-3">
+                              {['Permanent', 'Contract'].map((type) => (
+                                <label key={type} className="flex items-center space-x-2 cursor-pointer">
+                                  <input
+                                    type="checkbox"
+                                    checked={newJobAlert.employment_types.includes(type)}
+                                    onChange={() => toggleEmploymentType(type)}
+                                    className="w-4 h-4 text-blue-600 rounded border-slate-300 focus:ring-blue-500"
+                                  />
+                                  <span className="text-sm text-slate-700">{type}</span>
+                                </label>
+                              ))}
+                            </div>
                           </div>
-                          <div className="space-y-2">
-                            <Label htmlFor="alert_work_arrangement">Work Arrangement</Label>
-                            <select
-                              id="alert_work_arrangement"
-                              value={newJobAlert.work_arrangement}
-                              onChange={(e) => setNewJobAlert(prev => ({ ...prev, work_arrangement: e.target.value }))}
-                              className="w-full px-3 py-2 border border-slate-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                              required
-                            >
-                              <option value="In Office">In Office</option>
-                              <option value="Hybrid">Hybrid</option>
-                              <option value="Remote">Remote</option>
-                            </select>
+                          <div className="space-y-3">
+                            <Label>Work Type (select all that apply)</Label>
+                            <div className="flex flex-wrap gap-3">
+                              {['In Office', 'Hybrid', 'Remote'].map((type) => (
+                                <label key={type} className="flex items-center space-x-2 cursor-pointer">
+                                  <input
+                                    type="checkbox"
+                                    checked={newJobAlert.work_types.includes(type)}
+                                    onChange={() => toggleWorkType(type)}
+                                    className="w-4 h-4 text-blue-600 rounded border-slate-300 focus:ring-blue-500"
+                                  />
+                                  <span className="text-sm text-slate-700">{type}</span>
+                                </label>
+                              ))}
+                            </div>
                           </div>
+                        </div>
+
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                           <div className="space-y-2">
                             <Label htmlFor="alert_salary">Desired Salary Range</Label>
                             <Input
@@ -1156,6 +1167,7 @@ const ProfileDashboard = ({ user, onUpdateUser }) => {
                         <Button 
                           type="submit"
                           className="bg-gradient-to-r from-blue-600 to-slate-700 hover:from-blue-700 hover:to-slate-800"
+                          disabled={newJobAlert.employment_types.length === 0 || newJobAlert.work_types.length === 0}
                         >
                           <Plus className="w-4 h-4 mr-2" />
                           Create Alert
@@ -1172,7 +1184,9 @@ const ProfileDashboard = ({ user, onUpdateUser }) => {
                                 <div className="flex-1">
                                   <div className="flex items-center space-x-2 flex-wrap gap-1">
                                     <h5 className="font-semibold text-slate-800">{alert.job_title}</h5>
-                                    <Badge variant="outline" className="text-xs">{alert.employment_type}</Badge>
+                                    {(alert.employment_types || [alert.employment_type]).map((et) => (
+                                      <Badge key={et} variant="outline" className="text-xs">{et}</Badge>
+                                    ))}
                                     <Badge variant="outline" className="text-xs bg-blue-50">{alert.work_arrangement}</Badge>
                                   </div>
                                   <div className="flex items-center space-x-4 mt-1 text-sm text-slate-600">
