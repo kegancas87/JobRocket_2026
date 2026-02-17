@@ -89,7 +89,8 @@ const ProfileDashboard = ({ user, onUpdateUser }) => {
   const [newJobAlert, setNewJobAlert] = useState({
     job_title: '',
     location: '',
-    work_type: 'Permanent',
+    employment_type: 'Permanent',
+    work_arrangement: 'In Office',
     salary_range: ''
   });
 
