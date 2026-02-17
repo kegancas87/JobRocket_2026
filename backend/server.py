@@ -691,22 +691,34 @@ async def check_and_send_job_alerts(job: dict):
         
         async for alert in cursor:
             # Check if all criteria match (strict matching)
+            
+            # 1. Job Title Match
             job_title_match = alert.get("job_title", "").lower() in job.get("title", "").lower() or \
                               job.get("title", "").lower() in alert.get("job_title", "").lower()
             
+            # 2. Location Match
             location_match = alert.get("location", "").lower() in job.get("location", "").lower() or \
-                             job.get("location", "").lower() in alert.get("location", "").lower() or \
-                             alert.get("location", "").lower() == "remote" and "remote" in job.get("location", "").lower()
+                             job.get("location", "").lower() in alert.get("location", "").lower()
             
-            # Work type matching (Permanent/Contract)
+            # 3. Employment Type matching (Permanent/Contract)
             job_employment_type = job.get("employment_type", "").lower()
-            alert_work_type = alert.get("work_type", "").lower()
-            work_type_match = alert_work_type in job_employment_type or \
-                              (alert_work_type == "permanent" and "full" in job_employment_type) or \
-                              (alert_work_type == "contract" and "contract" in job_employment_type)
+            alert_employment_type = alert.get("employment_type", "").lower()
+            employment_type_match = alert_employment_type in job_employment_type or \
+                              (alert_employment_type == "permanent" and ("full" in job_employment_type or "permanent" in job_employment_type)) or \
+                              (alert_employment_type == "contract" and "contract" in job_employment_type)
+            
+            # 4. Work Arrangement matching (In Office/Hybrid/Remote)
+            job_work_type = job.get("work_type", "").lower()
+            alert_work_arrangement = alert.get("work_arrangement", "").lower()
+            # Map "In Office" to "onsite" which is used in job postings
+            work_arrangement_match = (
+                (alert_work_arrangement == "in office" and ("onsite" in job_work_type or "office" in job_work_type)) or
+                (alert_work_arrangement == "hybrid" and "hybrid" in job_work_type) or
+                (alert_work_arrangement == "remote" and "remote" in job_work_type)
+            )
             
             # All criteria must match
-            if job_title_match and location_match and work_type_match:
+            if job_title_match and location_match and employment_type_match and work_arrangement_match:
                 # Create notification record for email sending
                 notification = {
                     "id": str(uuid.uuid4()),
@@ -717,6 +729,8 @@ async def check_and_send_job_alerts(job: dict):
                     "job_title": job.get("title"),
                     "company_name": job.get("company_name"),
                     "location": job.get("location"),
+                    "work_type": job.get("work_type"),
+                    "employment_type": job.get("employment_type"),
                     "status": "pending",
                     "created_at": datetime.utcnow()
                 }
