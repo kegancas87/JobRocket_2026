@@ -42,6 +42,7 @@ from services import (
     FeatureAccessService, create_feature_service,
     AccountService, create_account_service
 )
+from services.email_service import email_service, EmailType, EmailTemplates
 
 # Setup
 ROOT_DIR = Path(__file__).parent
