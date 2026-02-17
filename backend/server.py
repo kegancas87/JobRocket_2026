@@ -1085,6 +1085,99 @@ async def update_profile(
     return {"message": "Profile updated successfully"}
 
 
+@api_router.post("/profile/education")
+async def add_education(
+    request: Request,
+    current_user: User = Depends(get_current_user)
+):
+    """Add education to user profile"""
+    body = await request.json()
+    
+    education_entry = {
+        "id": str(uuid.uuid4()),
+        "institution": body.get("institution", ""),
+        "degree": body.get("degree", ""),
+        "field_of_study": body.get("field_of_study", ""),
+        "level": body.get("level", "Bachelors"),
+        "start_date": body.get("start_date"),
+        "end_date": body.get("end_date"),
+        "current": body.get("current", False),
+        "grade": body.get("grade", ""),
+        "created_at": datetime.utcnow().isoformat()
+    }
+    
+    await db.users.update_one(
+        {"id": current_user.id},
+        {
+            "$push": {"education": education_entry},
+            "$set": {
+                "updated_at": datetime.utcnow(),
+                "profile_progress.education": True
+            }
+        }
+    )
+    
+    return {"message": "Education added successfully", "education": education_entry}
+
+
+@api_router.delete("/profile/education/{education_id}")
+async def delete_education(
+    education_id: str,
+    current_user: User = Depends(get_current_user)
+):
+    """Delete education entry from user profile"""
+    await db.users.update_one(
+        {"id": current_user.id},
+        {"$pull": {"education": {"id": education_id}}}
+    )
+    return {"message": "Education deleted successfully"}
+
+
+@api_router.post("/profile/achievement")
+async def add_achievement(
+    request: Request,
+    current_user: User = Depends(get_current_user)
+):
+    """Add achievement to user profile"""
+    body = await request.json()
+    
+    achievement_entry = {
+        "id": str(uuid.uuid4()),
+        "title": body.get("title", ""),
+        "description": body.get("description", ""),
+        "date_achieved": body.get("date_achieved"),
+        "issuer": body.get("issuer", ""),
+        "credential_url": body.get("credential_url", ""),
+        "created_at": datetime.utcnow().isoformat()
+    }
+    
+    await db.users.update_one(
+        {"id": current_user.id},
+        {
+            "$push": {"achievements": achievement_entry},
+            "$set": {
+                "updated_at": datetime.utcnow(),
+                "profile_progress.achievements": True
+            }
+        }
+    )
+    
+    return {"message": "Achievement added successfully", "achievement": achievement_entry}
+
+
+@api_router.delete("/profile/achievement/{achievement_id}")
+async def delete_achievement(
+    achievement_id: str,
+    current_user: User = Depends(get_current_user)
+):
+    """Delete achievement entry from user profile"""
+    await db.users.update_one(
+        {"id": current_user.id},
+        {"$pull": {"achievements": {"id": achievement_id}}}
+    )
+    return {"message": "Achievement deleted successfully"}
+
+
 # ============================================
 # Onboarding Endpoints
 # ============================================
