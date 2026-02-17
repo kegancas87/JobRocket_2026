@@ -1233,6 +1233,46 @@ async def delete_achievement(
     return {"message": "Achievement deleted successfully"}
 
 
+@api_router.post("/profile/email-alerts")
+async def setup_email_alerts(
+    current_user: User = Depends(get_current_user)
+):
+    """Enable email alerts for job seeker"""
+    await db.users.update_one(
+        {"id": current_user.id},
+        {
+            "$set": {
+                "email_alerts_enabled": True,
+                "updated_at": datetime.utcnow(),
+                "profile_progress.email_alerts": True
+            }
+        }
+    )
+    return {"message": "Email alerts enabled successfully"}
+
+
+@api_router.put("/profile/email-alerts")
+async def update_email_alerts(
+    request: Request,
+    current_user: User = Depends(get_current_user)
+):
+    """Update email alert preferences"""
+    body = await request.json()
+    
+    await db.users.update_one(
+        {"id": current_user.id},
+        {
+            "$set": {
+                "email_alerts_enabled": body.get("enabled", True),
+                "email_alert_preferences": body.get("preferences", {}),
+                "updated_at": datetime.utcnow(),
+                "profile_progress.email_alerts": True
+            }
+        }
+    )
+    return {"message": "Email alert preferences updated successfully"}
+
+
 # ============================================
 # Onboarding Endpoints
 # ============================================
