@@ -1274,6 +1274,74 @@ async def update_email_alerts(
 
 
 # ============================================
+# Job Alerts Endpoints
+# ============================================
+
+@api_router.get("/profile/job-alerts")
+async def get_job_alerts(current_user: User = Depends(get_current_user)):
+    """Get all job alerts for current user"""
+    alerts = []
+    cursor = db.job_alerts.find({"user_id": current_user.id}).sort("created_at", -1)
+    async for alert in cursor:
+        if "_id" in alert:
+            del alert["_id"]
+        alerts.append(alert)
+    return alerts
+
+
+@api_router.post("/profile/job-alerts")
+async def create_job_alert(
+    request: Request,
+    current_user: User = Depends(get_current_user)
+):
+    """Create a new job alert"""
+    body = await request.json()
+    
+    alert = {
+        "id": str(uuid.uuid4()),
+        "user_id": current_user.id,
+        "user_email": current_user.email,
+        "job_title": body.get("job_title", ""),
+        "location": body.get("location", ""),
+        "work_type": body.get("work_type", "Permanent"),
+        "salary_range": body.get("salary_range", ""),
+        "is_active": True,
+        "created_at": datetime.utcnow(),
+        "updated_at": datetime.utcnow()
+    }
+    
+    await db.job_alerts.insert_one(alert)
+    
+    # Update profile progress
+    await db.users.update_one(
+        {"id": current_user.id},
+        {"$set": {"profile_progress.email_alerts": True, "updated_at": datetime.utcnow()}}
+    )
+    
+    if "_id" in alert:
+        del alert["_id"]
+    
+    return {"message": "Job alert created successfully", "alert": alert}
+
+
+@api_router.delete("/profile/job-alerts/{alert_id}")
+async def delete_job_alert(
+    alert_id: str,
+    current_user: User = Depends(get_current_user)
+):
+    """Delete a job alert"""
+    result = await db.job_alerts.delete_one({
+        "id": alert_id,
+        "user_id": current_user.id
+    })
+    
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Job alert not found")
+    
+    return {"message": "Job alert deleted successfully"}
+
+
+# ============================================
 # Onboarding Endpoints
 # ============================================
 
