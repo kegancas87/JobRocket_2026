@@ -71,10 +71,6 @@ class EmailService:
     Supports HTML emails, attachments, and multiple sender addresses
     """
     
-    def __init__(self):
-        self.smtp_server = EmailConfig.SMTP_SERVER
-        self.smtp_port = EmailConfig.SMTP_PORT
-    
     def send_email(
         self,
         email_type: EmailType,
