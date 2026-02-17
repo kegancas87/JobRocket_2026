@@ -1093,6 +1093,53 @@ async def update_profile(
     return {"message": "Profile updated successfully"}
 
 
+@api_router.post("/profile/work-experience")
+async def add_work_experience(
+    request: Request,
+    current_user: User = Depends(get_current_user)
+):
+    """Add work experience to user profile"""
+    body = await request.json()
+    
+    work_entry = {
+        "id": str(uuid.uuid4()),
+        "company": body.get("company", ""),
+        "position": body.get("position", ""),
+        "location": body.get("location", ""),
+        "start_date": body.get("start_date"),
+        "end_date": body.get("end_date"),
+        "current": body.get("current", False),
+        "description": body.get("description", ""),
+        "created_at": datetime.utcnow().isoformat()
+    }
+    
+    await db.users.update_one(
+        {"id": current_user.id},
+        {
+            "$push": {"work_experience": work_entry},
+            "$set": {
+                "updated_at": datetime.utcnow(),
+                "profile_progress.work_history": True
+            }
+        }
+    )
+    
+    return {"message": "Work experience added successfully", "work_experience": work_entry}
+
+
+@api_router.delete("/profile/work-experience/{experience_id}")
+async def delete_work_experience(
+    experience_id: str,
+    current_user: User = Depends(get_current_user)
+):
+    """Delete work experience entry from user profile"""
+    await db.users.update_one(
+        {"id": current_user.id},
+        {"$pull": {"work_experience": {"id": experience_id}}}
+    )
+    return {"message": "Work experience deleted successfully"}
+
+
 @api_router.post("/profile/education")
 async def add_education(
     request: Request,
