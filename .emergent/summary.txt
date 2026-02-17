@@ -1,151 +1,190 @@
 <analysis>**original_problem_statement:**
-The user has requested a complete architectural refactor of the Job Rocket application into a multi-tenant SaaS platform. This was driven by a new business model detailed in two documents provided by the user: one defining feature tiers and pricing, and another detailing each feature.
+The user initially requested a complete architectural refactor of the Job Rocket application into a multi-tenant SaaS platform. This included tiered subscriptions, feature gating, recurring payments, an admin dashboard, and AI candidate matching.
 
-The core requirements are:
-1.  **Multi-Tenant Architecture:** The system must support multiple, isolated company accounts. Each account has one owner and can have multiple users.
-2.  **Tiered Subscriptions:** Implement four pricing tiers (Starter, Growth, Pro, Enterprise), each with different user limits, features, and pricing.
-3.  **Feature Gating:** Access to specific features (e.g., AI Matching, Bulk Upload, CV Database) must be restricted based on the account's subscription tier.
-4.  **Purchasable Add-ons & Seats:** Users should be able to purchase add-on features and additional user seats on a recurring monthly basis.
-5.  **Recurring Payments:** Use Payfast to handle all recurring monthly billing for subscriptions, add-ons, and user seats. Provision for a future Stripe integration.
-6.  **Admin Dashboard:** A dashboard for the  user to view system-wide analytics (revenue, user/account counts) and manage accounts. This dashboard's data should be cached and refreshed twice daily.
-7.  **AI Candidate Matching:** Integrate an LLM via the Emergent LLM Key to provide AI-powered candidate matching, with a kill switch in the backend to revert to basic keyword search if costs are too high.
-8.  **Billing Management Page:** A dedicated page for customers () to manage their subscription, view billing history, and purchase add-ons/seats.
-9.  **Data Reset:** All previous data and user structures are considered obsolete and have been replaced by the new SaaS model.
+Subsequent requests included:
+1.  **P1 Features**: Implementation of a customer-facing billing page, bulk job upload, and AI matching indicator.
+2.  **Gamified Onboarding**: A multi-step, role-specific onboarding flow for both Job Seekers and Recruiters.
+3.  **Tier Adjustment**: Change the Starter tier from unlimited job posts to a limit of 30 posts per month.
+4.  **Analytics Dashboard**: A comprehensive, admin-only dashboard with visual charts and data export capabilities.
+5.  **Admin Account Management**: An admin panel to manage user accounts, including changing tiers, granting add-ons, adding user seats, and adding account credits.
+6.  **Test Users**: Creation of three new Job Seeker test accounts.
+7.  **Google Authentication**: Implement Sign in/up with Google for both user roles, using provided client credentials.
 
 **User's preferred language**: English
 
 **what currently exists?**
-The application's backend has been completely refactored to support a multi-tenant SaaS architecture. A new, modular structure with distinct services for accounts, billing, AI matching, and more has been implemented in . New Pydantic models in  define the schema for accounts, users, and tiers. The database has been initialized with the new tiers, and a seeding script exists to create demo data.
+The application is a fully-featured, multi-tenant SaaS platform. The core architecture refactor is complete. P0 and P1 features are implemented. Both Job Seeker and Recruiter user types have dedicated, gamified onboarding flows that trigger after registration. A comprehensive analytics dashboard provides admins with system-wide insights, and a separate admin panel allows for direct management of customer accounts. The pricing page and backend logic have been updated to enforce a 30-job-post limit on the Starter tier.
 
-On the frontend, the P0 tasks are complete: a new public pricing page displays the four tiers, a comprehensive admin dashboard shows system-wide analytics, and the Payfast subscription flow for base tiers is functional. The backend APIs for the P1 tasks (billing management, AI matching, bulk upload, cached admin stats) have been created and passed initial tests.
+The most recent addition is Google OAuth integration. The backend endpoints are created, dependencies are installed, environment variables are set, and the frontend login/registration pages have Sign in with Google buttons. However, the flow is currently non-functional due to a configuration issue.
 
 **Last working item**:
--   **Last item agent was working**: The agent was implementing the P1 features. It had just finished creating the backend services and APIs for admin stats, AI matching, bulk upload, and billing. On the frontend, it created the new  component and updated  and  to add the corresponding route and navigation links for authenticated recruiter users.
--   **Status**: IN PROGRESS
--   **Agent Testing Done**: N
--   **Which testing method agent to use?**: manual testing by curl/ python -c. Once all P1 frontend work is complete, use the frontend testing agent.
--   **User Testing Done**: N
+-   **Last item agent was working**: Troubleshooting a Google OAuth  reported by the user. The agent correctly diagnosed that the application's URL was not added to the Authorized JavaScript Origins in the user's Google Cloud Console project. It provided the user with the correct URLs to add.
+-   **Status**: BLOCKED
+-   **Agent Testing Done**: N (Cannot proceed without user action)
+-   **Which testing method agent to use?**: manual testing by curl/ python -c. The full flow requires manual user interaction in a browser.
+-   **User Testing Done**: Y (User discovered the issue)
 
 **All Pending/In progress Issue list**:
-There are no outstanding bugs. The work is focused on new feature development.
+-   **Issue 1: Google OAuth fails with  (P0)**
+    -   **Attempted fixes**: The agent identified the root cause and instructed the user to add the application's preview and custom domain URLs to the Authorized JavaScript Origins and Authorized Redirect URIs in their Google Cloud Console for the specific OAuth Client ID.
+    -   **Next debug checklist**:
+        1.  The next agent must first ask the user to confirm they have added the following URLs to their Google Cloud project and waited a few minutes for the changes to propagate:
+            -   **Authorized JavaScript Origins**:
+                -   
+                -   
+                -   
+            -   **Authorized Redirect URIs**:
+                -   
+                -   
+                -   
+        2.  Once the user confirms, the agent should guide the user to re-test the Sign in with Google button.
+        3.  If it still fails, the agent must ask for a new screenshot of the error and the Google Cloud Console settings to verify the URLs were entered correctly.
+    -   **Why fix this issue and what will be achieved with the fix?**: This is a critical authentication feature explicitly requested by the user. Fixing it will allow users to register and log in using their Google accounts.
+    -   **Status**: BLOCKED
+    -   **Is recurring issue?**: N
+    -   **Should Test frontend/backend/both after fix?**: Both (Frontend manual testing is required for the OAuth popup).
+    -   **Blocked on other issue**: Blocked on user action to update Google Cloud Console settings.
 
 **In progress Task List**:
--   **Task 1: Complete P1 Features Implementation (P0)**
-    -   **Where to resume**: The agent just finished adding the  component and updating navigation. The immediate next step is to run the linter to check the frontend code and then restart the frontend server to ensure it compiles correctly.
-    -   **What will be achieved with this?**: This will complete the foundational work for the P1 features, enabling the full implementation of the billing page, AI matching, and bulk upload functionalities.
-    -   **Status**: IN PROGRESS
+-   **Task 1: Finalize Google OAuth Integration (P0)**
+    -   **Where to resume**: Resume after the user confirms they have updated their Google Cloud Console settings. The next step is to test the full login/registration flow.
+    -   **What will be achieved with this?**: A fully functional Google authentication system.
+    -   **Status**: BLOCKED
     -   **Should Test frontend/backend/both after fix?**: Both
-    -   **Blocked on something**: None.
+    -   **Blocked on something**: The  issue.
 
 **Upcoming and Future Tasks**
 -   **Upcoming Tasks**:
-    -   **P1: Build out Frontend for P1 Features**:
-        -   **Billing Page UI**: Fully implement the UI for . This page must allow users to:
-            -   View their current subscription and billing history.
-            -   Purchase and cancel add-on features.
-            -   Purchase additional user seats.
-        -   **Bulk Job Upload UI**: Create a frontend interface for recruiters to upload jobs via CSV and Excel files, which will use the  endpoint.
-        -   **CV Search UI**: Update the CV Search page to show whether AI matching or keyword matching is active.
-
+    -   **P2: Comprehensive Application Testing**: The user wants to start testing the entire application after the Google Auth feature is working. The agent should be prepared to use the  for a full regression test.
 -   **Future Tasks**:
-    -   **P2: Paid Features for Job Seekers**: The user has requested to focus on recruiter features first and implement job seeker monetization later.
-    -   **P2: Stripe Integration**: The user has expressed potential future interest in Stripe. The system was designed with this in mind, but Payfast is the current priority.
+    -   **P2: Paid Features for Job Seekers**: Monetization features for the job seeker user type.
+    -   **P2: Stripe Integration**: Implement Stripe as an alternative payment gateway to Payfast.
+    -   **P3: Quick Stats Enhancement**: Add a Quick Stats feature to the Admin Dashboard for at-a-glance metrics.
 
 **Completed work in this session**
--   **Phase 1: Multi-Tenant Refactor (Complete)**:
-    -   Analyzed user-provided requirements and refactored the entire backend to a multi-tenant, service-oriented architecture.
-    -   Implemented a new database schema with , , and  collections.
-    -   Created scripts to initialize the database () and seed it with demo data ().
--   **P0 Features (Complete)**:
-    -   **New Pricing Page**: A dynamic, public page showing the four subscription tiers ().
-    -   **Admin Dashboard**: An admin-only dashboard to view system-wide stats and manage all accounts ().
-    -   **Payfast Subscription Flow**: A complete, working flow for subscribing to a base tier, with configurable redirect URLs.
--   **P1 Backend Services (Complete)**:
-    -   : Provides cached, system-wide analytics.
-    -   : Integrates with an LLM for AI candidate matching, with a fallback mechanism.
-    -   : Handles job uploads from CSV and  files.
-    -   : Manages recurring subscriptions, add-ons, and user seats.
--   **Testing**: Ran  after P0 implementation, and all tests passed.
+-   **P1 Frontend Features**:
+    -   Implemented the customer-facing .
+    -   Created the  for recruiters.
+    -   Added an AI matching status indicator to the CV search page.
+-   **Onboarding Flows**:
+    -   Created a gamified, multi-step onboarding wizard for Job Seekers ().
+    -   Created a parallel gamified onboarding wizard for Recruiters ().
+-   **Admin Functionality**:
+    -   Built a comprehensive  with charts and data export.
+    -   Developed an  page for admins to manage tiers, add-ons, seats, and credits for any account.
+-   **Tier & Pricing Update**:
+    -   Modified the Starter tier to have a 30 job post/month limit, updating backend logic (, ) and the frontend .
+-   **Google Authentication**:
+    -   Installed dependencies (, ).
+    -   Securely configured client ID and secret in  files.
+    -   Implemented backend verification endpoint .
+    -   Added Sign in with Google buttons to login and registration pages.
+-   **Test Data**:
+    -   Created 3 new, clean Job Seeker test accounts in .
+
+**Earlier issues found/mentioned but not fixed**
+-   None.
 
 **Known issue recurrence from previous fork**
--   None. The project was reset with a new architecture, making previous issues obsolete.
+-   None.
 
 **Code Architecture**
 
 
 **Key Technical Concepts**
--   **Multi-Tenancy**: The architecture is built around an  collection, with  belonging to an account. Tiers and features are managed at the account level.
--   **Service-Oriented Backend**: Business logic is encapsulated in distinct services (e.g., , ) for modularity.
--   **Cached Services**: The  uses time-based caching to reduce DB load, with refresh times set to 6am/6pm SAST as requested.
--   **LLM Integration**: The  uses the  library and  for AI features, including a kill switch to fall back to keyword search.
--   **Recurring Payments**: Payfast is integrated to handle recurring monthly subscriptions for tiers, add-ons, and extra seats, managed via a webhook.
+-   **Multi-Tenancy**: Architecture centered on  with associated , , and .
+-   **Service-Oriented Backend**: Logic is separated into services for modularity.
+-   **Gamified Onboarding**: Multi-step wizards (, ) that guide new users through profile setup, with progress tracking and conditional redirection in .
+-   **Google OAuth 2.0**: Uses  on the frontend and  on the backend to verify the ID token and create/log in users.
+-   **Data Visualization**: Uses  and  for charts on the .
+-   **Admin Controls**: Dedicated APIs and UI for administrators to perform privileged actions on user accounts.
 
 **key DB schema**
 -   **accounts**: 
 -   **users**: 
 -   **tiers**: 
 -   **payments**: 
+-   **admin_logs**: 
 
 **changes in tech stack**
--   : Added for LLM-based AI matching.
--   : Added to support  file uploads.
+-   : For frontend Google login UI.
+-   : (pulled in by the above).
+-   : For backend Google ID token verification.
+-   , : For data visualization on the admin analytics dashboard.
+-   : For parsing Excel files during bulk job uploads and for data export.
 
 **All files of reference**
--   : All new service files containing the core business logic.
--   : New component for customer billing management.
--   : New component for the admin dashboard.
--   : Overwritten to display the new SaaS tiers.
--    & : New reference documents defining the SaaS model.
--   : Updated to reflect all new requirements and completed work.
+-   : Modified to include Google login buttons and logic.
+-   : Wrapped the app in .
+-   : Added the  endpoint and numerous admin endpoints.
+-   : New component for job seeker setup.
+-   : New component for recruiter setup.
+-   : New admin-only analytics page.
+-   : New admin-only account management page.
+-   : Updated with .
+-   : Updated with onboarding and auth provider fields.
+-   , : Updated with Google OAuth credentials.
+
+**Areas that need refactoring**:
+- None noted. The agent has been building modular components.
 
 **key api endpoints**
--   : (New) Gets cached system-wide statistics for the admin dashboard.
--   : (New) Endpoint for purchasing/cancelling add-on features.
--   : (New) Endpoint for purchasing extra user seats.
--   : (New) Gets a comprehensive billing summary for the current user's account.
--   : (New) Handles CSV and Excel job uploads.
--   : (Updated) Handles various recurring payment notifications from Payfast.
+-   : (New) Handles user login/registration via Google OAuth.
+-   : (New) Saves progress for the multi-step onboarding flows.
+-   : (New) Provides detailed, time-series data for the admin analytics dashboard.
+-   : (New) Allows admin to change an account's subscription tier.
+-   : (New) Allows admin to grant a feature add-on.
+-   : (New) Allows admin to add user seats.
+-   : (New) Allows admin to add credits to an account's balance.
 
 **Critical Info for New Agent**
--   **SaaS Model is the Source of Truth**: The application has been fundamentally rebuilt. All work must align with the multi-tenant SaaS model defined in  and .
--   **Recurring Billing Logic**: Payfast is used for recurring monthly billing. The logic in  and the payment webhook in  are critical for handling subscriptions for tiers, add-ons, and extra user seats.
--   **User Seat Management Rule**: The user specified that if a team member is removed, the purchased seat remains active and billed until the seat subscription itself is explicitly cancelled by the user. This logic must be handled correctly in the  UI and the backend billing service.
--   **AI Matching Fallback**: The  has a kill switch ( env var). The frontend and backend must gracefully handle the fallback to keyword search when this is disabled.
+-   **Google OAuth is BLOCKED**: The immediate priority is to resolve the  error. You must coordinate with the user to ensure they have correctly updated their Google Cloud Console settings. Do not attempt other work until this is resolved and verified.
+-   **Secure Credentials**: The Google Client Secret is stored only in the backend  file and is not exposed. The Client ID is correctly placed in the frontend . Do not modify this setup.
+-   **Role-Based Logic**: The application has significant logic that differs based on user role ( vs. ), especially in the onboarding flow. Be mindful of this when making changes.
 
 **documents and test reports created in this job**
 -   
 -   
--    (updated)
 -   
+-   
+-   
+-    (updated multiple times)
 
 **Last 10 User Messages and any pending HUMAN messages**
-1.  **User**: Asks agent to build the P1 items.
-2.  **Agent**: Asks clarifying questions about P1 implementation details.
-3.  **User**: Provides detailed requirements for P1 items: stats caching every 12 hours, recurring monthly payments for add-ons/seats via Payfast, seat cancellation policy, AI matching kill switch, CSV/Excel for bulk upload, and location of the new billing page.
-4.  **Agent**: Confirms understanding of P1 requirements and begins implementation.
-5.  **User**: Approved the Phase 1 refactoring plan and provided specifics on user limits per tier (2 for Growth, 3 for Pro) and payment gateway choice (Payfast now, Stripe later).
-6.  **Agent**: Presented a detailed, multi-phase refactoring plan based on the user's documents.
-7.  **User**: Uploaded the feature and pricing documents.
-8.  **Agent**: Confirmed it can read the attached documents.
-9.  **User**: Asked if the agent could read an attached spreadsheet.
-10. **Agent**: Recommended sharing the tier spreadsheet first to inform the database schema design.
+1.  **User**: Reports google register not working with a screenshot showing .
+2.  **Agent**: Correctly identifies the issue and provides instructions for the user to add the correct URLs to their Google Cloud Console.
+3.  **User**: Provides the custom domains  and .
+4.  **Agent**: Confirms the full list of URLs the user needs to add to Google Cloud.
+5.  **User**: Asks to implement Google register and login, providing Client ID and Secret.
+6.  **User**: Asks for 3 test job seeker accounts.
+7.  **Agent**: Created the 3 new job seeker accounts.
+8.  **User**: Approves the plan to build the full admin account management suite.
+9.  **Agent**: Proposes a plan to add admin capabilities: change tier, grant add-ons, add seats, and add credits.
+10. **User**: Requests new admin functionality to add credits/packages to user accounts for testing and special customer cases.
 
 **Project Health Check:**
--   **Broken**: No features are currently broken.
--   **Mocked**: Payfast integration is in sandbox mode. The  is likely for a test environment.
+-   **Broken**: Google OAuth Login/Registration.
+-   **Mocked**: Payfast integration is in sandbox mode.
 
 **3rd Party Integrations**
 -   **Payfast**: Used for recurring payments (sandbox mode).
 -   **OpenAI/Gemini (via )**: Used for AI candidate matching, powered by the .
+-   **Google OAuth 2.0**: For user authentication.
 
 **Testing status**
--   **Testing agent used after significant changes**: YES, after the P0 features were completed.
+-   **Testing agent used after significant changes**: YES. The testing agent was used successfully after implementing P1 features, both onboarding flows, the analytics dashboard, and the admin management panel.
 -   **Troubleshoot agent used after agent stuck in loop**: NO
--   **Test files created**: []
+-   **Test files created**: Test reports from  to  exist.
 -   **Known regressions**: None.
 
 **Credentials to test flow:**
-Demo users for each tier are created by the  script. The password for all is  except for the admin.
 -   **Admin**:  (password: )
--   **Recruiter (Growth Tier)**:  (has access to CV search)
--   **Recruiter (Pro Tier)**:  (has access to bulk upload)</analysis>
+-   **Recruiter (Growth)**:  (password: )
+-   **Recruiter (Pro)**:  (password: )
+-   **New Job Seekers (Fresh Profiles)**:
+    -    (password: )
+    -    (password: )
+    -    (password: )
+
+**What agent forgot to execute**
+-   The agent was unable to finalize the Google OAuth implementation because it is blocked pending a required configuration change by the user in their Google Cloud project. No steps were forgotten.</analysis>

@@ -8,7 +8,7 @@ import json
 import uuid
 from datetime import datetime
 
-BASE_URL = "https://multi-tenant-build.preview.emergentagent.com/api"
+BASE_URL = "https://jobrocket-saas.preview.emergentagent.com/api"
 HEADERS = {"Content-Type": "application/json"}
 
 def test_invitation_registration_flow():

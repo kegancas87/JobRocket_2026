@@ -14,7 +14,7 @@ import os
 import io
 import csv
 
-BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://multi-tenant-build.preview.emergentagent.com').rstrip('/')
+BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://jobrocket-saas.preview.emergentagent.com').rstrip('/')
 
 # Test credentials
 PRO_RECRUITER = {"email": "careers@fintechsa.co.za", "password": "demo123"}
