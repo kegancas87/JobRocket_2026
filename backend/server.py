@@ -863,6 +863,68 @@ async def apply_to_job(
     return application_dict
 
 
+@api_router.post("/jobs/{job_id}/apply")
+async def apply_to_job_by_id(
+    job_id: str,
+    application_data: dict,
+    current_user: User = Depends(get_current_user)
+):
+    """Apply to a specific job (job seekers only) - Alternative endpoint"""
+    
+    if current_user.role != UserRole.JOB_SEEKER:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only job seekers can apply to jobs"
+        )
+    
+    # Get job
+    job = await db.jobs.find_one({"id": job_id, "is_active": True})
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found")
+    
+    # Check if already applied
+    existing = await db.job_applications.find_one({
+        "job_id": job_id,
+        "applicant_id": current_user.id
+    })
+    if existing:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="You have already applied to this job"
+        )
+    
+    # Create application snapshot
+    applicant_snapshot = {
+        "first_name": current_user.first_name,
+        "last_name": current_user.last_name,
+        "email": current_user.email,
+        "skills": current_user.skills,
+        "location": current_user.location,
+        "about_me": current_user.about_me,
+    }
+    
+    application_dict = {
+        "id": str(uuid.uuid4()),
+        "job_id": job_id,
+        "applicant_id": current_user.id,
+        "account_id": job["account_id"],
+        "status": ApplicationStatus.PENDING,
+        "cover_letter": application_data.get("cover_letter", ""),
+        "resume_url": application_data.get("resume_url", ""),
+        "additional_info": application_data.get("additional_info", ""),
+        "applicant_snapshot": applicant_snapshot,
+        "applied_date": datetime.utcnow(),
+        "last_updated": datetime.utcnow(),
+    }
+    
+    await db.job_applications.insert_one(application_dict)
+    
+    if "_id" in application_dict:
+        del application_dict["_id"]
+    
+    return application_dict
+
+
 @api_router.get("/applications")
 async def get_my_applications(current_user: User = Depends(get_current_user)):
     """Get applications for current user (job seekers see their applications, recruiters see applications to their jobs)"""
