@@ -399,9 +399,9 @@ const ProfileDashboard = ({ user, onUpdateUser }) => {
                   <Video className="w-4 h-4" />
                   <span className="hidden sm:inline">Media</span>
                 </TabsTrigger>
-                <TabsTrigger value="settings" className="flex items-center space-x-1">
-                  <Target className="w-4 h-4" />
-                  <span className="hidden sm:inline">Settings</span>
+                <TabsTrigger value="alerts" className="flex items-center space-x-1">
+                  <Bell className="w-4 h-4" />
+                  <span className="hidden sm:inline">Alerts</span>
                 </TabsTrigger>
               </TabsList>
 
