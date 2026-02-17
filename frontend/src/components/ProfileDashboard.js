@@ -1048,13 +1048,13 @@ const ProfileDashboard = ({ user, onUpdateUser }) => {
                 <MyApplications user={profile} />
               </TabsContent>
 
-              {/* Settings Tab - Email Alerts */}
-              <TabsContent value="settings" className="space-y-6 mt-6">
+              {/* Alerts Tab - Job Alerts */}
+              <TabsContent value="alerts" className="space-y-6 mt-6">
                 <Card className="bg-white/80 backdrop-blur-sm border-0 shadow-xl">
                   <CardHeader>
                     <CardTitle className="flex items-center space-x-2">
-                      <Mail className="w-5 h-5 text-blue-600" />
-                      <span>Email Alerts & Preferences</span>
+                      <Bell className="w-5 h-5 text-blue-600" />
+                      <span>Job Alerts</span>
                       {!progress.email_alerts && (
                         <Badge className="bg-yellow-100 text-yellow-800 text-xs">
                           +5 points
@@ -1064,26 +1064,119 @@ const ProfileDashboard = ({ user, onUpdateUser }) => {
                   </CardHeader>
                   <CardContent>
                     <div className="space-y-6">
-                      <div className="flex items-center justify-between p-4 bg-slate-50 rounded-lg">
-                        <div>
-                          <h4 className="font-medium text-slate-800">Job Alerts</h4>
-                          <p className="text-sm text-slate-600">Get notified about new job opportunities</p>
-                        </div>
-                        <Button
-                          onClick={setupEmailAlerts}
-                          disabled={progress.email_alerts}
-                          className={progress.email_alerts ? "bg-green-600" : "bg-gradient-to-r from-blue-600 to-slate-700"}
-                        >
-                          {progress.email_alerts ? (
-                            <span>✓ Enabled</span>
-                          ) : (
-                            <span>Setup Alerts</span>
-                          )}
-                        </Button>
+                      {/* Description */}
+                      <div className="p-4 bg-blue-50 rounded-lg border border-blue-200">
+                        <p className="text-sm text-blue-800">
+                          Create job alerts to get notified via email when new jobs matching your criteria are posted. 
+                          You can create multiple alerts for different job types or locations.
+                        </p>
                       </div>
 
+                      {/* New Job Alert Form */}
+                      <form onSubmit={addJobAlert} className="space-y-4">
+                        <h4 className="font-medium text-slate-800">Create New Job Alert</h4>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          <div className="space-y-2">
+                            <Label htmlFor="alert_job_title">Job Title</Label>
+                            <Input
+                              id="alert_job_title"
+                              value={newJobAlert.job_title}
+                              onChange={(e) => setNewJobAlert(prev => ({ ...prev, job_title: e.target.value }))}
+                              placeholder="e.g., Software Developer"
+                              required
+                            />
+                          </div>
+                          <div className="space-y-2">
+                            <Label htmlFor="alert_location">Location</Label>
+                            <Input
+                              id="alert_location"
+                              value={newJobAlert.location}
+                              onChange={(e) => setNewJobAlert(prev => ({ ...prev, location: e.target.value }))}
+                              placeholder="e.g., Cape Town, Remote"
+                              required
+                            />
+                          </div>
+                          <div className="space-y-2">
+                            <Label htmlFor="alert_work_type">Work Type</Label>
+                            <select
+                              id="alert_work_type"
+                              value={newJobAlert.work_type}
+                              onChange={(e) => setNewJobAlert(prev => ({ ...prev, work_type: e.target.value }))}
+                              className="w-full px-3 py-2 border border-slate-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                              required
+                            >
+                              <option value="Permanent">Permanent</option>
+                              <option value="Contract">Contract</option>
+                            </select>
+                          </div>
+                          <div className="space-y-2">
+                            <Label htmlFor="alert_salary">Desired Salary Range</Label>
+                            <Input
+                              id="alert_salary"
+                              value={newJobAlert.salary_range}
+                              onChange={(e) => setNewJobAlert(prev => ({ ...prev, salary_range: e.target.value }))}
+                              placeholder="e.g., R50,000 - R80,000"
+                            />
+                          </div>
+                        </div>
+                        <Button 
+                          type="submit"
+                          className="bg-gradient-to-r from-blue-600 to-slate-700 hover:from-blue-700 hover:to-slate-800"
+                        >
+                          <Plus className="w-4 h-4 mr-2" />
+                          Create Alert
+                        </Button>
+                      </form>
+
+                      {/* Existing Job Alerts */}
                       <div className="space-y-4">
+                        <h4 className="font-medium text-slate-800">Your Job Alerts ({jobAlerts.length})</h4>
+                        {jobAlerts.length > 0 ? (
+                          <div className="space-y-3">
+                            {jobAlerts.map((alert) => (
+                              <div key={alert.id} className="flex items-center justify-between p-4 bg-slate-50 rounded-lg border border-slate-200">
+                                <div className="flex-1">
+                                  <div className="flex items-center space-x-2">
+                                    <h5 className="font-semibold text-slate-800">{alert.job_title}</h5>
+                                    <Badge variant="outline" className="text-xs">{alert.work_type}</Badge>
+                                  </div>
+                                  <div className="flex items-center space-x-4 mt-1 text-sm text-slate-600">
+                                    <span className="flex items-center">
+                                      <MapPin className="w-3 h-3 mr-1" />
+                                      {alert.location}
+                                    </span>
+                                    {alert.salary_range && (
+                                      <span className="flex items-center">
+                                        <DollarSign className="w-3 h-3 mr-1" />
+                                        {alert.salary_range}
+                                      </span>
+                                    )}
+                                  </div>
+                                </div>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => deleteJobAlert(alert.id)}
+                                  className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                                >
+                                  <Trash2 className="w-4 h-4" />
+                                </Button>
+                              </div>
+                            ))}
+                          </div>
+                        ) : (
+                          <div className="text-center py-8 text-slate-500">
+                            <Bell className="w-12 h-12 mx-auto mb-3 text-slate-300" />
+                            <p>No job alerts created yet</p>
+                            <p className="text-sm">Create alerts above to get notified about matching jobs</p>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Salary Preferences */}
+                      <div className="space-y-4 pt-6 border-t border-slate-200">
                         <h4 className="font-medium text-slate-800">Salary Preferences (Optional)</h4>
+                        <p className="text-sm text-slate-600">These are your general salary preferences shown on your profile.</p>
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                           <div className="space-y-2">
                             <Label htmlFor="current_salary">Current Salary Range</Label>
