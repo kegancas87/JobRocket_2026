@@ -668,10 +668,14 @@ async def create_job(
         "company_name": account["name"],
         "logo_url": account.get("company_logo_url"),
         "posted_date": datetime.utcnow(),
+        "created_at": datetime.utcnow(),
         "expiry_date": datetime.utcnow() + timedelta(days=35),
         "is_active": True,
         **job_data.dict()
     }
+    
+    # Also store employment_type for alert matching (based on job_type)
+    job_dict["employment_type"] = job_dict.get("job_type", "")
     
     await db.jobs.insert_one(job_dict)
     
