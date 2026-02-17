@@ -84,6 +84,15 @@ const ProfileDashboard = ({ user, onUpdateUser }) => {
     credential_url: ''
   });
 
+  // Job Alert state
+  const [jobAlerts, setJobAlerts] = useState([]);
+  const [newJobAlert, setNewJobAlert] = useState({
+    job_title: '',
+    location: '',
+    work_type: 'Permanent',
+    salary_range: ''
+  });
+
   const getAuthHeaders = () => {
     const token = localStorage.getItem('token');
     return {
