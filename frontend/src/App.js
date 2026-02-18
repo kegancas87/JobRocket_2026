@@ -1174,11 +1174,11 @@ const JobListingPage = ({ user, onLogout }) => {
       
       {/* Hero Search Section */}
       <div 
-        className="relative py-24 overflow-hidden"
+        className="relative py-20 overflow-hidden"
         style={{
-          backgroundImage: `linear-gradient(135deg, rgba(15, 23, 42, 0.8), rgba(30, 64, 175, 0.7)), url('https://images.unsplash.com/photo-1541185933-ef5d8ed016c2?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NTY2Nzd8MHwxfHNlYXJjaHwyfHxyb2NrZXQlMjBsYXVuY2h8ZW58MHx8fHwxNzU1MzUzNjI2fDA&ixlib=rb-4.1.0&q=85')`,
+          backgroundImage: `linear-gradient(135deg, rgba(15, 23, 42, 0.85), rgba(30, 64, 175, 0.8)), url('https://images.unsplash.com/photo-1541185933-ef5d8ed016c2?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NTY2Nzd8MHwxfHNlYXJjaHwyfHxyb2NrZXQlMjBsYXVuY2h8ZW58MHx8fHwxNzU1MzUzNjI2fDA&ixlib=rb-4.1.0&q=85')`,
           backgroundSize: 'cover',
-          backgroundPosition: 'center'
+          backgroundPosition: 'top center'
         }}
       >
         {/* Animated particles/stars effect */}
