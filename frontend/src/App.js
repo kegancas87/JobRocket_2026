@@ -1397,7 +1397,7 @@ const JobListingPage = ({ user, onLogout }) => {
             </div>
 
             <div className="grid grid-cols-1 gap-6 lg:gap-8">
-              {filteredJobs.map((job) => (
+              {filteredJobs.slice(0, visibleCount).map((job) => (
                 <JobCard 
                   key={job.id} 
                   job={job} 
@@ -1408,6 +1408,29 @@ const JobListingPage = ({ user, onLogout }) => {
                 />
               ))}
             </div>
+
+            {/* View More Button */}
+            {filteredJobs.length > visibleCount && (
+              <div className="flex justify-center mt-10">
+                <Button
+                  onClick={handleLoadMore}
+                  variant="outline"
+                  className="px-8 py-3 text-lg font-semibold border-2 border-blue-600 text-blue-600 hover:bg-blue-50 rounded-xl transition-all duration-200"
+                >
+                  View More
+                  <span className="ml-2 text-sm text-slate-500">
+                    (Showing {Math.min(visibleCount, filteredJobs.length)} of {filteredJobs.length})
+                  </span>
+                </Button>
+              </div>
+            )}
+
+            {/* All jobs loaded indicator */}
+            {filteredJobs.length > 0 && filteredJobs.length <= visibleCount && filteredJobs.length > 30 && (
+              <div className="text-center mt-8 text-slate-500">
+                All {filteredJobs.length} jobs loaded
+              </div>
+            )}
 
             {filteredJobs.length === 0 && (
               <div className="text-center py-24">
