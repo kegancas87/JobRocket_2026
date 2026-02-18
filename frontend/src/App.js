@@ -997,9 +997,14 @@ const JobListingPage = ({ user, onLogout }) => {
   useEffect(() => {
     const timeoutId = setTimeout(() => {
       fetchJobs();
+      setVisibleCount(30); // Reset pagination when search changes
     }, 500);
     return () => clearTimeout(timeoutId);
   }, [searchTerm, location]);
+
+  const handleLoadMore = () => {
+    setVisibleCount(prev => prev + 30);
+  };
 
   const handleSaveJob = (jobId) => {
     setJobs(jobs.map(job => 
