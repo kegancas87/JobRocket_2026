@@ -179,7 +179,7 @@ const JobDetailsModal = ({ job, user, isOpen, onClose, onApplicationSuccess }) =
                     <Briefcase className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
                     <span className="font-medium text-xs sm:text-sm">Job Type</span>
                   </div>
-                  <p className="font-bold text-blue-800 text-sm sm:text-base">{job.job_type}</p>
+                  <p className="font-bold text-blue-800 text-sm sm:text-base">{job.job_type || 'Not specified'}</p>
                 </div>
                 
                 <div className="bg-purple-50 p-3 sm:p-4 rounded-lg">
@@ -187,18 +187,16 @@ const JobDetailsModal = ({ job, user, isOpen, onClose, onApplicationSuccess }) =
                     <Users className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
                     <span className="font-medium text-xs sm:text-sm">Work Type</span>
                   </div>
-                  <p className="font-bold text-purple-800 text-sm sm:text-base">{job.work_type}</p>
+                  <p className="font-bold text-purple-800 text-sm sm:text-base">{job.work_type || 'Not specified'}</p>
                 </div>
                 
-                {job.experience && (
-                  <div className="bg-orange-50 p-3 sm:p-4 rounded-lg">
-                    <div className="flex items-center space-x-1.5 sm:space-x-2 text-orange-700 mb-1">
-                      <GraduationCap className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-                      <span className="font-medium text-xs sm:text-sm">Experience</span>
-                    </div>
-                    <p className="font-bold text-orange-800 text-sm sm:text-base">{job.experience}</p>
+                <div className="bg-orange-50 p-3 sm:p-4 rounded-lg">
+                  <div className="flex items-center space-x-1.5 sm:space-x-2 text-orange-700 mb-1">
+                    <GraduationCap className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                    <span className="font-medium text-xs sm:text-sm">Experience</span>
                   </div>
-                )}
+                  <p className="font-bold text-orange-800 text-sm sm:text-base">{job.experience || 'Not specified'}</p>
+                </div>
               </div>
 
               {/* Job Description */}
