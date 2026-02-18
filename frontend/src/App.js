@@ -1570,6 +1570,11 @@ function App() {
             <Route path="/payment/cancel" element={
               <PaymentCancelPage user={null} />
             } />
+            {/* Public Static Pages - Unauthenticated */}
+            <Route path="/about" element={<AboutUsPage />} />
+            <Route path="/contact" element={<ContactPage />} />
+            <Route path="/privacy-policy" element={<PrivacyPolicyPage />} />
+            <Route path="/terms-of-service" element={<TermsOfServicePage />} />
             <Route path="*" element={
               authPage === 'login' ? (
                 <LoginPage 
