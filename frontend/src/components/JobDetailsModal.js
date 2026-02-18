@@ -86,15 +86,22 @@ const JobDetailsModal = ({ job, user, isOpen, onClose, onApplicationSuccess }) =
           <div className="flex items-start justify-between gap-3">
             <div className="flex items-start space-x-3 sm:space-x-4 min-w-0 flex-1">
               {/* Company Logo */}
-              <div className="w-12 h-12 sm:w-16 sm:h-16 rounded-xl overflow-hidden bg-gradient-to-br from-slate-100 to-slate-200 flex-shrink-0 shadow-lg">
-                <img 
-                  src={job.logo_url} 
-                  alt={`${job.company_name} logo`}
-                  className="w-full h-full object-cover"
-                  onError={(e) => {
-                    e.target.src = 'https://images.unsplash.com/photo-1606211105533-0439bfecce21?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NTY2NzZ8MHwxfHNlYXJjaHw0fHxtb2Rlcm4lMjB0ZWNobm9sb2d5fGVufDB8fHx8MTc1NTM1MzYzMXww&ixlib=rb-4.1.0&q=85&w=80&h=80';
-                  }}
-                />
+              <div className="w-12 h-12 sm:w-16 sm:h-16 rounded-xl overflow-hidden bg-gradient-to-br from-blue-100 to-slate-200 flex-shrink-0 shadow-lg flex items-center justify-center">
+                {job.logo_url ? (
+                  <img 
+                    src={job.logo_url} 
+                    alt={`${job.company_name} logo`}
+                    className="w-full h-full object-cover"
+                    onError={(e) => {
+                      e.target.style.display = 'none';
+                      e.target.parentElement.innerHTML = `<div class="w-full h-full flex items-center justify-center bg-gradient-to-br from-blue-600 to-slate-700 text-white font-bold text-lg sm:text-xl">${job.company_name?.charAt(0) || 'J'}</div>`;
+                    }}
+                  />
+                ) : (
+                  <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-blue-600 to-slate-700 text-white font-bold text-lg sm:text-xl">
+                    {job.company_name?.charAt(0) || 'J'}
+                  </div>
+                )}
               </div>
               
               <div className="flex-1 min-w-0">
