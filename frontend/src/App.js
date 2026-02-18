@@ -1418,9 +1418,6 @@ const JobListingPage = ({ user, onLogout }) => {
                   className="px-8 py-3 text-lg font-semibold border-2 border-blue-600 text-blue-600 hover:bg-blue-50 rounded-xl transition-all duration-200"
                 >
                   View More
-                  <span className="ml-2 text-sm text-slate-500">
-                    (Showing {Math.min(visibleCount, filteredJobs.length)} of {filteredJobs.length})
-                  </span>
                 </Button>
               </div>
             )}
