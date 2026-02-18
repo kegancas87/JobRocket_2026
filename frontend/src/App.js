@@ -923,6 +923,7 @@ const JobListingPage = ({ user, onLogout }) => {
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
   const [location, setLocation] = useState("");
+  const [visibleCount, setVisibleCount] = useState(30);
   const [filters, setFilters] = useState({
     datePosted: {
       newJobs: false,
