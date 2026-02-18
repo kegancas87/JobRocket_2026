@@ -1835,6 +1835,12 @@ function App() {
                 )
               } />
               
+              {/* Public Static Pages */}
+              <Route path="/about" element={<AboutUsPage />} />
+              <Route path="/contact" element={<ContactPage />} />
+              <Route path="/privacy-policy" element={<PrivacyPolicyPage />} />
+              <Route path="/terms-of-service" element={<TermsOfServicePage />} />
+              
               <Route path="*" element={<Navigate to="/" replace />} />
             </Routes>
           </main>
