@@ -2557,12 +2557,12 @@ async def cancel_extra_seat(
 # ============================================
 
 @api_router.get("/company/branches")
-async def get_company_branches(current_user: dict = Depends(get_current_user)):
+async def get_company_branches(current_user: User = Depends(get_current_user)):
     """Get all branches for the current user's company"""
-    if not current_user.get("account_id"):
+    if not current_user.account_id:
         raise HTTPException(status_code=400, detail="User not associated with an account")
     
-    branches = await db.branches.find({"account_id": current_user["account_id"]}).to_list(100)
+    branches = await db.branches.find({"account_id": current_user.account_id}).to_list(100)
     for branch in branches:
         branch["id"] = str(branch.pop("_id"))
     return branches
@@ -2570,31 +2570,31 @@ async def get_company_branches(current_user: dict = Depends(get_current_user)):
 @api_router.post("/company/branches")
 async def create_company_branch(
     branch_data: dict,
-    current_user: dict = Depends(get_current_user)
+    current_user: User = Depends(get_current_user)
 ):
     """Create a new branch for the company"""
-    if not current_user.get("account_id"):
+    if not current_user.account_id:
         raise HTTPException(status_code=400, detail="User not associated with an account")
     
     # Check if user has permission (owner or admin)
-    if current_user.get("account_role") not in ["owner", "admin"]:
+    if current_user.account_role not in [AccountRole.OWNER, AccountRole.ADMIN]:
         raise HTTPException(status_code=403, detail="Only owners and admins can create branches")
     
     branch = {
-        "account_id": current_user["account_id"],
+        "account_id": current_user.account_id,
         "name": branch_data.get("name", ""),
         "location": branch_data.get("location", ""),
         "email": branch_data.get("email"),
         "phone": branch_data.get("phone"),
         "is_headquarters": branch_data.get("is_headquarters", False),
         "created_at": datetime.utcnow(),
-        "created_by": current_user["id"]
+        "created_by": current_user.id
     }
     
     # If marking as headquarters, unset other headquarters
     if branch["is_headquarters"]:
         await db.branches.update_many(
-            {"account_id": current_user["account_id"]},
+            {"account_id": current_user.account_id},
             {"$set": {"is_headquarters": False}}
         )
     
@@ -2609,13 +2609,13 @@ async def create_company_branch(
 async def update_company_branch(
     branch_id: str,
     branch_data: dict,
-    current_user: dict = Depends(get_current_user)
+    current_user: User = Depends(get_current_user)
 ):
     """Update a branch"""
-    if not current_user.get("account_id"):
+    if not current_user.account_id:
         raise HTTPException(status_code=400, detail="User not associated with an account")
     
-    if current_user.get("account_role") not in ["owner", "admin"]:
+    if current_user.account_role not in [AccountRole.OWNER, AccountRole.ADMIN]:
         raise HTTPException(status_code=403, detail="Only owners and admins can update branches")
     
     from bson import ObjectId
@@ -2623,7 +2623,7 @@ async def update_company_branch(
     # Verify branch belongs to user's account
     branch = await db.branches.find_one({
         "_id": ObjectId(branch_id),
-        "account_id": current_user["account_id"]
+        "account_id": current_user.account_id
     })
     
     if not branch:
@@ -2641,7 +2641,7 @@ async def update_company_branch(
     # If marking as headquarters, unset other headquarters
     if update_data["is_headquarters"]:
         await db.branches.update_many(
-            {"account_id": current_user["account_id"], "_id": {"$ne": ObjectId(branch_id)}},
+            {"account_id": current_user.account_id, "_id": {"$ne": ObjectId(branch_id)}},
             {"$set": {"is_headquarters": False}}
         )
     
@@ -2652,20 +2652,20 @@ async def update_company_branch(
 @api_router.delete("/company/branches/{branch_id}")
 async def delete_company_branch(
     branch_id: str,
-    current_user: dict = Depends(get_current_user)
+    current_user: User = Depends(get_current_user)
 ):
     """Delete a branch"""
-    if not current_user.get("account_id"):
+    if not current_user.account_id:
         raise HTTPException(status_code=400, detail="User not associated with an account")
     
-    if current_user.get("account_role") not in ["owner", "admin"]:
+    if current_user.account_role not in [AccountRole.OWNER, AccountRole.ADMIN]:
         raise HTTPException(status_code=403, detail="Only owners and admins can delete branches")
     
     from bson import ObjectId
     
     result = await db.branches.delete_one({
         "_id": ObjectId(branch_id),
-        "account_id": current_user["account_id"]
+        "account_id": current_user.account_id
     })
     
     if result.deleted_count == 0:
@@ -2674,26 +2674,26 @@ async def delete_company_branch(
     return {"message": "Branch deleted successfully"}
 
 @api_router.get("/company/members")
-async def get_company_members(current_user: dict = Depends(get_current_user)):
+async def get_company_members(current_user: User = Depends(get_current_user)):
     """Get all team members for the current user's company"""
-    if not current_user.get("account_id"):
+    if not current_user.account_id:
         raise HTTPException(status_code=400, detail="User not associated with an account")
     
     members = await db.users.find(
-        {"account_id": current_user["account_id"]},
+        {"account_id": current_user.account_id},
         {"password": 0, "_id": 0}
     ).to_list(100)
     
     return members
 
 @api_router.get("/company/invitations")
-async def get_company_invitations(current_user: dict = Depends(get_current_user)):
+async def get_company_invitations(current_user: User = Depends(get_current_user)):
     """Get all pending invitations for the current user's company"""
-    if not current_user.get("account_id"):
+    if not current_user.account_id:
         raise HTTPException(status_code=400, detail="User not associated with an account")
     
     invitations = await db.invitations.find({
-        "account_id": current_user["account_id"],
+        "account_id": current_user.account_id,
         "status": "pending"
     }).to_list(100)
     
@@ -2705,13 +2705,13 @@ async def get_company_invitations(current_user: dict = Depends(get_current_user)
 @api_router.post("/company/invitations")
 async def create_company_invitation(
     invitation_data: dict,
-    current_user: dict = Depends(get_current_user)
+    current_user: User = Depends(get_current_user)
 ):
     """Create a new team member invitation"""
-    if not current_user.get("account_id"):
+    if not current_user.account_id:
         raise HTTPException(status_code=400, detail="User not associated with an account")
     
-    if current_user.get("account_role") not in ["owner", "admin"]:
+    if current_user.account_role not in [AccountRole.OWNER, AccountRole.ADMIN]:
         raise HTTPException(status_code=403, detail="Only owners and admins can invite team members")
     
     # Check if email already exists
@@ -2722,21 +2722,21 @@ async def create_company_invitation(
     # Check for existing pending invitation
     existing_invitation = await db.invitations.find_one({
         "email": invitation_data.get("email"),
-        "account_id": current_user["account_id"],
+        "account_id": current_user.account_id,
         "status": "pending"
     })
     if existing_invitation:
         raise HTTPException(status_code=400, detail="An invitation has already been sent to this email")
     
     invitation = {
-        "account_id": current_user["account_id"],
+        "account_id": current_user.account_id,
         "email": invitation_data.get("email"),
         "role": invitation_data.get("role", "member"),
         "branch_id": invitation_data.get("branch_id"),
         "token": secrets.token_urlsafe(32),
         "status": "pending",
         "created_at": datetime.utcnow(),
-        "created_by": current_user["id"],
+        "created_by": current_user.id,
         "expires_at": datetime.utcnow() + timedelta(days=7)
     }
     
@@ -2752,20 +2752,20 @@ async def create_company_invitation(
 @api_router.delete("/company/invitations/{invitation_id}")
 async def cancel_company_invitation(
     invitation_id: str,
-    current_user: dict = Depends(get_current_user)
+    current_user: User = Depends(get_current_user)
 ):
     """Cancel a pending invitation"""
-    if not current_user.get("account_id"):
+    if not current_user.account_id:
         raise HTTPException(status_code=400, detail="User not associated with an account")
     
-    if current_user.get("account_role") not in ["owner", "admin"]:
+    if current_user.account_role not in [AccountRole.OWNER, AccountRole.ADMIN]:
         raise HTTPException(status_code=403, detail="Only owners and admins can cancel invitations")
     
     from bson import ObjectId
     
     result = await db.invitations.delete_one({
         "_id": ObjectId(invitation_id),
-        "account_id": current_user["account_id"],
+        "account_id": current_user.account_id,
         "status": "pending"
     })
     
