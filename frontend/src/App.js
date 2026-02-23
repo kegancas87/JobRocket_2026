@@ -145,8 +145,8 @@ const CVSearchPage = ({ user }) => {
         headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
       });
 
-      setSearchResults(response.data.results);
-      setRemainingSearches(response.data.remaining_searches);
+      setSearchResults(response.data.candidates || []);
+      setRemainingSearches(response.data.remaining_searches || 'unlimited');
       setHasSearched(true);
     } catch (error) {
       console.error('CV search error:', error);
