@@ -286,6 +286,71 @@ const BillingPage = ({ user }) => {
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-slate-100">
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {/* Subscription Status Banner */}
+        {subscriptionStatus && subscriptionStatus.needs_payment && (
+          <Card className={`mb-6 ${
+            subscriptionStatus.status === 'inactive' 
+              ? 'bg-red-50 border-red-200' 
+              : 'bg-yellow-50 border-yellow-200'
+          }`}>
+            <CardContent className="p-4">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center space-x-3">
+                  <AlertCircle className={`w-6 h-6 ${
+                    subscriptionStatus.status === 'inactive' 
+                      ? 'text-red-600' 
+                      : 'text-yellow-600'
+                  }`} />
+                  <div>
+                    <h4 className={`font-semibold ${
+                      subscriptionStatus.status === 'inactive' 
+                        ? 'text-red-800' 
+                        : 'text-yellow-800'
+                    }`}>
+                      {subscriptionStatus.status === 'inactive' 
+                        ? 'Account Suspended' 
+                        : 'Payment Overdue'}
+                    </h4>
+                    <p className={`text-sm ${
+                      subscriptionStatus.status === 'inactive' 
+                        ? 'text-red-700' 
+                        : 'text-yellow-700'
+                    }`}>
+                      {subscriptionStatus.message}
+                      {subscriptionStatus.grace_days_remaining > 0 && (
+                        <span className="ml-1 font-medium">
+                          ({subscriptionStatus.grace_days_remaining} days remaining)
+                        </span>
+                      )}
+                    </p>
+                  </div>
+                </div>
+                <Button
+                  onClick={handleReactivateSubscription}
+                  disabled={purchasing === 'reactivate'}
+                  className={`${
+                    subscriptionStatus.status === 'inactive'
+                      ? 'bg-red-600 hover:bg-red-700'
+                      : 'bg-yellow-600 hover:bg-yellow-700'
+                  } text-white`}
+                >
+                  {purchasing === 'reactivate' ? (
+                    <span className="flex items-center">
+                      <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
+                      Processing...
+                    </span>
+                  ) : (
+                    <span className="flex items-center">
+                      <CreditCard className="w-4 h-4 mr-2" />
+                      {subscriptionStatus.status === 'inactive' ? 'Reactivate Account' : 'Make Payment'}
+                    </span>
+                  )}
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
         {/* Header */}
         <div className="mb-8">
           <h1 className="text-3xl font-bold text-slate-800 flex items-center">
