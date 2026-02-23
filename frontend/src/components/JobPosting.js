@@ -6,6 +6,13 @@ import { Card, CardContent, CardHeader, CardTitle } from "./ui/card";
 import { Label } from "./ui/label";
 import { Badge } from "./ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "./ui/tabs";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "./ui/dialog";
 import { 
   Briefcase, 
   Plus, 
@@ -22,7 +29,8 @@ import {
   Download,
   AlertCircle,
   CheckCircle,
-  X
+  X,
+  Save
 } from "lucide-react";
 import axios from 'axios';
 
