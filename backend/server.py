@@ -2454,6 +2454,8 @@ async def get_my_packages(current_user: User = Depends(get_current_user)):
         "job_listings_remaining": job_listings_remaining,
         "subscription_start_date": account.get("subscription_start_date"),
         "subscription_end_date": subscription_end,
+        "purchased_date": account.get("subscription_start_date") or account.get("created_at"),
+        "expiry_date": subscription_end,
         "created_at": account.get("created_at"),
     }
     
@@ -2466,6 +2468,7 @@ async def get_my_packages(current_user: User = Depends(get_current_user)):
         "features": [str(f) for f in tier_config.get("features", [])],
         "included_users": tier_config.get("included_users", 1),
         "job_post_limit": tier_config.get("job_post_limit"),
+        "is_subscription": True,
     }
     
     return [{
