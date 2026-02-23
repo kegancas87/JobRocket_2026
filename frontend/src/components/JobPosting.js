@@ -428,6 +428,158 @@ Marketing Manager,Johannesburg,R45000 - R60000,Permanent,Onsite,Marketing,"Join 
 
   return (
     <div className="space-y-6">
+      {/* Edit Job Modal */}
+      <Dialog open={showEditModal} onOpenChange={setShowEditModal}>
+        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="text-xl font-bold text-slate-800">
+              Edit Job: {editingJob?.title}
+            </DialogTitle>
+          </DialogHeader>
+          
+          <form onSubmit={handleUpdateJob} className="space-y-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label>Job Title *</Label>
+                <Input
+                  value={jobForm.title}
+                  onChange={(e) => handleJobFormChange('title', e.target.value)}
+                  placeholder="e.g., Software Engineer"
+                  required
+                />
+              </div>
+              <div>
+                <Label>Location *</Label>
+                <Input
+                  value={jobForm.location}
+                  onChange={(e) => handleJobFormChange('location', e.target.value)}
+                  placeholder="e.g., Cape Town, Western Cape"
+                  required
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label>Salary *</Label>
+                <Input
+                  value={jobForm.salary}
+                  onChange={(e) => handleJobFormChange('salary', e.target.value)}
+                  placeholder="e.g., R50,000 - R70,000"
+                  required
+                />
+              </div>
+              <div>
+                <Label>Industry *</Label>
+                <Input
+                  value={jobForm.industry}
+                  onChange={(e) => handleJobFormChange('industry', e.target.value)}
+                  placeholder="e.g., Technology"
+                  required
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label>Job Type *</Label>
+                <select
+                  value={jobForm.job_type}
+                  onChange={(e) => handleJobFormChange('job_type', e.target.value)}
+                  className="w-full border border-slate-300 rounded-md px-3 py-2"
+                  required
+                >
+                  {jobTypeOptions.map(type => (
+                    <option key={type} value={type}>{type}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <Label>Work Type *</Label>
+                <select
+                  value={jobForm.work_type}
+                  onChange={(e) => handleJobFormChange('work_type', e.target.value)}
+                  className="w-full border border-slate-300 rounded-md px-3 py-2"
+                  required
+                >
+                  {workTypeOptions.map(type => (
+                    <option key={type} value={type}>{type}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            <div>
+              <Label>Job Description *</Label>
+              <Textarea
+                value={jobForm.description}
+                onChange={(e) => handleJobFormChange('description', e.target.value)}
+                placeholder="Provide a detailed description of the role..."
+                rows={4}
+                required
+              />
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label>Experience</Label>
+                <Input
+                  value={jobForm.experience}
+                  onChange={(e) => handleJobFormChange('experience', e.target.value)}
+                  placeholder="e.g., 2-3 years experience"
+                />
+              </div>
+              <div>
+                <Label>Qualifications</Label>
+                <Input
+                  value={jobForm.qualifications}
+                  onChange={(e) => handleJobFormChange('qualifications', e.target.value)}
+                  placeholder="e.g., Degree in Computer Science"
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label>Application URL</Label>
+                <Input
+                  value={jobForm.application_url}
+                  onChange={(e) => handleJobFormChange('application_url', e.target.value)}
+                  placeholder="https://company.com/apply"
+                  type="url"
+                />
+              </div>
+              <div>
+                <Label>Application Email</Label>
+                <Input
+                  value={jobForm.application_email}
+                  onChange={(e) => handleJobFormChange('application_email', e.target.value)}
+                  placeholder="careers@company.com"
+                  type="email"
+                />
+              </div>
+            </div>
+
+            <DialogFooter className="flex justify-end space-x-2 pt-4">
+              <Button type="button" variant="outline" onClick={handleCancelEdit} disabled={loading}>
+                Cancel
+              </Button>
+              <Button type="submit" className="bg-blue-600 hover:bg-blue-700" disabled={loading}>
+                {loading ? (
+                  <span className="flex items-center">
+                    <span className="animate-spin mr-2">⏳</span> Saving...
+                  </span>
+                ) : (
+                  <span className="flex items-center">
+                    <Save className="w-4 h-4 mr-2" /> Save Changes
+                  </span>
+                )}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
       {/* Header with Credits */}
       <div className="flex items-center justify-between">
         <div>
