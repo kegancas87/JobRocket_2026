@@ -56,8 +56,7 @@ const Navigation = ({ user, onLogout }) => {
       items.push(
         { name: 'CV Search', path: '/cv-search', icon: Search },
         { name: 'Applications', path: '/applications', icon: FileText },
-        { name: 'Billing', path: '/billing', icon: CreditCard },
-        { name: 'Profile', path: '/profile', icon: User }
+        { name: 'Billing', path: '/billing', icon: CreditCard }
       );
       return items;
     } else if (user?.role === 'admin') {
