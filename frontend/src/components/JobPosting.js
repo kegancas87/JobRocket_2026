@@ -627,7 +627,14 @@ Marketing Manager,Johannesburg,R45000 - R60000,Permanent,Onsite,Marketing,"Join 
                             <Plus className="w-4 h-4 mr-1" />
                             Repost
                           </Button>
-                          <Button size="sm" variant="outline" className="text-red-600 hover:text-red-700">
+                          <Button 
+                            size="sm" 
+                            variant="outline" 
+                            className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                            onClick={() => handleDeleteJob(job.id, job.title)}
+                            disabled={loading}
+                            title="Delete job"
+                          >
                             <Trash className="w-4 h-4" />
                           </Button>
                         </div>
