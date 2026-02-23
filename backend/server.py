@@ -2400,6 +2400,80 @@ async def get_bulk_upload_template(
 from services.billing_service import create_billing_service
 billing_service = create_billing_service(db)
 
+@api_router.get("/my-packages")
+async def get_my_packages(current_user: User = Depends(get_current_user)):
+    """Get current user's subscription packages and tier info"""
+    if not current_user.account_id:
+        return []
+    
+    # Get account details
+    account = await db.accounts.find_one({"id": current_user.account_id})
+    if not account:
+        return []
+    
+    # Get tier configuration
+    from models.tiers import get_tier_config, TIER_CONFIG
+    from models.enums import TierId
+    
+    tier_id_str = account.get("tier_id", "starter")
+    
+    # Convert string to enum
+    try:
+        tier_enum = TierId(tier_id_str)
+    except ValueError:
+        tier_enum = TierId.STARTER
+    
+    tier_config = get_tier_config(tier_enum)
+    
+    # Check if subscription is active and not expired
+    subscription_status = account.get("subscription_status", "inactive")
+    subscription_end = account.get("subscription_end_date")
+    is_expired = False
+    
+    if subscription_end:
+        from datetime import datetime
+        if isinstance(subscription_end, str):
+            subscription_end = datetime.fromisoformat(subscription_end.replace('Z', '+00:00'))
+        is_expired = subscription_end < datetime.utcnow()
+    
+    # Build package response
+    job_credits = account.get("job_credits", 0)
+    
+    # Determine job listings - Pro and above have unlimited
+    if tier_enum in [TierId.PRO, TierId.ENTERPRISE]:
+        job_listings_remaining = None  # null = unlimited
+    else:
+        job_listings_remaining = job_credits if job_credits else tier_config.get("job_post_limit", 0)
+    
+    user_package = {
+        "id": account.get("id"),
+        "account_id": account.get("id"),
+        "tier_id": tier_id_str,
+        "subscription_status": subscription_status,
+        "is_active": subscription_status == "active" and not is_expired,
+        "job_listings_remaining": job_listings_remaining,
+        "subscription_start_date": account.get("subscription_start_date"),
+        "subscription_end_date": subscription_end,
+        "created_at": account.get("created_at"),
+    }
+    
+    package_info = {
+        "id": tier_id_str,
+        "name": tier_config.get("name", "Starter"),
+        "package_type": tier_id_str,
+        "price": tier_config.get("price_monthly", 0),
+        "currency": tier_config.get("currency", "ZAR"),
+        "features": [str(f) for f in tier_config.get("features", [])],
+        "included_users": tier_config.get("included_users", 1),
+        "job_post_limit": tier_config.get("job_post_limit"),
+    }
+    
+    return [{
+        "user_package": user_package,
+        "package": package_info,
+        "is_expired": is_expired
+    }]
+
 @api_router.get("/billing")
 async def get_billing_summary(current_user: User = Depends(get_current_recruiter)):
     """Get billing summary for current account"""
