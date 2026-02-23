@@ -335,26 +335,6 @@ Marketing Manager,Johannesburg,R45000 - R60000,Permanent,Onsite,Marketing,"Join 
         </div>
       </div>
 
-      {/* Credits Warning */}
-      {!credits.hasUnlimited && credits.jobListings === 0 && (
-        <Card className="bg-red-50 border-red-200">
-          <CardContent className="p-4">
-            <div className="flex items-center space-x-3">
-              <AlertCircle className="w-6 h-6 text-red-600" />
-              <div>
-                <h4 className="font-semibold text-red-800">No Job Credits Available</h4>
-                <p className="text-red-700 text-sm">
-                  You need to purchase a package to post job listings. 
-                  <Button variant="link" className="p-0 h-auto text-red-600 underline ml-1">
-                    View Packages
-                  </Button>
-                </p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
       {/* Low Credits Warning */}
       {!credits.hasUnlimited && credits.jobListings > 0 && credits.jobListings <= 2 && (
         <Card className="bg-yellow-50 border-yellow-200">
