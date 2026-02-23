@@ -166,6 +166,43 @@ async def get_current_recruiter(current_user: User = Depends(get_current_user)) 
             detail="No account associated with this user"
         )
     
+    # Check subscription status
+    account = await db.accounts.find_one({"id": current_user.account_id})
+    if account:
+        subscription_status = account.get("subscription_status", "inactive")
+        
+        # Allow active and trial status
+        if subscription_status not in ["active", "trial", "past_due"]:
+            raise HTTPException(
+                status_code=status.HTTP_402_PAYMENT_REQUIRED,
+                detail="Subscription inactive. Please make a payment to continue using JobRocket."
+            )
+        
+        # For past_due, check if still in grace period
+        if subscription_status == "past_due":
+            grace_period_start = account.get("grace_period_start")
+            if grace_period_start:
+                grace_end = grace_period_start + timedelta(days=7)
+                if datetime.utcnow() > grace_end:
+                    # Grace period expired
+                    await db.accounts.update_one(
+                        {"id": current_user.account_id},
+                        {"$set": {"subscription_status": "inactive"}}
+                    )
+                    raise HTTPException(
+                        status_code=status.HTTP_402_PAYMENT_REQUIRED,
+                        detail="Grace period expired. Please make a payment to reactivate your account."
+                    )
+    
+    # Check if user is an extra seat user with inactive seat
+    extra_seat = await db.extra_seats.find_one({"user_id": current_user.id})
+    if extra_seat:
+        if not extra_seat.get("is_active") or extra_seat.get("payment_status") != "paid":
+            raise HTTPException(
+                status_code=status.HTTP_402_PAYMENT_REQUIRED,
+                detail="Your user seat is inactive. Please contact your account owner to make a payment."
+            )
+    
     return current_user
 
 
