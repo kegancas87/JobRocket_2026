@@ -32,6 +32,17 @@ class SubscriptionStatus(str, Enum):
     CANCELLED = "cancelled"
     EXPIRED = "expired"
     PENDING = "pending"
+    INACTIVE = "inactive"
+    PAST_DUE = "past_due"
+
+
+class PaymentStatus(str, Enum):
+    """Payment status"""
+    PENDING = "pending"
+    COMPLETED = "completed"
+    FAILED = "failed"
+    CANCELLED = "cancelled"
+    REFUNDED = "refunded"
 
 
 class BillingCycle(str, Enum):
