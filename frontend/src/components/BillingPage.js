@@ -36,6 +36,7 @@ const BillingPage = ({ user }) => {
   const [purchasing, setPurchasing] = useState(null);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
+  const [subscriptionStatus, setSubscriptionStatus] = useState(null);
 
   // Extra seats modal
   const [showSeatsModal, setShowSeatsModal] = useState(false);
@@ -53,7 +54,60 @@ const BillingPage = ({ user }) => {
 
   useEffect(() => {
     fetchBillingData();
+    checkSubscriptionStatus();
+    
+    // Check for payment result from URL params
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('payment') === 'success') {
+      setSuccess('Payment successful! Your account has been updated.');
+      // Clear the URL params
+      window.history.replaceState({}, document.title, window.location.pathname);
+    } else if (params.get('payment') === 'cancelled') {
+      setError('Payment was cancelled.');
+      window.history.replaceState({}, document.title, window.location.pathname);
+    }
   }, []);
+
+  const checkSubscriptionStatus = async () => {
+    try {
+      const response = await axios.get(`${API}/subscription/status`, getAuthHeaders());
+      setSubscriptionStatus(response.data);
+    } catch (error) {
+      console.error('Error checking subscription status:', error);
+    }
+  };
+
+  const handleReactivateSubscription = async () => {
+    try {
+      setPurchasing('reactivate');
+      setError('');
+      
+      const response = await axios.post(`${API}/subscription/reactivate`, {}, getAuthHeaders());
+      
+      // Redirect to PayFast
+      const { payfast_url, payfast_data } = response.data;
+      
+      const form = document.createElement('form');
+      form.method = 'POST';
+      form.action = payfast_url;
+      
+      Object.entries(payfast_data).forEach(([key, value]) => {
+        const input = document.createElement('input');
+        input.type = 'hidden';
+        input.name = key;
+        input.value = value;
+        form.appendChild(input);
+      });
+      
+      document.body.appendChild(form);
+      form.submit();
+      
+    } catch (error) {
+      setError(error.response?.data?.detail || 'Failed to initiate reactivation payment');
+    } finally {
+      setPurchasing(null);
+    }
+  };
 
   const fetchBillingData = async () => {
     try {
