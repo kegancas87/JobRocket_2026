@@ -1742,12 +1742,15 @@ async def initiate_subscription_payment(
 @api_router.post("/payments/webhook")
 async def payment_webhook(request: Request):
     """Handle Payfast payment notification for all payment types"""
+    from services.payfast_subscription_service import create_payfast_subscription_service
     
     form_data = await request.form()
     data = dict(form_data)
     
     payment_id = data.get("m_payment_id")
     payment_status = data.get("payment_status")
+    
+    logger.info(f"PayFast webhook received: payment_id={payment_id}, status={payment_status}")
     
     if not payment_id:
         return {"status": "error", "message": "Missing payment ID"}
@@ -1756,22 +1759,102 @@ async def payment_webhook(request: Request):
     if not payment:
         return {"status": "error", "message": "Payment not found"}
     
-    if payment_status == "COMPLETE":
-        # Use billing service to complete payment (handles all types)
-        success, result = await billing_service.complete_payment(
-            payment_id,
-            data.get("pf_payment_id", "")
-        )
-        
-        if not success:
-            logger.error(f"Failed to complete payment {payment_id}")
+    # Use the PayFast subscription service for comprehensive handling
+    payfast_service = create_payfast_subscription_service(db)
+    result = await payfast_service.process_itn(data)
+    
+    if result.get("success"):
+        logger.info(f"Payment {payment_id} processed successfully: {payment_status}")
     else:
-        await billing_service.fail_payment(
-            payment_id,
-            data.get("payment_status", "Unknown error")
-        )
+        logger.error(f"Payment {payment_id} processing failed: {result.get('error')}")
     
     return {"status": "ok"}
+
+
+@api_router.get("/subscription/status")
+async def get_subscription_status(current_user: User = Depends(get_current_user)):
+    """Check current subscription status for the user's account"""
+    from services.payfast_subscription_service import create_payfast_subscription_service
+    
+    if not current_user.account_id:
+        return {"status": "no_account", "needs_payment": True}
+    
+    payfast_service = create_payfast_subscription_service(db)
+    status = await payfast_service.check_subscription_status(current_user.account_id)
+    
+    return status
+
+
+@api_router.post("/subscription/reactivate")
+async def reactivate_subscription(
+    current_user: User = Depends(get_current_recruiter)
+):
+    """Initiate payment to reactivate a suspended subscription"""
+    from services.payfast_subscription_service import create_payfast_subscription_service
+    
+    account = await db.accounts.find_one({"id": current_user.account_id})
+    if not account:
+        raise HTTPException(status_code=404, detail="Account not found")
+    
+    tier_id = account.get("tier_id", "starter")
+    
+    payfast_service = create_payfast_subscription_service(db)
+    
+    result = await payfast_service.initiate_subscription(
+        account_id=current_user.account_id,
+        tier_id=tier_id,
+        user_email=current_user.email,
+        user_name=f"{current_user.first_name} {current_user.last_name}",
+        return_url=f"{BASE_URL}/billing?payment=success",
+        cancel_url=f"{BASE_URL}/billing?payment=cancelled",
+        notify_url=f"{BASE_URL}/api/payments/webhook"
+    )
+    
+    return result
+
+
+@api_router.post("/payments/extra-seat")
+async def initiate_extra_seat_payment(
+    seat_data: dict,
+    current_user: User = Depends(get_current_recruiter)
+):
+    """Initiate payment for an extra user seat"""
+    from services.payfast_subscription_service import create_payfast_subscription_service
+    from models.tiers import TIER_CONFIG
+    
+    # Get extra user price (R899/month)
+    extra_user_price = 89900  # In cents
+    
+    seat_id = seat_data.get("seat_id")
+    user_id = seat_data.get("user_id")
+    
+    payfast_service = create_payfast_subscription_service(db)
+    
+    result = await payfast_service.initiate_addon_payment(
+        account_id=current_user.account_id,
+        addon_type="extra_seat",
+        amount=extra_user_price,
+        description="Extra User Seat - Monthly",
+        user_email=current_user.email,
+        user_name=f"{current_user.first_name} {current_user.last_name}",
+        return_url=f"{BASE_URL}/billing?payment=success&type=seat",
+        cancel_url=f"{BASE_URL}/billing?payment=cancelled",
+        notify_url=f"{BASE_URL}/api/payments/webhook",
+        extra_data={"seat_id": seat_id, "user_id": user_id}
+    )
+    
+    return result
+
+
+@api_router.get("/seat/status")
+async def get_seat_status(current_user: User = Depends(get_current_user)):
+    """Check if current user's seat is active (for extra seat users)"""
+    from services.payfast_subscription_service import create_payfast_subscription_service
+    
+    payfast_service = create_payfast_subscription_service(db)
+    status = await payfast_service.check_seat_status(current_user.id)
+    
+    return status
 
 
 # ============================================
