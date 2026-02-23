@@ -2600,7 +2600,8 @@ async def create_company_branch(
     
     result = await db.branches.insert_one(branch)
     branch["id"] = str(result.inserted_id)
-    del branch["_id"] if "_id" in branch else None
+    if "_id" in branch:
+        del branch["_id"]
     
     return branch
 
