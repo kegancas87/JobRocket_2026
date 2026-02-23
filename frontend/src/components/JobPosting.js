@@ -315,6 +315,105 @@ Marketing Manager,Johannesburg,R45000 - R60000,Permanent,Onsite,Marketing,"Join 
     return new Date(expiryDateString) <= new Date();
   };
 
+  const handleEditJob = (job) => {
+    setEditingJob(job);
+    setJobForm({
+      title: job.title || '',
+      location: job.location || '',
+      salary: job.salary || '',
+      job_type: job.job_type || 'Permanent',
+      work_type: job.work_type || 'Onsite',
+      industry: job.industry || '',
+      description: job.description || '',
+      experience: job.experience || '',
+      qualifications: job.qualifications || '',
+      company_id: job.company_id || '',
+      application_url: job.application_url || '',
+      application_email: job.application_email || ''
+    });
+    setShowEditModal(true);
+    setShowJobsList(false);
+  };
+
+  const handleUpdateJob = async (e) => {
+    e.preventDefault();
+    if (!editingJob) return;
+
+    try {
+      setLoading(true);
+      await axios.put(`${API}/jobs/${editingJob.id}`, jobForm, getAuthHeaders());
+      
+      alert('Job updated successfully!');
+      setShowEditModal(false);
+      setEditingJob(null);
+      
+      // Reset form and refresh
+      setJobForm({
+        title: '',
+        location: '',
+        salary: '',
+        job_type: 'Permanent',
+        work_type: 'Onsite',
+        industry: '',
+        description: '',
+        experience: '',
+        qualifications: '',
+        company_id: companies.find(c => c.is_default)?.id || '',
+        application_url: '',
+        application_email: ''
+      });
+      
+      await fetchJobs();
+      if (onUpdateUser) onUpdateUser();
+      
+    } catch (error) {
+      console.error('Error updating job:', error);
+      alert(error.response?.data?.detail || 'Failed to update job');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleDeleteJob = async (jobId, jobTitle) => {
+    if (!window.confirm(`Are you sure you want to delete "${jobTitle}"? This action cannot be undone.`)) {
+      return;
+    }
+
+    try {
+      setLoading(true);
+      await axios.delete(`${API}/jobs/${jobId}`, getAuthHeaders());
+      
+      alert('Job deleted successfully!');
+      await fetchJobs();
+      if (onUpdateUser) onUpdateUser();
+      
+    } catch (error) {
+      console.error('Error deleting job:', error);
+      alert(error.response?.data?.detail || 'Failed to delete job');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleCancelEdit = () => {
+    setShowEditModal(false);
+    setEditingJob(null);
+    setJobForm({
+      title: '',
+      location: '',
+      salary: '',
+      job_type: 'Permanent',
+      work_type: 'Onsite',
+      industry: '',
+      description: '',
+      experience: '',
+      qualifications: '',
+      company_id: companies.find(c => c.is_default)?.id || '',
+      application_url: '',
+      application_email: ''
+    });
+  };
+
   const jobTypeOptions = ['Permanent', 'Contract'];
   const workTypeOptions = ['Remote', 'Onsite', 'Hybrid'];
   const credits = getTotalCredits();
