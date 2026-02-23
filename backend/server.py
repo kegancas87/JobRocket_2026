@@ -2742,7 +2742,8 @@ async def create_company_invitation(
     
     result = await db.invitations.insert_one(invitation)
     invitation["id"] = str(result.inserted_id)
-    del invitation["_id"] if "_id" in invitation else None
+    if "_id" in invitation:
+        del invitation["_id"]
     
     # TODO: Send invitation email
     
