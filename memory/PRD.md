@@ -1,7 +1,7 @@
 # JobRocket - Product Requirements Document
 
 > **Last Updated**: February 2026
-> **Version**: 2.3.0 (Both Onboarding Flows Complete)
+> **Version**: 2.4.0 (Automated Billing System Complete)
 
 ---
 
@@ -16,7 +16,7 @@ JobRocket is a B2B SaaS recruitment platform targeting recruiters, businesses, a
 - **Frontend**: React + Tailwind CSS + Shadcn UI
 - **Backend**: FastAPI (Python)
 - **Database**: MongoDB
-- **Payments**: Payfast (sandbox)
+- **Payments**: Payfast (sandbox) with automated subscription billing
 - **Auth**: JWT with role-based access
 - **AI**: OpenAI GPT-5.2 via emergentintegrations (kill switch)
 
@@ -86,6 +86,37 @@ JobRocket is a B2B SaaS recruitment platform targeting recruiters, businesses, a
 - [x] Badges: company_live (step 1), sourcing_ready (step 3), ready_to_hire (step 6)
 - [x] Post-onboarding nudges: Add team members, Explore dashboard
 - [x] Skip options, save/resume, auto-redirect
+
+### Phase 8: Automated Billing System (Feb 2026)
+- [x] **PayFast Recurring Subscription Billing**
+  - Monthly subscription billing via PayFast subscription API
+  - Account-level billing day tracking (billing cycles start from first payment date)
+  - Late payment resets billing cycle to new payment date
+  
+- [x] **7-Day Grace Period with Daily Retries**
+  - If payment fails, account enters grace period (past_due status)
+  - Daily cron job pings PayFast to check/retry payment
+  - Reminder emails sent on days 7, 5, 3, 2, 1
+  - Account deactivated (inactive) after 7 days
+  
+- [x] **Pro-Rata Calculations for Add-ons**
+  - Extra seats/add-ons aligned to account billing day
+  - 100% discount for pro-rata period (free until billing day)
+  - AI features exempt from pro-rata (charged immediately)
+  
+- [x] **Payment History & Statements**
+  - Full payment history with pagination
+  - HTML statement download with JobRocket and customer details
+  - Billing summary with monthly aggregation
+  
+- [x] **Read-Only Mode for Failed Seat Payments**
+  - Users with inactive seats get read-only access (not blocked)
+  - Main subscription failure blocks all features
+  
+- [x] **Frontend Billing Page Updates**
+  - Subscription status banner for past_due/inactive accounts
+  - Statement download component with date pickers
+  - Payment history table with status badges
 
 ---
 
