@@ -690,67 +690,84 @@ const BillingPage = ({ user }) => {
 
         {/* History Tab */}
         {activeTab === 'history' && (
-          <Card className="bg-white/90 backdrop-blur-sm shadow-lg border-0">
-            <CardHeader>
-              <CardTitle className="text-lg font-semibold text-slate-700 flex items-center">
-                <History className="w-5 h-5 mr-2 text-blue-600" />
-                Payment History
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="p-0">
-              {history.length > 0 ? (
-                <div className="overflow-x-auto">
-                  <table className="w-full">
-                    <thead className="bg-slate-50 border-y border-slate-200">
-                      <tr>
-                        <th className="text-left py-3 px-4 font-semibold text-slate-700">Date</th>
-                        <th className="text-left py-3 px-4 font-semibold text-slate-700">Description</th>
-                        <th className="text-center py-3 px-4 font-semibold text-slate-700">Status</th>
-                        <th className="text-right py-3 px-4 font-semibold text-slate-700">Amount</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {history.map((payment, index) => (
-                        <tr key={payment.id} className={index % 2 === 0 ? 'bg-white' : 'bg-slate-50/50'}>
-                          <td className="py-3 px-4 text-slate-600">
-                            {formatDate(payment.created_at)}
-                          </td>
-                          <td className="py-3 px-4">
-                            <div>
-                              <p className="font-medium text-slate-900">
-                                {payment.payment_type === 'subscription' 
-                                  ? `${payment.tier_name || 'Subscription'} Plan`
-                                  : payment.payment_type === 'addon'
-                                    ? `Add-on: ${payment.addon_name || 'Feature'}`
-                                    : payment.payment_type === 'extra_seats'
-                                      ? `${payment.extra_seats} Extra User Seat(s)`
-                                      : payment.payment_type
-                                }
-                              </p>
-                              {payment.provider_reference && (
-                                <p className="text-xs text-slate-500">Ref: {payment.provider_reference}</p>
-                              )}
-                            </div>
-                          </td>
-                          <td className="py-3 px-4 text-center">
-                            {getStatusBadge(payment.status)}
-                          </td>
-                          <td className="py-3 px-4 text-right font-semibold text-slate-900">
-                            {formatPrice(payment.final_amount)}
-                          </td>
+          <div className="space-y-6">
+            {/* Statement Download Section */}
+            <Card className="bg-white/90 backdrop-blur-sm shadow-lg border-0">
+              <CardHeader>
+                <CardTitle className="text-lg font-semibold text-slate-700 flex items-center">
+                  <FileText className="w-5 h-5 mr-2 text-purple-600" />
+                  Download Statement
+                </CardTitle>
+                <CardDescription>Generate a billing statement for any period</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <StatementDownload getAuthHeaders={getAuthHeaders} />
+              </CardContent>
+            </Card>
+
+            {/* Payment History Table */}
+            <Card className="bg-white/90 backdrop-blur-sm shadow-lg border-0">
+              <CardHeader>
+                <CardTitle className="text-lg font-semibold text-slate-700 flex items-center">
+                  <History className="w-5 h-5 mr-2 text-blue-600" />
+                  Payment History
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="p-0">
+                {history.length > 0 ? (
+                  <div className="overflow-x-auto">
+                    <table className="w-full">
+                      <thead className="bg-slate-50 border-y border-slate-200">
+                        <tr>
+                          <th className="text-left py-3 px-4 font-semibold text-slate-700">Date</th>
+                          <th className="text-left py-3 px-4 font-semibold text-slate-700">Description</th>
+                          <th className="text-center py-3 px-4 font-semibold text-slate-700">Status</th>
+                          <th className="text-right py-3 px-4 font-semibold text-slate-700">Amount</th>
                         </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              ) : (
-                <div className="text-center py-12 text-slate-500">
-                  <History className="w-12 h-12 mx-auto mb-3 text-slate-400" />
-                  <p>No payment history yet.</p>
-                </div>
-              )}
-            </CardContent>
-          </Card>
+                      </thead>
+                      <tbody>
+                        {history.map((payment, index) => (
+                          <tr key={payment.id} className={index % 2 === 0 ? 'bg-white' : 'bg-slate-50/50'}>
+                            <td className="py-3 px-4 text-slate-600">
+                              {formatDate(payment.created_at)}
+                            </td>
+                            <td className="py-3 px-4">
+                              <div>
+                                <p className="font-medium text-slate-900">
+                                  {payment.payment_type === 'subscription' 
+                                    ? `${payment.tier_name || 'Subscription'} Plan`
+                                    : payment.payment_type === 'addon'
+                                      ? `Add-on: ${payment.addon_name || 'Feature'}`
+                                      : payment.payment_type === 'extra_seat'
+                                        ? `${payment.quantity || 1} Extra User Seat(s)`
+                                        : payment.description || payment.payment_type
+                                  }
+                                </p>
+                                {payment.id && (
+                                  <p className="text-xs text-slate-500">Ref: {payment.id.substring(0, 8).toUpperCase()}</p>
+                                )}
+                              </div>
+                            </td>
+                            <td className="py-3 px-4 text-center">
+                              {getStatusBadge(payment.status)}
+                            </td>
+                            <td className="py-3 px-4 text-right font-semibold text-slate-900">
+                              {formatPrice(payment.amount || payment.final_amount || 0)}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                ) : (
+                  <div className="text-center py-12 text-slate-500">
+                    <History className="w-12 h-12 mx-auto mb-3 text-slate-400" />
+                    <p>No payment history yet.</p>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </div>
         )}
 
         {/* Purchase Seats Modal */}
