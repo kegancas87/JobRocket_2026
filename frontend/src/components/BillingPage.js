@@ -20,7 +20,8 @@ import {
   Download,
   Calendar,
   DollarSign,
-  ArrowUpRight
+  ArrowUpRight,
+  FileText
 } from "lucide-react";
 import axios from 'axios';
 
