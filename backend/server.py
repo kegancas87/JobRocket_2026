@@ -1895,6 +1895,135 @@ async def get_seat_status(current_user: User = Depends(get_current_user)):
 
 
 # ============================================
+# Payment History & Statements
+# ============================================
+
+from services.statement_service import create_statement_service
+from fastapi.responses import HTMLResponse
+
+@api_router.get("/billing/history")
+async def get_billing_history(
+    limit: int = Query(50, ge=1, le=200),
+    skip: int = Query(0, ge=0),
+    start_date: Optional[str] = None,
+    end_date: Optional[str] = None,
+    current_user: User = Depends(get_current_recruiter)
+):
+    """Get payment history for the current user's account"""
+    statement_service = create_statement_service(db)
+    
+    start_dt = datetime.fromisoformat(start_date) if start_date else None
+    end_dt = datetime.fromisoformat(end_date) if end_date else None
+    
+    history = await statement_service.get_payment_history(
+        account_id=current_user.account_id,
+        start_date=start_dt,
+        end_date=end_dt,
+        limit=limit,
+        skip=skip
+    )
+    
+    return history
+
+
+@api_router.get("/billing/statement")
+async def generate_statement(
+    start_date: str = Query(..., description="Start date YYYY-MM-DD"),
+    end_date: str = Query(..., description="End date YYYY-MM-DD"),
+    format: str = Query("html", description="Output format: html or json"),
+    current_user: User = Depends(get_current_recruiter)
+):
+    """Generate a billing statement for a date range"""
+    statement_service = create_statement_service(db)
+    
+    try:
+        start_dt = datetime.fromisoformat(start_date)
+        end_dt = datetime.fromisoformat(end_date)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid date format. Use YYYY-MM-DD")
+    
+    # Ensure end date is end of day
+    end_dt = end_dt.replace(hour=23, minute=59, second=59)
+    
+    statement_data = await statement_service.generate_statement_data(
+        account_id=current_user.account_id,
+        start_date=start_dt,
+        end_date=end_dt
+    )
+    
+    if format == "html":
+        html = statement_service.generate_html_statement(statement_data)
+        return HTMLResponse(content=html, media_type="text/html")
+    
+    return statement_data
+
+
+@api_router.get("/billing/summary")
+async def get_billing_summary(
+    months: int = Query(12, ge=1, le=24),
+    current_user: User = Depends(get_current_recruiter)
+):
+    """Get billing summary for the last N months"""
+    statement_service = create_statement_service(db)
+    
+    summary = await statement_service.get_billing_summary_for_period(
+        account_id=current_user.account_id,
+        months=months
+    )
+    
+    return summary
+
+
+@api_router.post("/billing/extra-seats")
+async def purchase_extra_seats(
+    quantity: int = Query(1, ge=1, le=100),
+    current_user: User = Depends(get_current_recruiter)
+):
+    """Purchase extra user seats with pro-rata calculation"""
+    from services.payfast_subscription_service import create_payfast_subscription_service
+    
+    payfast_service = create_payfast_subscription_service(db)
+    
+    result = await payfast_service.initiate_extra_seat_payment(
+        account_id=current_user.account_id,
+        quantity=quantity,
+        user_email=current_user.email,
+        user_name=f"{current_user.first_name} {current_user.last_name}",
+        return_url=f"{BASE_URL}/billing?payment=success&type=seats",
+        cancel_url=f"{BASE_URL}/billing?payment=cancelled",
+        notify_url=f"{BASE_URL}/api/payments/webhook"
+    )
+    
+    return result
+
+
+@api_router.get("/billing/account-info")
+async def get_billing_account_info(current_user: User = Depends(get_current_recruiter)):
+    """Get billing-specific account information"""
+    account = await db.accounts.find_one({"id": current_user.account_id})
+    if not account:
+        raise HTTPException(status_code=404, detail="Account not found")
+    
+    tier_config = get_tier_config(TierId(account.get("tier_id", "starter")))
+    
+    return {
+        "account_id": account.get("id"),
+        "company_name": account.get("company_name"),
+        "tier_id": account.get("tier_id"),
+        "tier_name": tier_config["name"],
+        "subscription_status": account.get("subscription_status"),
+        "billing_day": account.get("billing_day"),
+        "next_billing_date": account.get("next_billing_date"),
+        "subscription_start_date": account.get("subscription_start_date"),
+        "subscription_end_date": account.get("subscription_end_date"),
+        "grace_period_start": account.get("grace_period_start"),
+        "extra_users_count": account.get("extra_users_count", 0),
+        "monthly_amount": tier_config["price_monthly"] / 100,
+        "currency": "ZAR"
+    }
+
+
+# ============================================
 # Admin Stats Endpoints
 # ============================================
 
