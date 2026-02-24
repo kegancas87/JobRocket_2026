@@ -1,94 +1,103 @@
 <analysis>**original_problem_statement:**
-The user initially requested a complete architectural refactor of the Job Rocket application into a multi-tenant SaaS platform. Following the refactor, the user requested a series of bug fixes and feature enhancements during this session:
+The user initially requested a full architectural refactor of the Job Rocket application. In this session, the user pivoted to focus on enhancing the recruiter-facing features of the application.
 
-1.  **Bug Fix**: A 404 error when a job seeker tries to apply for a job.
-2.  **Bug Fix**: An error on the My Applications page due to a data structure mismatch.
-3.  **Feature/Bug Fix**: The Media, Education, and Awards tabs on the job seeker profile page were blank and non-functional.
-4.  **Bug Fix**: The Add Experience button on the profile page was not saving data.
-5.  **Feature Enhancement**: Convert the basic Settings tab into a comprehensive Alerts system where users can create multiple, fine-grained job alerts (based on title, location, employment type, work type, and salary) that trigger email notifications.
-6.  **Feature Enhancement**: Implement a Load More pagination system for the main jobs list page.
-7.  **UI/UX Enhancement**: Make the job details modal fully responsive for mobile devices.
-8.  **Bug Fix**: A missing company logo and Experience tile within the job details modal.
-9.  **UI/UX Enhancement**: Adjust the homepage hero image to hide SpaceX branding.
-10. **Feature**: Create standard legal pages (Terms of Service, Privacy Policy, Cookie Policy, Acceptable Use Policy) and make them publicly accessible.
+**Recruiter Feature Requests from this session:**
+1.  **UI Cleanup**: Remove the redundant Profile link from the recruiter header menu, as it navigates to the same page as Dashboard.
+2.  **Bug Fix**: The Add Branch functionality under the Structure tab was not working.
+3.  **Bug Fix**: The Packages tab was not displaying the recruiter's active subscription package.
+4.  **Data Fix**: The Jobs tab incorrectly showed No credits available for recruiters with active subscriptions. The user requested that all recruiter accounts be updated to have a valid Pro tier subscription.
+5.  **UI Cleanup**: A large red warning no job credits available on the My Jobs page needed to be removed.
+6.  **Feature Enhancement**: The edit and delete buttons on the job listings under My Jobs were non-functional. The user requested full edit/delete functionality, with deleted jobs being soft-deleted for future counting.
+7.  **Bug Fix**: The CV Search page was crashing with a .
+8.  **Major Feature**: Implement a comprehensive, automated monthly billing system using PayFast. This system should handle subscriptions, automatically check for payments, manage a grace period with daily retries, deactivate accounts on non-payment, and reset the billing cycle upon late payment.
+9.  **Bug Fix (Carried over)**: Legal page links (Terms of Service, Privacy Policy) in the footer were redirecting to the jobs page instead of the correct legal pages.
+
+**PRODUCT REQUIREMENTS:**
+-   **Automated Billing System:**
+    -   Track monthly payments via PayFast subscriptions.
+    -   If a payment fails, the recruiter account becomes inactive, disabling all recruiter features.
+    -   Provide a 7-day grace period where the system attempts to charge the user daily.
+    -   If a late payment is made, the new billing cycle starts from the date of the successful late payment.
+    -   The entire process must be automated.
+    -   Additional services (like extra seats) should be disabled individually on payment failure, without affecting the main subscription.
+    -   Use PayFast sandbox credentials.
+    -   **Tier Prices**: Starter: R6899/mo, Growth: R10499/mo, Pro: R19999/mo, Enterprise: R39999/mo.
 
 **User's preferred language**: English
 
 **what currently exists?**
-The application is a feature-rich, multi-tenant SaaS platform. In this session, the agent successfully addressed a series of user-reported bugs and feature requests, primarily focused on the job seeker experience.
+The application is a multi-tenant SaaS job board. In this session, the agent successfully implemented several critical features and bug fixes for the recruiter user type. The recruiter dashboard is now more functional, allowing for company structure management (branches), job posting management (edit/delete), and viewing active subscription packages. The CV search functionality is also fixed. All recruiter accounts in the database have been seeded with an active Pro tier subscription for testing purposes.
 
-- The job application flow is now functional.
-- The job seeker profile page is complete, with all tabs (Experience, Education, Awards, Media) now saving data to the backend.
-- A new Alerts feature allows job seekers to create multiple, specific job alerts with multi-select criteria.
-- A reusable email notification service has been built and integrated to send email notifications when a newly posted job matches a user's alert. The SMTP credentials are securely stored.
-- The main jobs list now uses a Load More pagination system.
-- The job details modal has been optimized for a seamless mobile experience.
-- Several UI bugs and cosmetic issues have been resolved.
-- Publicly accessible legal pages have been created.
-
-The Google OAuth integration, which was the primary blocker from the previous session, remains unresolved as the agent was redirected to address more immediate user requests.
+The agent has started building the complex automated billing system. The backend now includes new service files, enhanced models with subscription statuses (, , ), and the initial structure for PayFast webhook handling and scheduled payment checks.
 
 **Last working item**:
--   **Last item agent was working**: Creating and routing four new legal pages: , , , and . The agent created the React components and added the necessary routes to make them publicly accessible without requiring user login.
--   **Status**: USER VERIFICATION PENDING
--   **Agent Testing Done**: Y
--   **Which testing method agent to use?**: Frontend testing agent. The agent should verify that the following pages are accessible from the footer (if links exist) or by direct URL navigation, and that they display the correct content: , , , .
+-   **Last item agent was working**: Implementing the comprehensive automated billing system. The agent had just fixed a backend crash by adding  and  to the  enum. The immediate next step was to simulate a  account in the database to test if the frontend correctly displays a warning banner and the reactivation flow.
+-   **Status**: IN PROGRESS
+-   **Agent Testing Done**: N
+-   **Which testing method agent to use?**: both. Backend testing (curl, python scripts) is required to test the cron job and the PayFast ITN webhook logic. Frontend testing () is needed to verify the UI banners for different subscription statuses (, ) and the reactivation process. Once the feature is complete,  should be used for a full regression test.
 -   **User Testing Done**: N
 
 **All Pending/In progress Issue list**:
 -   **Issue 1: Google OAuth fails with  (P0)**
-    -   **Attempted fixes**: The previous agent identified the root cause and instructed the user to add specific URLs to their Google Cloud Console project. The current agent was diverted before this could be verified.
+    -   **Attempted fixes**: This is a carry-over from a previous session. The fix requires the user to update their Google Cloud Console settings.
     -   **Next debug checklist**:
-        1.  The agent MUST ask the user to confirm they have added the required URLs to their Google Cloud project's Authorized JavaScript Origins and Authorized Redirect URIs.
-        2.  Once confirmed, guide the user to test the Sign in with Google button again.
-        3.  If it still fails, request a screenshot of the error and the Google Cloud Console settings for verification.
-    -   **Why fix this issue and what will be achieved with the fix?**: This is a critical P0 authentication feature requested by the user. Fixing it will complete the authentication options for the platform.
+        1.  Ask the user to confirm they have added the required URLs to their Google Cloud project's Authorized JavaScript Origins and Authorized Redirect URIs.
+        2.  Once confirmed, test the Sign in with Google button.
+    -   **Why fix this issue and what will be achieved with the fix?**: This is a critical P0 authentication feature.
     -   **Status**: BLOCKED
-    -   **Is recurring issue?**: N
+    -   **Is recurring issue?**: Y
     -   **Should Test frontend/backend/both after fix?**: Both
-    -   **Blocked on other issue**: User action to update Google Cloud Console settings.
+    -   **Blocked on other issue**: User action in Google Cloud Console.
+
+-   **Issue 2: Legal page links are not working correctly (P1)**
+    -   **Attempted fixes**: The agent identified that the  attributes in  were incorrect (e.g.,  instead of ). The agent corrected these paths and verified the fix with screenshots. However, the user reported the issue persisted and then moved on to other tasks. The root cause might be browser caching on the user's end or a more subtle routing issue.
+    -   **Next debug checklist**:
+        1.  Re-verify the fix by navigating to the footer and clicking the links.
+        2.  Use  to capture the successful navigation.
+        3.  Present the evidence to the user and strongly recommend they perform a hard refresh (Ctrl+Shift+R or Cmd+Shift+R) to clear their browser cache.
+    -   **Why fix this issue and what will be achieved with the fix?**: Ensures users can access critical legal documents, which is a standard requirement for web applications.
+    -   **Status**: USER VERIFICATION PENDING
+    -   **Is recurring issue?**: Y
+    -   **Should Test frontend/backend/both after fix?**: Frontend
 
 **In progress Task List**:
--   **Task 1: Finalize Google OAuth Integration (P0)**
-    -   **Where to resume**: After the user confirms they have updated their Google Cloud Console settings.
-    -   **What will be achieved with this?**: A fully functional Google authentication system.
-    -   **Status**: BLOCKED
+-   **Task 1: Complete the Automated Billing System (P0)**
+    -   **Where to resume**: The agent was about to simulate a  subscription status for a user in the database to test the frontend UI. The next steps are:
+        1.  Update a user's subscription status to  in the database.
+        2.  Log in as that user and take a screenshot of the  page to verify the warning banner appears.
+        3.  Implement and test the reactivation flow (redirecting to PayFast).
+        4.  Implement and test the scheduled cron job in  to handle the 7-day grace period retry logic.
+        5.  Fully implement and test the PayFast ITN webhook handler in  to update subscription status based on payment notifications.
+        6.  Ensure the middleware in  correctly blocks access to features for  accounts.
+    -   **What will be achieved with this?**: A fully automated subscription management and payment enforcement system as per the user's detailed specifications.
+    -   **Status**: IN PROGRESS
     -   **Should Test frontend/backend/both after fix?**: Both
-    -   **Blocked on something**: The  issue.
+    -   **Blocked on something**: None.
 
 **Upcoming and Future Tasks**
 -   **Upcoming Tasks**:
-    -   **P1: Implement Job Application Notifications**: The user mentioned needing notifications from . The new  is ready for this. The task involves triggering an email to the recruiter when a job seeker applies.
-    -   **P2: Comprehensive Application Testing**: Originally planned after Google Auth completion. The agent should propose a full regression test using  once the Google Auth issue is resolved.
+    -   **P1: Implement Job Application Notifications**: The  is ready for this. Trigger an email to the recruiter when a job seeker applies.
+    -   **P2: Comprehensive Application Testing**: A full regression test using  once the Google Auth and Billing features are complete.
 -   **Future Tasks**:
-    -   **P2: Paid Features for Job Seekers**: Monetization features for the job seeker user type.
-    -   **P2: Stripe Integration**: Implement Stripe as an alternative payment gateway to Payfast.
+    -   **P2: Paid Features for Job Seekers**: Monetization features.
+    -   **P2: Stripe Integration**: Alternative payment gateway.
     -   **P3: Quick Stats Enhancement**: Add a Quick Stats feature to the Admin Dashboard.
-    -   **P3: In-App Notifications**: The user mentioned that in-app notifications would come later.
+    -   **P3: In-App Notifications**: To be implemented later.
 
 **Completed work in this session**
--   **Job Seeker Flow Fixes**:
-    -   Resolved 404 error on job application by adding  endpoint.
-    -   Fixed  on the My Applications page by correcting the API response structure in .
-    -   Implemented full functionality for the Experience, Education, Awards, and Media tabs on the job seeker profile page, including backend APIs and frontend UI in .
--   **Job Alerts Feature**:
-    -   Transformed the Settings tab into a feature-rich Alerts tab in .
-    -   Implemented multi-select checkboxes for Employment Type and Work Type.
-    -   Created  endpoints.
--   **Email Notification System**:
-    -   Created a reusable email service in .
-    -   Secured SMTP credentials in .
-    -   Integrated the service to automatically send HTML emails for matching job alerts.
--   **UI/UX Enhancements**:
-    -   Implemented Load More pagination on the jobs list page in .
-    -   Made the job details modal in  fully responsive for mobile devices.
-    -   Fixed missing company logo and Experience tile in the job modal.
-    -   Adjusted the hero section background in  to hide unwanted branding.
--   **Legal Pages**:
-    -   Created and routed public pages for Terms of Service, Privacy Policy, Cookie Policy, and Acceptable Use Policy.
+-   **Recruiter Header Fix**: Removed the duplicate Profile link from the recruiter navigation menu in .
+-   **Company Branch Management**: Fixed the Add Branch feature by creating the necessary backend endpoints (, , etc.) in .
+-   **Package Display Fix**: Corrected the Packages tab by creating the  endpoint to fetch and display the user's active subscription and fixing date formatting in .
+-   **Database Seeding**: Updated all existing recruiter accounts in the  collection to have an active Pro tier subscription.
+-   **Job Listing Management**: Implemented full edit (via a modal) and soft-delete functionality for jobs in , connecting them to the existing  and  endpoints.
+-   **CV Search Crash Fix**: Resolved a frontend crash in  (within ) by changing the expected API response key from  to .
+-   **Billing System Foundation**:
+    -   Created  and a scheduled task file .
+    -   Added  and  statuses to the  enum in .
+    -   Enhanced  to include the structure for a subscription status check middleware and ITN webhook.
 
 **Earlier issues found/mentioned but not fixed**
--   The Google OAuth  issue from the previous fork was not addressed in this session as the user prioritized other bug fixes and features.
+-   The P0 Google OAuth  issue remains unresolved as the user prioritized other tasks. It is still blocked on user action.
 
 **Known issue recurrence from previous fork**
 -   None.
@@ -97,69 +106,72 @@ The Google OAuth integration, which was the primary blocker from the previous se
 
 
 **Key Technical Concepts**
--   **Reusable Email Service**: A class-based service in Python () using  that loads configuration from  files to support multiple sender identities (e.g., , ).
--   **Client-Side Pagination**: Using React state () to manage the number of visible items and appending more to the list without a full page reload.
--   **Responsive Design (Mobile-First)**: Using Tailwind CSS responsive prefixes (, , ) to adapt component layouts, sizes, and styles from a mobile-first approach to larger screens. The job modal is a key example, changing from a full-screen drawer on mobile to a centered dialog on desktop.
--   **Secure Configuration**: Storing all sensitive credentials (DB connection, Google secrets, SMTP passwords) in  files, which are loaded at runtime and excluded from source control.
+-   **Automated Subscription Billing**: Using a combination of a payment gateway (PayFast) ITN webhook, a scheduled cron job for payment retries, and middleware to enforce subscription status.
+-   **Soft Deletes**: Deleting records by setting an  flag to  (e.g., in the  collection), preserving data for historical analysis and counts.
+-   **Stateful Modals for Editing**: Using React state () to control the visibility of a dialog/modal and populate its form fields with the data of the item being edited.
+-   **Database Seeding via Scripts**: Using  with  commands to programmatically update multiple records in the database to a desired state for testing.
 
 **key DB schema**
--   **users**: New array fields added for the profile: , , . A new array field  was added to store alert configurations.
--   **job_alert_notifications**: New collection to log sent email alerts: .
+-   **users**: The  sub-document is now critical, containing  (e.g., , , ), , and .
+-   **jobs**: The  field is now used to perform soft deletes.
 
 **changes in tech stack**
--   No new packages or libraries were added. The email functionality was implemented using Python's standard .
+-    library will be required to run the scheduled task defined in . The agent has created the file but not yet installed the dependency or set up the cron job.
 
 **All files of reference**
--   : Heavily modified to add over 10 new endpoints for profile management, job alerts, and application fixes.
--   : New file containing the reusable email sending logic.
--   : Heavily modified to implement load more pagination, responsive logic for the job details modal, and routing for new legal pages.
--   : Heavily modified to implement the full functionality of the profile tabs and the new Alerts feature.
--   : New directory containing , , , and .
+-   : Contains new endpoints for company management, packages, and the foundation for the billing system.
+-   : Contains the new logic for editing and deleting job posts.
+-   : Contains the fix for the CV Search page crash.
+-   : Contains the corrected links for the legal pages.
+-   : The new file for the daily payment retry cron job.
+-   : New service to handle PayFast-specific logic.
+-   : Updated with new subscription statuses.
 
 **Areas that need refactoring**:
--   ** is critically oversized (>4500 lines)**. It contains the main routing logic, the entire  page component (including filtering and search), and the complex . This file should be broken down into smaller, single-responsibility components (e.g., , , , ) to improve maintainability.
+-   ** is critically oversized (>4500 lines)**. It still contains numerous components that should be broken out into their own files.
+-   **** has become very large with the addition of the edit modal and multiple handlers. The edit modal and its logic could be extracted into a separate component.
 
 **key api endpoints**
--   
--   
--   
--   
--   
--   
--   
--   
--   
+-   **New/Updated**:
+    -   
+    -   
+    -   
+    -   
+    -    (Logic fixed on frontend)
+    -   
+    -   
+    -    (To be enhanced)
 
 **Critical Info for New Agent**
--   **IMMEDIATE PRIORITY IS BLOCKED**: The top priority task from the previous session, fixing Google OAuth ( error), remains blocked on user action. You must begin by asking the user for confirmation that they have updated their Google Cloud Console settings. Do not get sidetracked by other requests until this P0 issue is addressed.
--   **REFACTORING NEEDED**: The  file is extremely large and complex. While the user has not requested a refactor, you should be aware of this technical debt. When making future changes to the jobs page or modal, propose breaking the relevant components out into their own files.
--   **Email Service is Extensible**: The new email service at  was designed for reuse. To add a new sender (e.g., for job applications), you only need to add the corresponding credentials to the  file and call the service with the new email type.
+-   **PRIORITIZE BILLING SYSTEM**: The immediate task is to complete the automated billing system. This is a multi-step process involving backend logic (cron job, webhook), database manipulation, and frontend UI changes. Follow the plan in the In progress Task List.
+-   **LEGAL PAGES BUG**: The user believes the legal page links are still broken. The previous agent was confident in the fix. Be prepared to re-address this. Start by confirming the fix and guiding the user through a hard cache refresh before re-opening the code.
+-   **GOOGLE OAUTH IS BLOCKED**: The P0 Google Auth task is waiting on the user. Do not start work on it until the user confirms they have updated their Google Cloud settings.
+-   **RECRUITER FOCUS**: The user's current priority is recruiter features. All fixes and enhancements in this session were for the recruiter user type.
 
 **documents and test reports created in this job**
 -   None.
 
 **Last 10 User Messages and any pending HUMAN messages**
-1.  **User**: Requested  pagination for the jobs page. (Completed)
-2.  **Agent**: Implemented pagination.
-3.  **User**: Requested the button text be changed to just View More. (Completed)
-4.  **Agent**: Fixed the button text.
-5.  **User**: Reported the job details modal is not optimized for mobile. (Completed)
-6.  **Agent**: Implemented responsive design for the modal.
-7.  **User**: Reported a missing logo and Experience tile in the modal. (Completed)
-8.  **Agent**: Fixed both display issues in the modal.
-9.  **User**: Requested hiding the SpaceX branding on the hero image. (Completed)
-10. **Agent**: Adjusted the background image to hide the branding.
-11. **User**: Requested the creation of several legal pages. (Completed, pending verification)
+1.  **User**: When viewing a job list, recruiters should be able to edit or delete jobs. (Completed)
+2.  **Agent**: Implemented edit/delete for jobs.
+3.  **User**: Reported a crash on the CV Search page. (Completed)
+4.  **Agent**: Fixed the crash on the CV Search page.
+5.  **User**: Described detailed requirements for a new automated monthly billing system with PayFast. (In Progress)
+6.  **Agent**: Asked clarifying questions about the billing system.
+7.  **User**: Answered the questions, providing prices, grace period, and flow details.
+8.  **Agent**: Began implementation of the billing system.
+9.  **Agent**: Implemented backend foundations, including new services, scheduled task files, and model updates.
+10. **Agent**: Fixed a backend crash related to missing  enums.
 
 **Project Health Check:**
 -   **Broken**: Google OAuth Login/Registration.
 -   **Mocked**: Payfast integration is in sandbox mode.
 
 **3rd Party Integrations**
--   **Payfast**: Used for recurring payments (sandbox mode).
--   **OpenAI/Gemini (via )**: Used for AI candidate matching, powered by the .
+-   **Payfast**: Used for recurring payments (sandbox mode). The integration is being significantly enhanced to support automated subscription management.
+-   **OpenAI/Gemini (via )**: Used for AI candidate matching.
 -   **Google OAuth 2.0**: For user authentication (Currently Broken).
--   **SMTP**: Direct integration for sending emails from .
+-   **SMTP**: Direct integration for sending emails.
 
 **Testing status**
 -   **Testing agent used after significant changes**: NO
@@ -168,12 +180,11 @@ The Google OAuth integration, which was the primary blocker from the previous se
 -   **Known regressions**: None
 
 **Credentials to test flow:**
+-   **Recruiter (used for most testing)**:  (password: )
+-   **Other Recruiter**:  (password: )
 -   **Admin**:  (password: )
--   **Recruiter (Growth)**:  (password: )
--   **New Job Seekers (Fresh Profiles)**:
-    -    (password: )
-    -    (password: )
-    -    (password: )
 
 **What agent forgot to execute**
--   The agent did not follow the original plan to resolve the P0 Google OAuth issue. It was correctly diverted by the user to fix a cascade of bugs, but the next agent must re-prioritize the original P0 task.</analysis>
+-   The agent did not install the  dependency required for the new  task.
+-   The agent did not fully resolve the legal pages link issue to the user's satisfaction, leading to user frustration.
+-   The agent started the complex billing feature but did not complete the full loop of implementation and testing for any part of it (e.g., testing the UI for a  state).</analysis>

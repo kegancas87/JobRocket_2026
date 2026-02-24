@@ -35,7 +35,7 @@ async def add_cv_packages_to_demo_recruiters():
         }
     ]
     
-    base_url = "https://seeker-profile-v2.preview.emergentagent.com/api"
+    base_url = "https://subscription-mgmt-12.preview.emergentagent.com/api"
     
     try:
         added_count = 0
