@@ -227,7 +227,9 @@ const BillingPage = ({ user }) => {
       ]);
       
       setBilling(billingSummary.data);
-      setHistory(billingHistory.data.history || []);
+      // Handle new response format with payments array
+      const payments = billingHistory.data.payments || billingHistory.data.history || [];
+      setHistory(payments);
       setAvailableAddons(addons.data || []);
     } catch (error) {
       console.error('Error fetching billing data:', error);
