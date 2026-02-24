@@ -165,14 +165,41 @@ JobRocket is a B2B SaaS recruitment platform targeting recruiters, businesses, a
 - `POST /api/uploads/profile-picture` - Upload profile photo
 - `POST /api/uploads/document` - Upload additional document
 
-### Billing
-- `GET /api/billing`, `POST /api/billing/addon`, `POST /api/billing/extra-seats`
+### Billing & Payments
+- `GET /api/billing` - Get billing summary
+- `GET /api/billing/history` - Get payment history (paginated)
+- `GET /api/billing/statement` - Generate HTML/JSON statement for date range
+- `GET /api/billing/summary` - Get monthly billing summary
+- `GET /api/billing/account-info` - Get billing account details with billing_day
+- `POST /api/billing/addon` - Purchase add-on
+- `POST /api/billing/extra-seats` - Purchase extra user seats (pro-rata)
+- `GET /api/subscription/status` - Check subscription status (active/past_due/inactive)
+- `POST /api/subscription/reactivate` - Reactivate suspended subscription
+- `POST /api/payments/subscription` - Initiate PayFast subscription
+- `POST /api/payments/webhook` - PayFast ITN webhook handler
+- `GET /api/seat/status` - Check extra seat user status
 
 ### Jobs
 - `POST /api/jobs/bulk` (Pro+), `GET /api/jobs/bulk/template`
 
 ### AI Matching
 - `GET /api/ai-matching/status`, `POST /api/admin/ai-matching/toggle`
+
+---
+
+## Billing Scheduler (Cron Job)
+
+The billing scheduler runs daily tasks:
+```bash
+cd /app/backend && python -m tasks.billing_scheduler
+```
+
+Tasks performed:
+1. Check past-due accounts and ping PayFast for payment status
+2. Check accounts approaching billing date
+3. Check extra seats with payment issues
+4. Check addon subscriptions
+5. Generate daily billing summary (stored in billing_summaries collection)
 
 ---
 
