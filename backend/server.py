@@ -206,6 +206,46 @@ async def get_current_recruiter(current_user: User = Depends(get_current_user)) 
     return current_user
 
 
+async def get_recruiter_read_only(current_user: User = Depends(get_current_user)) -> tuple:
+    """
+    Get recruiter with read-only flag for users with inactive seats.
+    Returns (user, is_read_only) tuple.
+    """
+    if current_user.role != UserRole.RECRUITER:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only recruiters can access this resource"
+        )
+    
+    if not current_user.account_id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="No account associated with this user"
+        )
+    
+    is_read_only = False
+    
+    # Check subscription status
+    account = await db.accounts.find_one({"id": current_user.account_id})
+    if account:
+        subscription_status = account.get("subscription_status", "inactive")
+        
+        # Inactive subscription blocks access completely
+        if subscription_status not in ["active", "trial", "past_due"]:
+            raise HTTPException(
+                status_code=status.HTTP_402_PAYMENT_REQUIRED,
+                detail="Subscription inactive. Please make a payment to continue using JobRocket."
+            )
+    
+    # Check if user is an extra seat user with inactive seat - give read-only access
+    extra_seat = await db.extra_seats.find_one({"user_id": current_user.id})
+    if extra_seat:
+        if not extra_seat.get("is_active") or extra_seat.get("payment_status") != "paid":
+            is_read_only = True
+    
+    return current_user, is_read_only
+
+
 async def verify_admin_user(current_user: User = Depends(get_current_user)) -> User:
     """Ensure current user is an admin"""
     if current_user.role != UserRole.ADMIN:
