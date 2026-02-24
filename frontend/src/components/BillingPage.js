@@ -28,6 +28,111 @@ import axios from 'axios';
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
 
+// Statement Download Component
+const StatementDownload = ({ getAuthHeaders }) => {
+  const [startDate, setStartDate] = useState('');
+  const [endDate, setEndDate] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+
+  // Set default dates (last 3 months)
+  useEffect(() => {
+    const end = new Date();
+    const start = new Date();
+    start.setMonth(start.getMonth() - 3);
+    setStartDate(start.toISOString().split('T')[0]);
+    setEndDate(end.toISOString().split('T')[0]);
+  }, []);
+
+  const handleDownload = async () => {
+    if (!startDate || !endDate) {
+      setError('Please select both start and end dates');
+      return;
+    }
+
+    try {
+      setLoading(true);
+      setError('');
+      
+      const response = await axios.get(
+        `${API}/billing/statement?start_date=${startDate}&end_date=${endDate}&format=html`,
+        {
+          ...getAuthHeaders(),
+          responseType: 'blob'
+        }
+      );
+
+      // Create download link
+      const blob = new Blob([response.data], { type: 'text/html' });
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `JobRocket_Statement_${startDate}_to_${endDate}.html`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
+      
+    } catch (error) {
+      console.error('Error downloading statement:', error);
+      setError('Failed to generate statement. Please try again.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="space-y-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div>
+          <label className="block text-sm font-medium text-slate-700 mb-1">Start Date</label>
+          <input
+            type="date"
+            value={startDate}
+            onChange={(e) => setStartDate(e.target.value)}
+            className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+          />
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-slate-700 mb-1">End Date</label>
+          <input
+            type="date"
+            value={endDate}
+            onChange={(e) => setEndDate(e.target.value)}
+            className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+          />
+        </div>
+      </div>
+      
+      {error && (
+        <p className="text-sm text-red-600">{error}</p>
+      )}
+      
+      <Button
+        onClick={handleDownload}
+        disabled={loading || !startDate || !endDate}
+        className="bg-purple-600 hover:bg-purple-700"
+      >
+        {loading ? (
+          <span className="flex items-center">
+            <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
+            Generating...
+          </span>
+        ) : (
+          <span className="flex items-center">
+            <Download className="w-4 h-4 mr-2" />
+            Download Statement
+          </span>
+        )}
+      </Button>
+      
+      <p className="text-xs text-slate-500">
+        Statement includes JobRocket company details, your billing information, and all transactions in the selected period.
+      </p>
+    </div>
+  );
+};
+
 const BillingPage = ({ user }) => {
   const [activeTab, setActiveTab] = useState('overview');
   const [billing, setBilling] = useState(null);
