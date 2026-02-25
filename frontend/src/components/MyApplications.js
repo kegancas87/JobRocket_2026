@@ -88,9 +88,43 @@ const MyApplications = ({ user }) => {
       case 'interviewed': return <MessageSquare className="w-4 h-4" />;
       case 'offered': return <CheckCircle className="w-4 h-4" />;
       case 'rejected': return <XCircle className="w-4 h-4" />;
-      case 'withdrawn': return <XCircle className="w-4 h-4" />;
+      case 'withdrawn': return <Undo2 className="w-4 h-4" />;
       default: return <Clock className="w-4 h-4" />;
     }
+  };
+
+  const handleWithdraw = async (applicationId, jobTitle) => {
+    if (!window.confirm(`Are you sure you want to withdraw your application for "${jobTitle}"? This action cannot be undone.`)) {
+      return;
+    }
+
+    try {
+      setWithdrawing(applicationId);
+      await axios.put(`${API}/applications/${applicationId}/withdraw`, {}, getAuthHeaders());
+      
+      toast({
+        title: "Application Withdrawn",
+        description: `Your application for "${jobTitle}" has been withdrawn.`,
+        variant: "success",
+      });
+      
+      // Refresh applications
+      await fetchApplications();
+      
+    } catch (error) {
+      console.error('Error withdrawing application:', error);
+      toast({
+        title: "Failed to Withdraw",
+        description: error.response?.data?.detail || "Something went wrong. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setWithdrawing(null);
+    }
+  };
+
+  const canWithdraw = (status) => {
+    return !['withdrawn', 'rejected', 'offered'].includes(status);
   };
 
   const filteredApplications = applications.filter(app => {
