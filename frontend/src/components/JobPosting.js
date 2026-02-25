@@ -223,7 +223,11 @@ const JobPosting = ({ user, onUpdateUser }) => {
       ];
       
       if (!allowedTypes.includes(file.type)) {
-        alert('Please select a CSV or Excel file');
+        toast({
+          title: "Invalid File Type",
+          description: "Please select a CSV or Excel file.",
+          variant: "destructive",
+        });
         return;
       }
       
@@ -236,7 +240,11 @@ const JobPosting = ({ user, onUpdateUser }) => {
     e.preventDefault();
     
     if (!bulkFile) {
-      alert('Please select a file to upload');
+      toast({
+        title: "No File Selected",
+        description: "Please select a file to upload.",
+        variant: "warning",
+      });
       return;
     }
 
