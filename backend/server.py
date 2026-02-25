@@ -893,6 +893,28 @@ async def get_jobs(
     return jobs
 
 
+@api_router.get("/jobs/archived")
+async def get_archived_jobs(
+    current_user: User = Depends(get_current_recruiter),
+    skip: int = 0,
+    limit: int = 100
+):
+    """Get archived/deleted jobs for current account"""
+    
+    jobs = []
+    cursor = db.jobs.find({
+        "account_id": current_user.account_id,
+        "is_active": False
+    }).sort("posted_date", -1).skip(skip).limit(limit)
+    
+    async for job in cursor:
+        if "_id" in job:
+            del job["_id"]
+        jobs.append(job)
+    
+    return jobs
+
+
 @api_router.get("/public/jobs")
 async def get_public_jobs(
     skip: int = 0,
