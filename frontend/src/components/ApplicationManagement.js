@@ -46,7 +46,7 @@ const ApplicationManagement = ({ user }) => {
   const fetchApplications = async () => {
     try {
       setLoading(true);
-      const response = await axios.get(`${API}/company/applications`, getAuthHeaders());
+      const response = await axios.get(`${API}/applications`, getAuthHeaders());
       setApplications(response.data);
     } catch (error) {
       console.error('Error fetching applications:', error);
