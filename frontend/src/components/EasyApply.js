@@ -524,11 +524,54 @@ const EasyApplyModal = ({ job, isOpen, onClose, onSuccess, user }) => {
 // Apply Button Component
 const ApplyButton = ({ job, user, onApplicationSuccess }) => {
   const [showEasyApply, setShowEasyApply] = useState(false);
+  const [hasApplied, setHasApplied] = useState(false);
+  const [applicationDate, setApplicationDate] = useState(null);
+  const [checkingStatus, setCheckingStatus] = useState(true);
+
+  // Check if user has already applied to this job
+  useEffect(() => {
+    const checkApplicationStatus = async () => {
+      if (!user || !job?.id) {
+        setCheckingStatus(false);
+        return;
+      }
+
+      try {
+        const token = localStorage.getItem('token');
+        if (!token) {
+          setCheckingStatus(false);
+          return;
+        }
+
+        const response = await axios.get(
+          `${API}/jobs/${job.id}/application-status`,
+          {
+            headers: {
+              'Authorization': `Bearer ${token}`
+            }
+          }
+        );
+
+        if (response.data.has_applied) {
+          setHasApplied(true);
+          setApplicationDate(response.data.applied_date);
+        }
+      } catch (error) {
+        // If endpoint doesn't exist or error, assume not applied
+        console.log('Could not check application status:', error.message);
+      } finally {
+        setCheckingStatus(false);
+      }
+    };
+
+    checkApplicationStatus();
+  }, [job?.id, user]);
 
   // Check if job uses external application
   const hasExternalApplication = job.application_url && job.application_url.trim() !== '';
 
-  const handleExternalApply = () => {
+  const handleExternalApply = (e) => {
+    e.stopPropagation();
     if (job.application_url) {
       // Log the external application click (optional analytics)
       console.log(`External application clicked for job: ${job.title}`);
@@ -539,20 +582,67 @@ const ApplyButton = ({ job, user, onApplicationSuccess }) => {
   };
 
   const handleEasyApplySuccess = (applicationData) => {
+    setHasApplied(true);
+    setApplicationDate(new Date().toISOString());
     if (onApplicationSuccess) {
       onApplicationSuccess(applicationData);
     }
   };
+
+  const formatAppliedDate = (dateStr) => {
+    if (!dateStr) return '';
+    const date = new Date(dateStr);
+    const now = new Date();
+    const diffDays = Math.floor((now - date) / (1000 * 60 * 60 * 24));
+    
+    if (diffDays === 0) return 'Today';
+    if (diffDays === 1) return 'Yesterday';
+    if (diffDays < 7) return `${diffDays} days ago`;
+    return date.toLocaleDateString('en-ZA', { day: 'numeric', month: 'short' });
+  };
+
+  // If user has already applied, show "Applied" badge
+  if (hasApplied) {
+    return (
+      <div 
+        className="flex items-center space-x-2 bg-emerald-100 text-emerald-700 px-3 sm:px-4 py-2 rounded-full font-semibold text-sm"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <CheckCircle className="w-4 h-4" />
+        <span>Applied</span>
+        {applicationDate && (
+          <span className="text-emerald-600 text-xs hidden sm:inline">
+            • {formatAppliedDate(applicationDate)}
+          </span>
+        )}
+      </div>
+    );
+  }
+
+  // Show loading state while checking
+  if (checkingStatus) {
+    return (
+      <Button
+        disabled
+        className="bg-slate-200 text-slate-500 cursor-wait"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="w-4 h-4 border-2 border-slate-400 border-t-transparent rounded-full animate-spin mr-2" />
+        Loading...
+      </Button>
+    );
+  }
 
   // For external applications, redirect to company website
   if (hasExternalApplication) {
     return (
       <Button
         onClick={handleExternalApply}
-        className="bg-gradient-to-r from-blue-600 to-slate-700 hover:from-blue-700 hover:to-slate-800 w-full"
+        className="bg-gradient-to-r from-blue-600 to-slate-700 hover:from-blue-700 hover:to-slate-800"
       >
         <ExternalLink className="w-4 h-4 mr-2" />
-        Apply on Company Website
+        <span className="hidden sm:inline">Apply on Website</span>
+        <span className="sm:hidden">Apply</span>
       </Button>
     );
   }
@@ -561,8 +651,11 @@ const ApplyButton = ({ job, user, onApplicationSuccess }) => {
   return (
     <>
       <Button
-        onClick={() => setShowEasyApply(true)}
-        className="bg-gradient-to-r from-green-600 to-blue-600 hover:from-green-700 hover:to-blue-700 w-full"
+        onClick={(e) => {
+          e.stopPropagation();
+          setShowEasyApply(true);
+        }}
+        className="bg-gradient-to-r from-green-600 to-blue-600 hover:from-green-700 hover:to-blue-700"
       >
         <Send className="w-4 h-4 mr-2" />
         Easy Apply
