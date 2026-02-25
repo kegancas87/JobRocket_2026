@@ -261,6 +261,28 @@ const MyApplications = ({ user }) => {
                         Updated {formatDate(application.last_updated)}
                       </p>
                     )}
+
+                    {canWithdraw(application.status) && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handleWithdraw(application.id, job?.title || 'this position')}
+                        disabled={withdrawing === application.id}
+                        className="text-red-600 border-red-200 hover:bg-red-50 hover:border-red-300"
+                      >
+                        {withdrawing === application.id ? (
+                          <span className="flex items-center">
+                            <div className="w-3 h-3 border-2 border-red-400 border-t-transparent rounded-full animate-spin mr-2" />
+                            Withdrawing...
+                          </span>
+                        ) : (
+                          <span className="flex items-center">
+                            <Undo2 className="w-3 h-3 mr-1" />
+                            Withdraw
+                          </span>
+                        )}
+                      </Button>
+                    )}
                   </div>
                 </div>
 
