@@ -286,14 +286,22 @@ const JobPosting = ({ user, onUpdateUser }) => {
       setLoading(true);
       await axios.put(`${API}/jobs/${jobId}/repost`, {}, getAuthHeaders());
       
-      alert('Job reposted successfully! It will now be visible to job seekers for another 35 days.');
+      toast({
+        title: "Job Reposted Successfully",
+        description: "Your job listing is now visible to job seekers for another 35 days.",
+        variant: "success",
+      });
       
       // Refresh jobs
       await fetchJobs();
       
     } catch (error) {
       console.error('Error reposting job:', error);
-      alert(error.response?.data?.detail || 'Failed to repost job');
+      toast({
+        title: "Failed to Repost Job",
+        description: error.response?.data?.detail || "Something went wrong. Please try again.",
+        variant: "destructive",
+      });
     } finally {
       setLoading(false);
     }
