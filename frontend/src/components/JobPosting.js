@@ -381,7 +381,11 @@ Marketing Manager,Johannesburg,R45000 - R60000,Permanent,Onsite,Marketing,"Join 
       setLoading(true);
       await axios.put(`${API}/jobs/${editingJob.id}`, jobForm, getAuthHeaders());
       
-      alert('Job updated successfully!');
+      toast({
+        title: "Job Updated Successfully",
+        description: "Your changes have been saved.",
+        variant: "success",
+      });
       setShowEditModal(false);
       setEditingJob(null);
       
@@ -406,7 +410,11 @@ Marketing Manager,Johannesburg,R45000 - R60000,Permanent,Onsite,Marketing,"Join 
       
     } catch (error) {
       console.error('Error updating job:', error);
-      alert(error.response?.data?.detail || 'Failed to update job');
+      toast({
+        title: "Failed to Update Job",
+        description: error.response?.data?.detail || "Something went wrong. Please try again.",
+        variant: "destructive",
+      });
     } finally {
       setLoading(false);
     }
