@@ -1268,6 +1268,48 @@ async def update_application_status(
     return {"message": "Application status updated"}
 
 
+@api_router.put("/applications/{application_id}/withdraw")
+async def withdraw_application(
+    application_id: str,
+    current_user: User = Depends(get_current_user)
+):
+    """Withdraw an application (job seekers only)"""
+    
+    if current_user.role != UserRole.JOB_SEEKER:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only job seekers can withdraw applications"
+        )
+    
+    # Find and verify the application belongs to this user
+    application = await db.job_applications.find_one({
+        "id": application_id,
+        "applicant_id": current_user.id
+    })
+    
+    if not application:
+        raise HTTPException(status_code=404, detail="Application not found")
+    
+    # Check if already withdrawn or in final state
+    if application.get("status") in ["withdrawn", "rejected", "offered"]:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Cannot withdraw application that is already {application.get('status')}"
+        )
+    
+    # Update status to withdrawn
+    result = await db.job_applications.update_one(
+        {"id": application_id},
+        {"$set": {
+            "status": "withdrawn",
+            "withdrawn_at": datetime.utcnow(),
+            "last_updated": datetime.utcnow()
+        }}
+    )
+    
+    return {"message": "Application withdrawn successfully"}
+
+
 # ============================================
 # Public Company Profile Endpoints
 # ============================================
