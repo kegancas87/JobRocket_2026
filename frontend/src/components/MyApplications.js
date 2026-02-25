@@ -11,17 +11,21 @@ import {
   CheckCircle,
   XCircle,
   Calendar,
-  MessageSquare
+  MessageSquare,
+  Undo2
 } from "lucide-react";
 import axios from 'axios';
+import { useToast } from "../hooks/use-toast";
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
 
 const MyApplications = ({ user }) => {
+  const { toast } = useToast();
   const [applications, setApplications] = useState([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState('all');
+  const [withdrawing, setWithdrawing] = useState(null);
 
   const getAuthHeaders = () => {
     const token = localStorage.getItem('token');
