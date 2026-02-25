@@ -165,7 +165,11 @@ const JobPosting = ({ user, onUpdateUser }) => {
       setLoading(true);
       await axios.post(`${API}/jobs`, jobForm, getAuthHeaders());
       
-      alert('Job posted successfully!');
+      toast({
+        title: "Job Posted Successfully",
+        description: "Your job listing is now live and visible to job seekers.",
+        variant: "success",
+      });
       
       // Reset form
       setJobForm({
@@ -191,9 +195,17 @@ const JobPosting = ({ user, onUpdateUser }) => {
     } catch (error) {
       console.error('Error posting job:', error);
       if (error.response?.status === 402) {
-        alert('No job listing credits available. Please purchase a package to post jobs.');
+        toast({
+          title: "No Credits Available",
+          description: "Please purchase a package to post jobs.",
+          variant: "destructive",
+        });
       } else {
-        alert(error.response?.data?.detail || 'Failed to post job');
+        toast({
+          title: "Failed to Post Job",
+          description: error.response?.data?.detail || "Something went wrong. Please try again.",
+          variant: "destructive",
+        });
       }
     } finally {
       setLoading(false);
