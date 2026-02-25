@@ -871,14 +871,19 @@ async def check_and_send_job_alerts(job: dict):
 async def get_jobs(
     current_user: User = Depends(get_current_recruiter),
     skip: int = 0,
-    limit: int = 100
+    limit: int = 100,
+    include_archived: bool = False
 ):
     """Get jobs for current account"""
     
+    query = {"account_id": current_user.account_id}
+    
+    # Filter out inactive/deleted jobs unless include_archived is True
+    if not include_archived:
+        query["is_active"] = True
+    
     jobs = []
-    cursor = db.jobs.find({
-        "account_id": current_user.account_id
-    }).sort("posted_date", -1).skip(skip).limit(limit)
+    cursor = db.jobs.find(query).sort("posted_date", -1).skip(skip).limit(limit)
     
     async for job in cursor:
         if "_id" in job:
