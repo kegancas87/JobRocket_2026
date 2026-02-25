@@ -1853,6 +1853,7 @@ function App() {
           
           <Footer user={user} />
         </div>
+        <Toaster />
       </BrowserRouter>
     </div>
   );
