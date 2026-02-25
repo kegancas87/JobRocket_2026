@@ -429,13 +429,21 @@ Marketing Manager,Johannesburg,R45000 - R60000,Permanent,Onsite,Marketing,"Join 
       setLoading(true);
       await axios.delete(`${API}/jobs/${jobId}`, getAuthHeaders());
       
-      alert('Job deleted successfully!');
+      toast({
+        title: "Job Deleted",
+        description: "The job listing has been moved to archived.",
+        variant: "success",
+      });
       await fetchJobs();
       if (onUpdateUser) onUpdateUser();
       
     } catch (error) {
       console.error('Error deleting job:', error);
-      alert(error.response?.data?.detail || 'Failed to delete job');
+      toast({
+        title: "Failed to Delete Job",
+        description: error.response?.data?.detail || "Something went wrong. Please try again.",
+        variant: "destructive",
+      });
     } finally {
       setLoading(false);
     }
