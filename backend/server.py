@@ -1058,6 +1058,35 @@ async def apply_to_job(
     return application_dict
 
 
+@api_router.get("/jobs/{job_id}/application-status")
+async def check_job_application_status(
+    job_id: str,
+    current_user: User = Depends(get_current_user)
+):
+    """Check if current user has already applied to a specific job"""
+    
+    # Find existing application
+    application = await db.job_applications.find_one({
+        "job_id": job_id,
+        "applicant_id": current_user.id
+    })
+    
+    if application:
+        return {
+            "has_applied": True,
+            "applied_date": application.get("applied_date", application.get("created_at")),
+            "status": application.get("status", "pending"),
+            "application_id": application.get("id")
+        }
+    
+    return {
+        "has_applied": False,
+        "applied_date": None,
+        "status": None,
+        "application_id": None
+    }
+
+
 @api_router.post("/jobs/{job_id}/apply")
 async def apply_to_job_by_id(
     job_id: str,
