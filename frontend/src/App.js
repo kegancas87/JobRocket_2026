@@ -29,6 +29,7 @@ import JobDetailsModal from "./components/JobDetailsModal";
 import Navigation from "./components/Navigation";
 import Footer from "./components/Footer";
 import { PaymentSuccessPage, PaymentCancelPage } from "./components/PaymentPages";
+import { Toaster } from "./components/ui/toaster";
 import { Button } from "./components/ui/button";
 import { Input } from "./components/ui/input";
 import { Card, CardContent, CardHeader } from "./components/ui/card";
