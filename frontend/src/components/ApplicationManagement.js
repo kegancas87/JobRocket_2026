@@ -55,20 +55,26 @@ const ApplicationManagement = ({ user }) => {
     }
   };
 
-  const updateApplicationStatus = async (applicationId, status, notes = '') => {
+  const updateApplicationStatus = async (applicationId, newStatus, notes = '') => {
     try {
-      await axios.put(`${API}/applications/${applicationId}`, {
-        status,
+      await axios.put(`${API}/applications/${applicationId}/status?status=${newStatus}`, {
         notes
       }, getAuthHeaders());
       
       // Refresh applications
       await fetchApplications();
-      alert(`Application ${status} successfully!`);
+      
+      // Update selected application if viewing
+      if (selectedApplication?.application?.id === applicationId) {
+        setSelectedApplication(prev => ({
+          ...prev,
+          application: { ...prev.application, status: newStatus }
+        }));
+      }
       
     } catch (error) {
       console.error('Error updating application status:', error);
-      alert(error.response?.data?.detail || 'Failed to update application status');
+      throw error;
     }
   };
 
