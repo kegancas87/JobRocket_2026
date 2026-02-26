@@ -473,7 +473,7 @@ const PipelineConversionReport = ({ data }) => {
 
 // Recruiter Workload Report Component
 const RecruiterWorkloadReport = ({ data }) => {
-  const { summary, data: recruiters } = data;
+  const { summary = {}, data: recruiters = [] } = data || {};
   
   return (
     <div className="space-y-6">
@@ -482,31 +482,31 @@ const RecruiterWorkloadReport = ({ data }) => {
         <Card className="bg-gradient-to-br from-blue-500 to-blue-600 text-white border-0 shadow-lg">
           <CardContent className="p-4">
             <p className="text-blue-100 text-xs font-medium">Total Recruiters</p>
-            <p className="text-2xl font-bold">{summary.total_recruiters}</p>
+            <p className="text-2xl font-bold">{summary.total_recruiters || 0}</p>
           </CardContent>
         </Card>
         <Card className="bg-gradient-to-br from-emerald-500 to-emerald-600 text-white border-0 shadow-lg">
           <CardContent className="p-4">
             <p className="text-emerald-100 text-xs font-medium">Active Jobs</p>
-            <p className="text-2xl font-bold">{summary.total_active_jobs}</p>
+            <p className="text-2xl font-bold">{summary.total_active_jobs || 0}</p>
           </CardContent>
         </Card>
         <Card className="bg-gradient-to-br from-purple-500 to-purple-600 text-white border-0 shadow-lg">
           <CardContent className="p-4">
             <p className="text-purple-100 text-xs font-medium">Active Candidates</p>
-            <p className="text-2xl font-bold">{summary.total_active_candidates}</p>
+            <p className="text-2xl font-bold">{summary.total_active_candidates || 0}</p>
           </CardContent>
         </Card>
         <Card className="bg-gradient-to-br from-red-500 to-red-600 text-white border-0 shadow-lg">
           <CardContent className="p-4">
             <p className="text-red-100 text-xs font-medium">Overdue Tasks</p>
-            <p className="text-2xl font-bold">{summary.total_overdue_tasks}</p>
+            <p className="text-2xl font-bold">{summary.total_overdue_tasks || 0}</p>
           </CardContent>
         </Card>
         <Card className="bg-gradient-to-br from-amber-500 to-amber-600 text-white border-0 shadow-lg">
           <CardContent className="p-4">
             <p className="text-amber-100 text-xs font-medium">With Overdue</p>
-            <p className="text-2xl font-bold">{summary.recruiters_with_overdue}</p>
+            <p className="text-2xl font-bold">{summary.recruiters_with_overdue || 0}</p>
           </CardContent>
         </Card>
       </div>
@@ -530,7 +530,7 @@ const RecruiterWorkloadReport = ({ data }) => {
                 <div className="flex items-start justify-between mb-4">
                   <div className="flex items-center gap-3">
                     <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center text-white font-semibold">
-                      {recruiter.recruiter_name.split(' ').map(n => n[0]).join('')}
+                      {recruiter.recruiter_name?.split(' ').map(n => n[0]).join('') || '?'}
                     </div>
                     <div>
                       <p className="font-semibold text-slate-800">{recruiter.recruiter_name}</p>
@@ -548,17 +548,17 @@ const RecruiterWorkloadReport = ({ data }) => {
                 <div className="grid grid-cols-3 gap-3">
                   <div className="bg-slate-50 rounded-lg p-3 text-center">
                     <Briefcase className="w-4 h-4 text-blue-600 mx-auto mb-1" />
-                    <p className="text-lg font-bold text-slate-800">{recruiter.metrics.active_jobs}</p>
+                    <p className="text-lg font-bold text-slate-800">{recruiter.metrics?.active_jobs || 0}</p>
                     <p className="text-xs text-slate-500">Active Jobs</p>
                   </div>
                   <div className="bg-slate-50 rounded-lg p-3 text-center">
                     <UserCheck className="w-4 h-4 text-emerald-600 mx-auto mb-1" />
-                    <p className="text-lg font-bold text-slate-800">{recruiter.metrics.active_candidates}</p>
+                    <p className="text-lg font-bold text-slate-800">{recruiter.metrics?.active_candidates || 0}</p>
                     <p className="text-xs text-slate-500">Candidates</p>
                   </div>
                   <div className="bg-slate-50 rounded-lg p-3 text-center">
                     <Calendar className="w-4 h-4 text-purple-600 mx-auto mb-1" />
-                    <p className="text-lg font-bold text-slate-800">{recruiter.metrics.interviews_scheduled}</p>
+                    <p className="text-lg font-bold text-slate-800">{recruiter.metrics?.interviews_scheduled || 0}</p>
                     <p className="text-xs text-slate-500">Interviews</p>
                   </div>
                 </div>
@@ -566,15 +566,15 @@ const RecruiterWorkloadReport = ({ data }) => {
                 <div className="flex items-center justify-between mt-4 pt-4 border-t border-slate-200">
                   <div className="flex items-center gap-4 text-sm">
                     <span className="text-slate-600">
-                      <span className="font-medium text-blue-600">{recruiter.metrics.new_applications}</span> new apps
+                      <span className="font-medium text-blue-600">{recruiter.metrics?.new_applications || 0}</span> new apps
                     </span>
                     <span className="text-slate-600">
-                      <span className={`font-medium ${recruiter.metrics.overdue_reviews > 0 ? 'text-red-600' : 'text-emerald-600'}`}>
-                        {recruiter.metrics.overdue_reviews}
+                      <span className={`font-medium ${(recruiter.metrics?.overdue_reviews || 0) > 0 ? 'text-red-600' : 'text-emerald-600'}`}>
+                        {recruiter.metrics?.overdue_reviews || 0}
                       </span> overdue
                     </span>
                     <span className="text-slate-600">
-                      <span className="font-medium text-amber-600">{recruiter.metrics.offers_pending}</span> offers pending
+                      <span className="font-medium text-amber-600">{recruiter.metrics?.offers_pending || 0}</span> offers pending
                     </span>
                   </div>
                 </div>
