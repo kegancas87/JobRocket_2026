@@ -1,7 +1,7 @@
 # JobRocket - Product Requirements Document
 
 > **Last Updated**: February 2026
-> **Version**: 2.4.0 (Automated Billing System Complete)
+> **Version**: 2.5.0 (Jobs Dashboard Complete)
 
 ---
 
@@ -118,16 +118,44 @@ JobRocket is a B2B SaaS recruitment platform targeting recruiters, businesses, a
   - Statement download component with date pickers
   - Payment history table with status badges
 
+### Phase 9: Jobs Dashboard (Feb 2026)
+- [x] **Recruiter Jobs Dashboard** (`/jobs-dashboard`)
+  - Quick stats bar: Active Jobs, Applications This Month, Interviews, Expired Jobs
+  - Job cards showing:
+    - Job title, location, salary, job type, posted date
+    - Days until expiry with color-coded status
+    - Application statistics (total, pending, shortlisted, interviewed, offered)
+    - "Has Notes" badge when recruiter notes exist
+    - "Expiring Soon" badge for jobs expiring in <7 days
+  - **Filtering & Sorting**:
+    - Search by job title/location
+    - Sort: Newest First, Expiring Soon, Most Applications, Posted Date
+    - Toggle to show/hide expired jobs (hidden by default)
+  - **Job Actions**:
+    - View Applicants - opens pipeline modal
+    - Add/Edit Notes - saves recruiter notes per job
+    - Reactivate Expired Job - extends expiry date by configurable days
+    - Edit Job - redirects to job editing
+  - **Applicants Pipeline Modal**:
+    - Status filter tabs (All, Pending, Reviewed, Shortlisted, Interviewed, Offered, Rejected)
+    - Applicant cards with avatar, name, email, location, skills, cover letter preview
+    - Quick status actions (Mark Reviewed, Shortlist, Schedule Interview, Make Offer, Reject)
+    - View Profile button opens full applicant profile modal
+    - Resume/CV download link
+
 ---
 
 ## Backlog / Roadmap
 
-### P2 - Next (User to reprioritize)
-1. Applicant filtering & status tracking (Growth+)
-2. AI match scoring & auto-ranked candidates
-3. Analytics dashboard (job performance, conversion, reports)
-4. Distribution features (email, WhatsApp, social)
-5. Enhanced employer branding
+### P1 - Next
+1. **Recruiter Reporting Feature** - CV search usage stats reporting
+2. **Job Application Notifications** - Email recruiters when job seekers apply
+
+### P2 - Later
+1. AI match scoring & auto-ranked candidates
+2. Distribution features (email, WhatsApp, social)
+3. Enhanced employer branding
+4. Talent Pool Alerts - save searches and get alerts for new matching candidates
 
 ### P3 - Future
 1. Enterprise features (RBAC, API access, white-label)
@@ -135,6 +163,7 @@ JobRocket is a B2B SaaS recruitment platform targeting recruiters, businesses, a
 3. ATS export, calendar integration
 4. Job seeker monetization
 5. Quick Stats widget (bulk vs manual job performance)
+6. In-app real-time notifications
 
 ---
 
@@ -154,6 +183,12 @@ JobRocket is a B2B SaaS recruitment platform targeting recruiters, businesses, a
 ---
 
 ## Key API Endpoints
+
+### Jobs Dashboard (NEW)
+- `GET /api/jobs/dashboard` - Get jobs with stats, activity indicators, filtering/sorting
+- `PUT /api/jobs/{job_id}/notes` - Add/update recruiter notes for a job
+- `PUT /api/jobs/{job_id}/reactivate` - Reactivate an expired job with new expiry date
+- `GET /api/jobs/{job_id}/applicants` - Get applicants for a job with status filter
 
 ### Onboarding
 - `GET /api/onboarding/status` - Get onboarding progress
