@@ -3917,6 +3917,508 @@ async def health_check():
     }
 
 
+# ============================================
+# Recruiter Reports API Endpoints
+# ============================================
+
+@api_router.get("/reports/time-to-fill")
+async def get_time_to_fill_report(
+    current_user: User = Depends(get_current_recruiter),
+    start_date: str = None,
+    end_date: str = None,
+    job_id: str = None,
+    recruiter_id: str = None,
+    include_open: bool = False,
+    page: int = 1,
+    limit: int = 50
+):
+    """
+    Time-to-Fill Report
+    Measures how long it takes to successfully close roles.
+    Time to fill = Offer Accepted Date - Job Open Date
+    """
+    
+    now = datetime.utcnow()
+    
+    # Parse date filters
+    date_start = datetime.fromisoformat(start_date) if start_date else now - timedelta(days=90)
+    date_end = datetime.fromisoformat(end_date) if end_date else now
+    
+    # Build query for jobs
+    job_query = {
+        "account_id": current_user.account_id,
+        "posted_date": {"$gte": date_start, "$lte": date_end}
+    }
+    
+    if job_id:
+        job_query["id"] = job_id
+    
+    if recruiter_id:
+        job_query["posted_by"] = recruiter_id
+    
+    # Fetch jobs
+    jobs_cursor = db.jobs.find(job_query).sort("posted_date", -1)
+    jobs_list = await jobs_cursor.to_list(None)
+    
+    report_data = []
+    total_days_to_fill = []
+    
+    for job in jobs_list:
+        job_id_val = job["id"]
+        job_open_date = job.get("posted_date", job.get("created_at", now))
+        
+        # Check if job has been filled (has an accepted offer)
+        filled_app = await db.job_applications.find_one({
+            "job_id": job_id_val,
+            "status": {"$in": ["offered", "hired"]}
+        })
+        
+        is_filled = filled_app is not None
+        offer_accepted_date = filled_app.get("last_updated") if filled_app else None
+        
+        # Calculate time to fill
+        if is_filled and offer_accepted_date:
+            days_to_fill = (offer_accepted_date - job_open_date).days
+        else:
+            days_to_fill = (now - job_open_date).days  # Days open
+        
+        # Skip open jobs if not requested
+        if not is_filled and not include_open:
+            continue
+        
+        if is_filled:
+            total_days_to_fill.append(days_to_fill)
+        
+        # Get recruiter info
+        recruiter = await db.users.find_one({"id": job.get("posted_by")})
+        recruiter_name = f"{recruiter.get('first_name', '')} {recruiter.get('last_name', '')}" if recruiter else "Unknown"
+        
+        report_data.append({
+            "job_id": job_id_val,
+            "job_title": job.get("title", ""),
+            "company_name": job.get("company_name", ""),
+            "recruiter_id": job.get("posted_by"),
+            "recruiter_name": recruiter_name,
+            "job_open_date": job_open_date.isoformat(),
+            "offer_accepted_date": offer_accepted_date.isoformat() if offer_accepted_date else None,
+            "days_to_fill": days_to_fill,
+            "is_filled": is_filled,
+            "status": "Filled" if is_filled else "Open"
+        })
+    
+    # Calculate summary metrics
+    avg_time_to_fill = sum(total_days_to_fill) / len(total_days_to_fill) if total_days_to_fill else 0
+    sorted_days = sorted(total_days_to_fill)
+    median_time_to_fill = sorted_days[len(sorted_days) // 2] if sorted_days else 0
+    
+    # Pagination
+    total_count = len(report_data)
+    start_idx = (page - 1) * limit
+    end_idx = start_idx + limit
+    paginated_data = report_data[start_idx:end_idx]
+    
+    return {
+        "report_type": "time_to_fill",
+        "generated_at": now.isoformat(),
+        "filters": {
+            "start_date": date_start.isoformat(),
+            "end_date": date_end.isoformat(),
+            "job_id": job_id,
+            "recruiter_id": recruiter_id,
+            "include_open": include_open
+        },
+        "summary": {
+            "total_jobs": total_count,
+            "filled_jobs": len(total_days_to_fill),
+            "open_jobs": total_count - len(total_days_to_fill),
+            "average_days_to_fill": round(avg_time_to_fill, 1),
+            "median_days_to_fill": median_time_to_fill
+        },
+        "data": paginated_data,
+        "pagination": {
+            "page": page,
+            "limit": limit,
+            "total_count": total_count,
+            "total_pages": (total_count + limit - 1) // limit
+        }
+    }
+
+
+@api_router.get("/reports/pipeline-conversion")
+async def get_pipeline_conversion_report(
+    current_user: User = Depends(get_current_recruiter),
+    start_date: str = None,
+    end_date: str = None,
+    job_id: str = None,
+    recruiter_id: str = None,
+    page: int = 1,
+    limit: int = 50
+):
+    """
+    Pipeline Conversion Report
+    Identifies bottlenecks and drop-off points within hiring pipelines.
+    Stage-to-stage conversion = candidates moved to next stage / candidates in previous stage
+    """
+    
+    now = datetime.utcnow()
+    
+    # Parse date filters
+    date_start = datetime.fromisoformat(start_date) if start_date else now - timedelta(days=90)
+    date_end = datetime.fromisoformat(end_date) if end_date else now
+    
+    # Define pipeline stages in order
+    pipeline_stages = ["pending", "reviewed", "shortlisted", "interviewed", "offered"]
+    
+    # Build application query
+    app_query = {
+        "account_id": current_user.account_id,
+        "applied_date": {"$gte": date_start, "$lte": date_end}
+    }
+    
+    if job_id:
+        app_query["job_id"] = job_id
+    
+    # Get job filter by recruiter
+    job_ids_filter = None
+    if recruiter_id:
+        jobs = await db.jobs.find({"posted_by": recruiter_id, "account_id": current_user.account_id}).to_list(None)
+        job_ids_filter = [j["id"] for j in jobs]
+        if job_ids_filter:
+            app_query["job_id"] = {"$in": job_ids_filter}
+    
+    # Aggregate applications by status
+    pipeline = [
+        {"$match": app_query},
+        {"$group": {
+            "_id": "$status",
+            "count": {"$sum": 1}
+        }}
+    ]
+    
+    status_counts = await db.job_applications.aggregate(pipeline).to_list(None)
+    status_map = {item["_id"]: item["count"] for item in status_counts}
+    
+    # Calculate stage metrics
+    stage_data = []
+    total_applications = sum(status_map.values())
+    
+    for i, stage in enumerate(pipeline_stages):
+        count = status_map.get(stage, 0)
+        
+        # For conversion calculation, we need cumulative counts
+        # Candidates "at or past" this stage
+        at_or_past = sum(status_map.get(s, 0) for s in pipeline_stages[i:])
+        
+        # Previous stage count (for conversion rate)
+        if i == 0:
+            conversion_rate = 100.0  # First stage always 100%
+            prev_count = total_applications
+        else:
+            prev_stage = pipeline_stages[i-1]
+            prev_at_or_past = sum(status_map.get(s, 0) for s in pipeline_stages[i-1:])
+            conversion_rate = (at_or_past / prev_at_or_past * 100) if prev_at_or_past > 0 else 0
+            prev_count = prev_at_or_past
+        
+        # Drop-off rate
+        drop_off = 100 - conversion_rate if i > 0 else 0
+        
+        stage_data.append({
+            "stage": stage,
+            "stage_label": stage.replace("_", " ").title(),
+            "count": count,
+            "cumulative_count": at_or_past,
+            "conversion_rate": round(conversion_rate, 1),
+            "drop_off_rate": round(drop_off, 1)
+        })
+    
+    # Add rejected/withdrawn stats
+    rejected_count = status_map.get("rejected", 0)
+    withdrawn_count = status_map.get("withdrawn", 0)
+    
+    # Per-job breakdown if no specific job selected
+    job_breakdown = []
+    if not job_id:
+        job_pipeline = [
+            {"$match": app_query},
+            {"$group": {
+                "_id": "$job_id",
+                "total": {"$sum": 1},
+                "pending": {"$sum": {"$cond": [{"$eq": ["$status", "pending"]}, 1, 0]}},
+                "reviewed": {"$sum": {"$cond": [{"$eq": ["$status", "reviewed"]}, 1, 0]}},
+                "shortlisted": {"$sum": {"$cond": [{"$eq": ["$status", "shortlisted"]}, 1, 0]}},
+                "interviewed": {"$sum": {"$cond": [{"$eq": ["$status", "interviewed"]}, 1, 0]}},
+                "offered": {"$sum": {"$cond": [{"$eq": ["$status", "offered"]}, 1, 0]}},
+                "rejected": {"$sum": {"$cond": [{"$eq": ["$status", "rejected"]}, 1, 0]}}
+            }},
+            {"$sort": {"total": -1}},
+            {"$limit": limit}
+        ]
+        
+        job_stats = await db.job_applications.aggregate(job_pipeline).to_list(None)
+        
+        for js in job_stats:
+            job = await db.jobs.find_one({"id": js["_id"]})
+            if job:
+                job_breakdown.append({
+                    "job_id": js["_id"],
+                    "job_title": job.get("title", "Unknown"),
+                    "total_applications": js["total"],
+                    "stages": {
+                        "pending": js["pending"],
+                        "reviewed": js["reviewed"],
+                        "shortlisted": js["shortlisted"],
+                        "interviewed": js["interviewed"],
+                        "offered": js["offered"],
+                        "rejected": js["rejected"]
+                    }
+                })
+    
+    return {
+        "report_type": "pipeline_conversion",
+        "generated_at": now.isoformat(),
+        "filters": {
+            "start_date": date_start.isoformat(),
+            "end_date": date_end.isoformat(),
+            "job_id": job_id,
+            "recruiter_id": recruiter_id
+        },
+        "summary": {
+            "total_applications": total_applications,
+            "rejected": rejected_count,
+            "withdrawn": withdrawn_count,
+            "overall_conversion_to_offer": round(
+                (status_map.get("offered", 0) / total_applications * 100) if total_applications > 0 else 0, 1
+            )
+        },
+        "pipeline_stages": stage_data,
+        "job_breakdown": job_breakdown,
+        "pagination": {
+            "page": page,
+            "limit": limit
+        }
+    }
+
+
+@api_router.get("/reports/recruiter-workload")
+async def get_recruiter_workload_report(
+    current_user: User = Depends(get_current_recruiter),
+    start_date: str = None,
+    end_date: str = None,
+    recruiter_id: str = None,
+    page: int = 1,
+    limit: int = 50
+):
+    """
+    Recruiter Workload Report
+    Monitors recruiter capacity and prevents overload or SLA breaches.
+    """
+    
+    now = datetime.utcnow()
+    
+    # Parse date filters
+    date_start = datetime.fromisoformat(start_date) if start_date else now - timedelta(days=30)
+    date_end = datetime.fromisoformat(end_date) if end_date else now
+    
+    # Get recruiters in account
+    recruiter_query = {
+        "account_id": current_user.account_id,
+        "role": "recruiter"
+    }
+    
+    if recruiter_id:
+        recruiter_query["id"] = recruiter_id
+    
+    # Check access - recruiters see only their own, admins see all
+    if current_user.account_role not in [AccountRole.OWNER, AccountRole.ADMIN]:
+        recruiter_query["id"] = current_user.id
+    
+    recruiters = await db.users.find(recruiter_query).to_list(None)
+    
+    workload_data = []
+    
+    for recruiter in recruiters:
+        rec_id = recruiter["id"]
+        rec_name = f"{recruiter.get('first_name', '')} {recruiter.get('last_name', '')}"
+        
+        # Active jobs (jobs with candidates in pipeline, status Open)
+        active_jobs = await db.jobs.count_documents({
+            "posted_by": rec_id,
+            "is_active": True,
+            "expiry_date": {"$gt": now}
+        })
+        
+        # Get job IDs for this recruiter
+        rec_job_ids = []
+        async for job in db.jobs.find({"posted_by": rec_id}, {"id": 1}):
+            rec_job_ids.append(job["id"])
+        
+        # Candidates actively managed (applications not rejected/withdrawn)
+        active_candidates = await db.job_applications.count_documents({
+            "job_id": {"$in": rec_job_ids},
+            "status": {"$nin": ["rejected", "withdrawn"]}
+        }) if rec_job_ids else 0
+        
+        # Interviews scheduled (candidates with interviewed status in date range)
+        interviews_scheduled = await db.job_applications.count_documents({
+            "job_id": {"$in": rec_job_ids},
+            "status": "interviewed",
+            "last_updated": {"$gte": date_start, "$lte": date_end}
+        }) if rec_job_ids else 0
+        
+        # Pending reviews (applications in pending status for > 48 hours - overdue)
+        overdue_threshold = now - timedelta(hours=48)
+        overdue_reviews = await db.job_applications.count_documents({
+            "job_id": {"$in": rec_job_ids},
+            "status": "pending",
+            "applied_date": {"$lt": overdue_threshold}
+        }) if rec_job_ids else 0
+        
+        # New applications in date range
+        new_applications = await db.job_applications.count_documents({
+            "job_id": {"$in": rec_job_ids},
+            "applied_date": {"$gte": date_start, "$lte": date_end}
+        }) if rec_job_ids else 0
+        
+        # Offers pending response
+        offers_pending = await db.job_applications.count_documents({
+            "job_id": {"$in": rec_job_ids},
+            "status": "offered"
+        }) if rec_job_ids else 0
+        
+        workload_data.append({
+            "recruiter_id": rec_id,
+            "recruiter_name": rec_name,
+            "email": recruiter.get("email", ""),
+            "metrics": {
+                "active_jobs": active_jobs,
+                "active_candidates": active_candidates,
+                "interviews_scheduled": interviews_scheduled,
+                "new_applications": new_applications,
+                "overdue_reviews": overdue_reviews,
+                "offers_pending": offers_pending
+            },
+            "workload_score": active_jobs * 10 + active_candidates + overdue_reviews * 5,  # Simple scoring
+            "has_overdue": overdue_reviews > 0
+        })
+    
+    # Sort by workload score descending
+    workload_data.sort(key=lambda x: x["workload_score"], reverse=True)
+    
+    # Calculate summary
+    total_active_jobs = sum(w["metrics"]["active_jobs"] for w in workload_data)
+    total_active_candidates = sum(w["metrics"]["active_candidates"] for w in workload_data)
+    total_overdue = sum(w["metrics"]["overdue_reviews"] for w in workload_data)
+    recruiters_with_overdue = sum(1 for w in workload_data if w["has_overdue"])
+    
+    # Pagination
+    total_count = len(workload_data)
+    start_idx = (page - 1) * limit
+    end_idx = start_idx + limit
+    paginated_data = workload_data[start_idx:end_idx]
+    
+    return {
+        "report_type": "recruiter_workload",
+        "generated_at": now.isoformat(),
+        "filters": {
+            "start_date": date_start.isoformat(),
+            "end_date": date_end.isoformat(),
+            "recruiter_id": recruiter_id
+        },
+        "summary": {
+            "total_recruiters": total_count,
+            "total_active_jobs": total_active_jobs,
+            "total_active_candidates": total_active_candidates,
+            "total_overdue_tasks": total_overdue,
+            "recruiters_with_overdue": recruiters_with_overdue
+        },
+        "data": paginated_data,
+        "pagination": {
+            "page": page,
+            "limit": limit,
+            "total_count": total_count,
+            "total_pages": (total_count + limit - 1) // limit
+        }
+    }
+
+
+@api_router.get("/reports/export/{report_type}")
+async def export_report_csv(
+    report_type: str,
+    current_user: User = Depends(get_current_recruiter),
+    start_date: str = None,
+    end_date: str = None,
+    job_id: str = None,
+    recruiter_id: str = None
+):
+    """Export report data as CSV"""
+    from fastapi.responses import StreamingResponse
+    import csv
+    import io
+    
+    # Get report data based on type
+    if report_type == "time-to-fill":
+        report = await get_time_to_fill_report(
+            current_user=current_user,
+            start_date=start_date,
+            end_date=end_date,
+            job_id=job_id,
+            recruiter_id=recruiter_id,
+            include_open=True,
+            limit=10000
+        )
+        headers = ["Job Title", "Company", "Recruiter", "Open Date", "Fill Date", "Days to Fill", "Status"]
+        rows = [
+            [d["job_title"], d["company_name"], d["recruiter_name"], d["job_open_date"], 
+             d["offer_accepted_date"] or "", d["days_to_fill"], d["status"]]
+            for d in report["data"]
+        ]
+    elif report_type == "pipeline-conversion":
+        report = await get_pipeline_conversion_report(
+            current_user=current_user,
+            start_date=start_date,
+            end_date=end_date,
+            job_id=job_id,
+            recruiter_id=recruiter_id,
+            limit=10000
+        )
+        headers = ["Stage", "Count", "Cumulative", "Conversion Rate %", "Drop-off Rate %"]
+        rows = [
+            [s["stage_label"], s["count"], s["cumulative_count"], s["conversion_rate"], s["drop_off_rate"]]
+            for s in report["pipeline_stages"]
+        ]
+    elif report_type == "recruiter-workload":
+        report = await get_recruiter_workload_report(
+            current_user=current_user,
+            start_date=start_date,
+            end_date=end_date,
+            recruiter_id=recruiter_id,
+            limit=10000
+        )
+        headers = ["Recruiter", "Email", "Active Jobs", "Active Candidates", "Interviews", "New Apps", "Overdue", "Offers Pending"]
+        rows = [
+            [d["recruiter_name"], d["email"], d["metrics"]["active_jobs"], d["metrics"]["active_candidates"],
+             d["metrics"]["interviews_scheduled"], d["metrics"]["new_applications"], 
+             d["metrics"]["overdue_reviews"], d["metrics"]["offers_pending"]]
+            for d in report["data"]
+        ]
+    else:
+        raise HTTPException(status_code=400, detail="Invalid report type")
+    
+    # Generate CSV
+    output = io.StringIO()
+    writer = csv.writer(output)
+    writer.writerow(headers)
+    writer.writerows(rows)
+    
+    # Return as streaming response
+    output.seek(0)
+    return StreamingResponse(
+        iter([output.getvalue()]),
+        media_type="text/csv",
+        headers={"Content-Disposition": f"attachment; filename={report_type}_{datetime.utcnow().strftime('%Y%m%d')}.csv"}
+    )
+
+
 # Include router
 app.include_router(api_router)
 
