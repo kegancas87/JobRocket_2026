@@ -192,27 +192,31 @@ const ApplicationManagement = ({ user }) => {
             </CardContent>
           </Card>
         ) : (
-          filteredApplications.map(({ application, job, applicant }) => (
+          filteredApplications.map(({ application, job }) => {
+            // Get applicant data from applicant_snapshot
+            const applicant = application.applicant_snapshot || {};
+            
+            return (
             <Card key={application.id} className="bg-white/80 backdrop-blur-sm border-0 shadow-xl hover:shadow-2xl transition-all duration-300">
               <CardContent className="p-6">
                 <div className="flex items-start justify-between mb-4">
                   <div className="flex-1">
                     <div className="flex items-center space-x-4 mb-3">
                       <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-slate-600 rounded-full flex items-center justify-center text-white font-semibold">
-                        {applicant.first_name[0]}{applicant.last_name[0]}
+                        {(applicant.first_name || '?')[0]}{(applicant.last_name || '?')[0]}
                       </div>
                       <div>
                         <h4 className="font-bold text-slate-800 text-lg">
-                          {applicant.first_name} {applicant.last_name}
+                          {applicant.first_name || 'Unknown'} {applicant.last_name || 'Applicant'}
                         </h4>
-                        <p className="text-slate-600 font-medium">{job.title}</p>
+                        <p className="text-slate-600 font-medium">{job?.title || 'Unknown Job'}</p>
                       </div>
                     </div>
                     
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm text-slate-600 mb-4">
                       <div className="flex items-center space-x-1">
                         <Mail className="w-4 h-4" />
-                        <span>{applicant.email}</span>
+                        <span>{applicant.email || 'No email'}</span>
                       </div>
                       {applicant.location && (
                         <div className="flex items-center space-x-1">
