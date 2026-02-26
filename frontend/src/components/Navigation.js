@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { Button } from "./ui/button";
 import { 
@@ -19,13 +19,28 @@ import {
   Search,
   CreditCard,
   FileSpreadsheet,
-  BarChart3
+  BarChart3,
+  ChevronDown,
+  PieChart
 } from "lucide-react";
 
 const Navigation = ({ user, onLogout }) => {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [isUserDropdownOpen, setIsUserDropdownOpen] = useState(false);
+  const dropdownRef = useRef(null);
   const location = useLocation();
   const navigate = useNavigate();
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
+        setIsUserDropdownOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
   const toggleMobileMenu = () => {
     setIsMobileMenuOpen(!isMobileMenuOpen);
@@ -34,6 +49,17 @@ const Navigation = ({ user, onLogout }) => {
   const handleLogout = () => {
     onLogout();
     navigate('/');
+  };
+
+  // Dropdown menu items for recruiters
+  const getDropdownItems = () => {
+    if (user?.role === 'recruiter') {
+      return [
+        { name: 'Billing', path: '/billing', icon: CreditCard },
+        { name: 'Reports', path: '/reports', icon: PieChart }
+      ];
+    }
+    return [];
   };
 
   const getNavItems = () => {
@@ -56,8 +82,8 @@ const Navigation = ({ user, onLogout }) => {
       }
       items.push(
         { name: 'CV Search', path: '/cv-search', icon: Search },
-        { name: 'Applications', path: '/applications', icon: FileText },
-        { name: 'Billing', path: '/billing', icon: CreditCard }
+        { name: 'Applications', path: '/applications', icon: FileText }
+        // Billing moved to dropdown
       );
       return items;
     } else if (user?.role === 'admin') {
@@ -82,6 +108,7 @@ const Navigation = ({ user, onLogout }) => {
   };
 
   const navItems = getNavItems();
+  const dropdownItems = getDropdownItems();
 
   return (
     <nav className="bg-white shadow-lg border-b border-slate-200 sticky top-0 z-40">
@@ -121,31 +148,87 @@ const Navigation = ({ user, onLogout }) => {
             })}
           </div>
 
-          {/* User Menu */}
+          {/* User Menu with Dropdown */}
           <div className="hidden md:flex items-center space-x-4">
             {user && (
-              <div className="flex items-center space-x-3">
-                <div className="text-right">
-                  <p className="text-sm font-medium text-slate-900">
-                    {user.first_name} {user.last_name}
-                  </p>
-                  <p className="text-xs text-slate-500 capitalize">
-                    {user.role?.replace('_', ' ')}
-                  </p>
-                </div>
-                <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center">
-                  <span className="text-white text-sm font-medium">
-                    {user.first_name?.charAt(0)}{user.last_name?.charAt(0)}
-                  </span>
-                </div>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={handleLogout}
-                  className="text-slate-600 hover:text-red-600"
+              <div className="relative" ref={dropdownRef}>
+                <button
+                  onClick={() => setIsUserDropdownOpen(!isUserDropdownOpen)}
+                  className="flex items-center space-x-3 hover:bg-slate-50 rounded-lg px-3 py-2 transition-colors"
+                  data-testid="user-dropdown-trigger"
                 >
-                  <LogOut className="w-4 h-4" />
-                </Button>
+                  <div className="text-right">
+                    <p className="text-sm font-medium text-slate-900">
+                      {user.first_name} {user.last_name}
+                    </p>
+                    <p className="text-xs text-slate-500 capitalize">
+                      {user.role?.replace('_', ' ')}
+                    </p>
+                  </div>
+                  <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center">
+                    <span className="text-white text-sm font-medium">
+                      {user.first_name?.charAt(0)}{user.last_name?.charAt(0)}
+                    </span>
+                  </div>
+                  {dropdownItems.length > 0 && (
+                    <ChevronDown className={`w-4 h-4 text-slate-500 transition-transform ${isUserDropdownOpen ? 'rotate-180' : ''}`} />
+                  )}
+                </button>
+
+                {/* Dropdown Menu */}
+                {isUserDropdownOpen && dropdownItems.length > 0 && (
+                  <div className="absolute right-0 mt-2 w-56 bg-white rounded-lg shadow-lg border border-slate-200 py-2 z-50" data-testid="user-dropdown-menu">
+                    {/* Dropdown Items */}
+                    {dropdownItems.map((item) => {
+                      const Icon = item.icon;
+                      const isActive = location.pathname === item.path;
+                      return (
+                        <Link
+                          key={item.name}
+                          to={item.path}
+                          onClick={() => setIsUserDropdownOpen(false)}
+                          className={`flex items-center space-x-3 px-4 py-2.5 text-sm transition-colors ${
+                            isActive
+                              ? 'bg-blue-50 text-blue-700'
+                              : 'text-slate-700 hover:bg-slate-50'
+                          }`}
+                          data-testid={`dropdown-${item.name.toLowerCase()}`}
+                        >
+                          <Icon className="w-4 h-4" />
+                          <span>{item.name}</span>
+                        </Link>
+                      );
+                    })}
+                    
+                    {/* Divider */}
+                    <div className="border-t border-slate-200 my-2"></div>
+                    
+                    {/* Sign Out */}
+                    <button
+                      onClick={() => {
+                        setIsUserDropdownOpen(false);
+                        handleLogout();
+                      }}
+                      className="flex items-center space-x-3 px-4 py-2.5 text-sm text-slate-700 hover:bg-red-50 hover:text-red-600 w-full transition-colors"
+                      data-testid="dropdown-signout"
+                    >
+                      <LogOut className="w-4 h-4" />
+                      <span>Sign Out</span>
+                    </button>
+                  </div>
+                )}
+
+                {/* Non-recruiter: Just show logout button */}
+                {dropdownItems.length === 0 && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={handleLogout}
+                    className="text-slate-600 hover:text-red-600 ml-2"
+                  >
+                    <LogOut className="w-4 h-4" />
+                  </Button>
+                )}
               </div>
             )}
           </div>
@@ -191,6 +274,32 @@ const Navigation = ({ user, onLogout }) => {
                 </Link>
               );
             })}
+
+            {/* Mobile: Dropdown items as separate section for recruiters */}
+            {dropdownItems.length > 0 && (
+              <div className="border-t border-slate-200 mt-4 pt-4">
+                <p className="px-3 py-1 text-xs font-semibold text-slate-400 uppercase tracking-wider">Account</p>
+                {dropdownItems.map((item) => {
+                  const Icon = item.icon;
+                  const isActive = location.pathname === item.path;
+                  return (
+                    <Link
+                      key={item.name}
+                      to={item.path}
+                      onClick={() => setIsMobileMenuOpen(false)}
+                      className={`flex items-center space-x-3 px-3 py-2 rounded-md text-base font-medium transition-colors ${
+                        isActive
+                          ? 'bg-blue-100 text-blue-700 border border-blue-200'
+                          : 'text-slate-600 hover:text-blue-600 hover:bg-slate-50'
+                      }`}
+                    >
+                      <Icon className="w-5 h-5" />
+                      <span>{item.name}</span>
+                    </Link>
+                  );
+                })}
+              </div>
+            )}
             
             {user && (
               <div className="border-t border-slate-200 mt-4 pt-4">
