@@ -19,15 +19,18 @@ import {
   ExternalLink
 } from "lucide-react";
 import axios from 'axios';
+import { useToast } from "../hooks/use-toast";
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
 
 const ApplicationManagement = ({ user }) => {
+  const { toast } = useToast();
   const [applications, setApplications] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selectedApplication, setSelectedApplication] = useState(null);
   const [statusFilter, setStatusFilter] = useState('all');
+  const [updatingStatus, setUpdatingStatus] = useState(null);
 
   const getAuthHeaders = () => {
     const token = localStorage.getItem('token');
