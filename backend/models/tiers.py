@@ -23,6 +23,8 @@ TIER_CONFIG = {
         "role_based_permissions": False,
         "company_profile_level": CompanyProfileLevel.BASIC,
         "job_post_limit": 30,  # 30 posts per month
+        "cv_search_enabled": False,  # No CV search for Starter
+        "contact_reveals_limit": 0,  # No contact reveals
         "features": [
             FeatureId.ACCOUNT_RECRUITER_ACCOUNT,
             FeatureId.ACCOUNT_COMPANY_PROFILE,
@@ -53,6 +55,8 @@ TIER_CONFIG = {
         "multi_user_access": False,
         "role_based_permissions": False,
         "company_profile_level": CompanyProfileLevel.ENHANCED,
+        "cv_search_enabled": True,  # CV search enabled
+        "contact_reveals_limit": 1500,  # 1,500 reveals per month
         "features": [
             # Account & Access
             FeatureId.ACCOUNT_RECRUITER_ACCOUNT,
