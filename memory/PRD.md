@@ -157,6 +157,23 @@ JobRocket is a B2B SaaS recruitment platform targeting recruiters, businesses, a
 - [x] **Job Alert Notifications** (previously implemented)
   - Email notifications when new jobs match saved alerts
 
+### Phase 11: Recruiter Reports MVP (Feb 2026)
+- [x] **3 MVP Reports Implemented**
+  - **Time-to-Fill Report**: Measures hiring speed with avg/median days to fill
+    - Metrics: Total jobs, filled jobs, open jobs, average/median days to fill
+    - Dimensions: Job, Recruiter, Company
+    - Filters: Date range, job ID, recruiter ID, include open jobs toggle
+  - **Pipeline Conversion Report**: Identifies bottlenecks and drop-offs
+    - Metrics: Candidate count per stage, conversion %, drop-off %
+    - Pipeline funnel visualization
+    - Job-level breakdown table
+  - **Recruiter Workload Report**: Monitors capacity and SLA breaches
+    - Metrics: Active jobs, active candidates, interviews scheduled, overdue tasks
+    - Per-recruiter card view with workload indicators
+- [x] **Export CSV** functionality for all reports
+- [x] **Date Range Filters** with collapsible filter panel
+- [x] **Access Control**: Recruiters see their own data, Admins see all
+
 ---
 
 ## Backlog / Roadmap
