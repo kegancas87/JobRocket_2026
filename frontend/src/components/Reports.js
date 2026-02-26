@@ -246,7 +246,7 @@ const Reports = ({ user }) => {
 
 // Time to Fill Report Component
 const TimeToFillReport = ({ data }) => {
-  const { summary, data: jobs } = data;
+  const { summary = {}, data: jobs = [] } = data || {};
   
   return (
     <div className="space-y-6">
@@ -255,31 +255,31 @@ const TimeToFillReport = ({ data }) => {
         <Card className="bg-gradient-to-br from-blue-500 to-blue-600 text-white border-0 shadow-lg">
           <CardContent className="p-4">
             <p className="text-blue-100 text-xs font-medium">Total Jobs</p>
-            <p className="text-2xl font-bold">{summary.total_jobs}</p>
+            <p className="text-2xl font-bold">{summary.total_jobs || 0}</p>
           </CardContent>
         </Card>
         <Card className="bg-gradient-to-br from-emerald-500 to-emerald-600 text-white border-0 shadow-lg">
           <CardContent className="p-4">
             <p className="text-emerald-100 text-xs font-medium">Filled</p>
-            <p className="text-2xl font-bold">{summary.filled_jobs}</p>
+            <p className="text-2xl font-bold">{summary.filled_jobs || 0}</p>
           </CardContent>
         </Card>
         <Card className="bg-gradient-to-br from-amber-500 to-amber-600 text-white border-0 shadow-lg">
           <CardContent className="p-4">
             <p className="text-amber-100 text-xs font-medium">Open</p>
-            <p className="text-2xl font-bold">{summary.open_jobs}</p>
+            <p className="text-2xl font-bold">{summary.open_jobs || 0}</p>
           </CardContent>
         </Card>
         <Card className="bg-gradient-to-br from-purple-500 to-purple-600 text-white border-0 shadow-lg">
           <CardContent className="p-4">
             <p className="text-purple-100 text-xs font-medium">Avg Days to Fill</p>
-            <p className="text-2xl font-bold">{summary.average_days_to_fill}</p>
+            <p className="text-2xl font-bold">{summary.average_days_to_fill || 0}</p>
           </CardContent>
         </Card>
         <Card className="bg-gradient-to-br from-slate-500 to-slate-600 text-white border-0 shadow-lg">
           <CardContent className="p-4">
             <p className="text-slate-200 text-xs font-medium">Median Days</p>
-            <p className="text-2xl font-bold">{summary.median_days_to_fill}</p>
+            <p className="text-2xl font-bold">{summary.median_days_to_fill || 0}</p>
           </CardContent>
         </Card>
       </div>
@@ -316,7 +316,7 @@ const TimeToFillReport = ({ data }) => {
                       </td>
                       <td className="py-3 px-4 text-sm text-slate-600">{job.recruiter_name}</td>
                       <td className="py-3 px-4 text-sm text-slate-600">
-                        {new Date(job.job_open_date).toLocaleDateString()}
+                        {job.job_open_date ? new Date(job.job_open_date).toLocaleDateString() : '-'}
                       </td>
                       <td className="py-3 px-4 text-sm text-slate-600">
                         {job.offer_accepted_date ? new Date(job.offer_accepted_date).toLocaleDateString() : '-'}
