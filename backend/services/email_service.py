@@ -419,6 +419,149 @@ Review the application: {application_url}
             "html": EmailTemplates.get_base_template(content, f"New application from {applicant_name}"),
             "plain": plain_content
         }
+    
+    @staticmethod
+    def application_submitted_confirmation(
+        applicant_name: str,
+        job_title: str,
+        company_name: str,
+        job_url: str
+    ) -> Dict[str, str]:
+        """Application confirmation email for job seekers"""
+        
+        content = f"""
+            <h2 style="margin: 0 0 20px 0; color: #1e293b; font-size: 24px;">
+                Application Submitted Successfully! ✅
+            </h2>
+            
+            <p style="margin: 0 0 20px 0; color: #475569; font-size: 16px; line-height: 1.6;">
+                Hi {applicant_name},
+            </p>
+            
+            <p style="margin: 0 0 25px 0; color: #475569; font-size: 16px; line-height: 1.6;">
+                Great news! Your application for <strong>{job_title}</strong> at <strong>{company_name}</strong> has been successfully submitted.
+            </p>
+            
+            <!-- Application Details Card -->
+            <div style="background-color: #f0fdf4; border-radius: 8px; padding: 25px; margin-bottom: 25px; border-left: 4px solid #22c55e;">
+                <h3 style="margin: 0 0 10px 0; color: #166534; font-size: 18px;">
+                    What happens next?
+                </h3>
+                <ul style="margin: 0; padding-left: 20px; color: #475569; font-size: 14px; line-height: 1.8;">
+                    <li>The recruiter will review your application</li>
+                    <li>If shortlisted, you'll be contacted for the next steps</li>
+                    <li>Keep an eye on your email for updates</li>
+                </ul>
+            </div>
+            
+            <p style="margin: 0 0 25px 0; color: #475569; font-size: 16px; line-height: 1.6;">
+                In the meantime, why not explore more opportunities that match your skills?
+            </p>
+            
+            <div style="text-align: center; margin: 30px 0;">
+                <a href="{job_url}" style="display: inline-block; background: linear-gradient(135deg, #2563eb 0%, #1e40af 100%); color: #ffffff; padding: 14px 32px; border-radius: 8px; text-decoration: none; font-weight: 600; font-size: 16px;">
+                    Browse More Jobs
+                </a>
+            </div>
+            
+            <p style="margin: 25px 0 0 0; color: #64748b; font-size: 14px;">
+                Good luck with your application! 🍀
+            </p>
+"""
+        
+        plain_content = f"""
+Application Submitted Successfully!
+
+Hi {applicant_name},
+
+Great news! Your application for {job_title} at {company_name} has been successfully submitted.
+
+What happens next?
+- The recruiter will review your application
+- If shortlisted, you'll be contacted for the next steps
+- Keep an eye on your email for updates
+
+In the meantime, explore more opportunities: {job_url}
+
+Good luck with your application!
+"""
+        
+        return {
+            "html": EmailTemplates.get_base_template(content, f"Application submitted for {job_title} at {company_name}"),
+            "plain": plain_content
+        }
+    
+    @staticmethod
+    def application_rejected(
+        applicant_name: str,
+        job_title: str,
+        company_name: str,
+        jobs_url: str
+    ) -> Dict[str, str]:
+        """Application rejection email for job seekers - encouraging tone"""
+        
+        content = f"""
+            <h2 style="margin: 0 0 20px 0; color: #1e293b; font-size: 24px;">
+                Update on Your Application
+            </h2>
+            
+            <p style="margin: 0 0 20px 0; color: #475569; font-size: 16px; line-height: 1.6;">
+                Hi {applicant_name},
+            </p>
+            
+            <p style="margin: 0 0 20px 0; color: #475569; font-size: 16px; line-height: 1.6;">
+                Thank you for your interest in the <strong>{job_title}</strong> position at <strong>{company_name}</strong>.
+            </p>
+            
+            <p style="margin: 0 0 25px 0; color: #475569; font-size: 16px; line-height: 1.6;">
+                After careful consideration, the hiring team has decided to move forward with other candidates whose experience more closely matches their current needs.
+            </p>
+            
+            <!-- Encouragement Card -->
+            <div style="background-color: #eff6ff; border-radius: 8px; padding: 25px; margin-bottom: 25px; border-left: 4px solid #2563eb;">
+                <h3 style="margin: 0 0 15px 0; color: #1e40af; font-size: 18px;">
+                    Don't give up! 💪
+                </h3>
+                <p style="margin: 0; color: #475569; font-size: 14px; line-height: 1.6;">
+                    Every application brings you one step closer to finding the right opportunity. Your skills and experience are valuable, and the perfect role is out there waiting for you.
+                </p>
+            </div>
+            
+            <p style="margin: 0 0 25px 0; color: #475569; font-size: 16px; line-height: 1.6;">
+                We have hundreds of new jobs posted daily. Your next opportunity could be just a click away!
+            </p>
+            
+            <div style="text-align: center; margin: 30px 0;">
+                <a href="{jobs_url}" style="display: inline-block; background: linear-gradient(135deg, #2563eb 0%, #1e40af 100%); color: #ffffff; padding: 14px 32px; border-radius: 8px; text-decoration: none; font-weight: 600; font-size: 16px;">
+                    Explore New Opportunities
+                </a>
+            </div>
+            
+            <p style="margin: 25px 0 0 0; color: #64748b; font-size: 14px;">
+                Keep pushing forward - your dream job is closer than you think! 🚀
+            </p>
+"""
+        
+        plain_content = f"""
+Update on Your Application
+
+Hi {applicant_name},
+
+Thank you for your interest in the {job_title} position at {company_name}.
+
+After careful consideration, the hiring team has decided to move forward with other candidates whose experience more closely matches their current needs.
+
+Don't give up! Every application brings you one step closer to finding the right opportunity. Your skills and experience are valuable, and the perfect role is out there waiting for you.
+
+We have hundreds of new jobs posted daily. Explore new opportunities: {jobs_url}
+
+Keep pushing forward - your dream job is closer than you think!
+"""
+        
+        return {
+            "html": EmailTemplates.get_base_template(content, f"Update on your application for {job_title}"),
+            "plain": plain_content
+        }
 
 
 # Singleton instance
