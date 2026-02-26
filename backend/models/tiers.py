@@ -119,6 +119,8 @@ TIER_CONFIG = {
         "multi_user_access": True,
         "role_based_permissions": False,
         "company_profile_level": CompanyProfileLevel.FEATURED,
+        "cv_search_enabled": True,  # CV search enabled
+        "contact_reveals_limit": 5000,  # 5,000 reveals per month
         "features": [
             # Account & Access
             FeatureId.ACCOUNT_RECRUITER_ACCOUNT,
