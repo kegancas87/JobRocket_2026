@@ -1378,6 +1378,14 @@ function App() {
                 )
               } />
 
+              <Route path="/jobs-dashboard" element={
+                user.role === 'recruiter' ? (
+                  <JobsDashboard user={user} />
+                ) : (
+                  <Navigate to="/" replace />
+                )
+              } />
+
               <Route path="/bulk-upload" element={
                 user.role === 'recruiter' ? (
                   <BulkUploadPage user={user} />
