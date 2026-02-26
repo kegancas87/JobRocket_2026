@@ -346,7 +346,7 @@ const TimeToFillReport = ({ data }) => {
 
 // Pipeline Conversion Report Component
 const PipelineConversionReport = ({ data }) => {
-  const { summary, pipeline_stages, job_breakdown } = data;
+  const { summary = {}, pipeline_stages = [], job_breakdown = [] } = data || {};
   
   return (
     <div className="space-y-6">
@@ -355,25 +355,25 @@ const PipelineConversionReport = ({ data }) => {
         <Card className="bg-gradient-to-br from-blue-500 to-blue-600 text-white border-0 shadow-lg">
           <CardContent className="p-4">
             <p className="text-blue-100 text-xs font-medium">Total Applications</p>
-            <p className="text-2xl font-bold">{summary.total_applications}</p>
+            <p className="text-2xl font-bold">{summary.total_applications || 0}</p>
           </CardContent>
         </Card>
         <Card className="bg-gradient-to-br from-emerald-500 to-emerald-600 text-white border-0 shadow-lg">
           <CardContent className="p-4">
             <p className="text-emerald-100 text-xs font-medium">Conversion to Offer</p>
-            <p className="text-2xl font-bold">{summary.overall_conversion_to_offer}%</p>
+            <p className="text-2xl font-bold">{summary.overall_conversion_to_offer || 0}%</p>
           </CardContent>
         </Card>
         <Card className="bg-gradient-to-br from-red-500 to-red-600 text-white border-0 shadow-lg">
           <CardContent className="p-4">
             <p className="text-red-100 text-xs font-medium">Rejected</p>
-            <p className="text-2xl font-bold">{summary.rejected}</p>
+            <p className="text-2xl font-bold">{summary.rejected || 0}</p>
           </CardContent>
         </Card>
         <Card className="bg-gradient-to-br from-slate-500 to-slate-600 text-white border-0 shadow-lg">
           <CardContent className="p-4">
             <p className="text-slate-200 text-xs font-medium">Withdrawn</p>
-            <p className="text-2xl font-bold">{summary.withdrawn}</p>
+            <p className="text-2xl font-bold">{summary.withdrawn || 0}</p>
           </CardContent>
         </Card>
       </div>
@@ -385,41 +385,45 @@ const PipelineConversionReport = ({ data }) => {
         </CardHeader>
         <CardContent>
           <div className="space-y-4">
-            {pipeline_stages.map((stage, idx) => {
-              const widthPercent = stage.cumulative_count > 0 
-                ? (stage.cumulative_count / (pipeline_stages[0]?.cumulative_count || 1)) * 100
-                : 0;
-              
-              return (
-                <div key={stage.stage} className="relative">
-                  <div className="flex items-center justify-between mb-1">
-                    <div className="flex items-center gap-2">
-                      <span className="font-medium text-slate-800">{stage.stage_label}</span>
-                      <Badge variant="outline" className="text-xs">{stage.count}</Badge>
+            {pipeline_stages.length === 0 ? (
+              <p className="text-slate-500 text-center py-8">No pipeline data available</p>
+            ) : (
+              pipeline_stages.map((stage, idx) => {
+                const widthPercent = stage.cumulative_count > 0 
+                  ? (stage.cumulative_count / (pipeline_stages[0]?.cumulative_count || 1)) * 100
+                  : 0;
+                
+                return (
+                  <div key={stage.stage} className="relative">
+                    <div className="flex items-center justify-between mb-1">
+                      <div className="flex items-center gap-2">
+                        <span className="font-medium text-slate-800">{stage.stage_label}</span>
+                        <Badge variant="outline" className="text-xs">{stage.count}</Badge>
+                      </div>
+                      <div className="flex items-center gap-4 text-sm">
+                        <span className="text-emerald-600 font-medium">{stage.conversion_rate}% conversion</span>
+                        {stage.drop_off_rate > 0 && (
+                          <span className="text-red-500">{stage.drop_off_rate}% drop-off</span>
+                        )}
+                      </div>
                     </div>
-                    <div className="flex items-center gap-4 text-sm">
-                      <span className="text-emerald-600 font-medium">{stage.conversion_rate}% conversion</span>
-                      {stage.drop_off_rate > 0 && (
-                        <span className="text-red-500">{stage.drop_off_rate}% drop-off</span>
-                      )}
+                    <div className="h-8 bg-slate-100 rounded-lg overflow-hidden">
+                      <div 
+                        className="h-full bg-gradient-to-r from-blue-500 to-blue-600 rounded-lg transition-all duration-500 flex items-center justify-end pr-3"
+                        style={{ width: `${Math.max(widthPercent, 5)}%` }}
+                      >
+                        <span className="text-white text-xs font-medium">{stage.cumulative_count}</span>
+                      </div>
                     </div>
+                    {idx < pipeline_stages.length - 1 && (
+                      <div className="flex justify-center my-2">
+                        <ArrowRight className="w-4 h-4 text-slate-400 rotate-90" />
+                      </div>
+                    )}
                   </div>
-                  <div className="h-8 bg-slate-100 rounded-lg overflow-hidden">
-                    <div 
-                      className="h-full bg-gradient-to-r from-blue-500 to-blue-600 rounded-lg transition-all duration-500 flex items-center justify-end pr-3"
-                      style={{ width: `${Math.max(widthPercent, 5)}%` }}
-                    >
-                      <span className="text-white text-xs font-medium">{stage.cumulative_count}</span>
-                    </div>
-                  </div>
-                  {idx < pipeline_stages.length - 1 && (
-                    <div className="flex justify-center my-2">
-                      <ArrowRight className="w-4 h-4 text-slate-400 rotate-90" />
-                    </div>
-                  )}
-                </div>
-              );
-            })}
+                );
+              })
+            )}
           </div>
         </CardContent>
       </Card>
@@ -449,11 +453,11 @@ const PipelineConversionReport = ({ data }) => {
                     <tr key={job.job_id} className={idx % 2 === 0 ? 'bg-slate-50' : ''}>
                       <td className="py-3 px-4 font-medium text-slate-800">{job.job_title}</td>
                       <td className="py-3 px-4 text-center font-semibold text-blue-600">{job.total_applications}</td>
-                      <td className="py-3 px-4 text-center text-slate-600">{job.stages.pending}</td>
-                      <td className="py-3 px-4 text-center text-slate-600">{job.stages.reviewed}</td>
-                      <td className="py-3 px-4 text-center text-slate-600">{job.stages.shortlisted}</td>
-                      <td className="py-3 px-4 text-center text-slate-600">{job.stages.interviewed}</td>
-                      <td className="py-3 px-4 text-center text-emerald-600 font-medium">{job.stages.offered}</td>
+                      <td className="py-3 px-4 text-center text-slate-600">{job.stages?.pending || 0}</td>
+                      <td className="py-3 px-4 text-center text-slate-600">{job.stages?.reviewed || 0}</td>
+                      <td className="py-3 px-4 text-center text-slate-600">{job.stages?.shortlisted || 0}</td>
+                      <td className="py-3 px-4 text-center text-slate-600">{job.stages?.interviewed || 0}</td>
+                      <td className="py-3 px-4 text-center text-emerald-600 font-medium">{job.stages?.offered || 0}</td>
                     </tr>
                   ))}
                 </tbody>
