@@ -2669,18 +2669,94 @@ async def match_candidates(
 # CV Database / Talent Pool Endpoints
 # ============================================
 
+# Contact reveal limits by tier (monthly)
+CONTACT_REVEAL_LIMITS = {
+    "starter": 0,
+    "growth": 1500,
+    "pro": 5000,
+    "enterprise": 10000
+}
+
+# High usage threshold for admin notification
+CV_SEARCH_HIGH_USAGE_THRESHOLD = 20000
+
+
+@api_router.get("/cv-search/access")
+async def check_cv_search_access(current_user: User = Depends(get_current_recruiter)):
+    """Check if user has CV search access and their usage limits"""
+    account = await db.accounts.find_one({"id": current_user.account_id})
+    if not account:
+        raise HTTPException(status_code=404, detail="Account not found")
+    
+    tier_id = account.get("tier_id", "starter")
+    tier_config = get_tier_config(TierId(tier_id))
+    
+    # Get current month usage
+    now = datetime.utcnow()
+    month_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+    
+    # Get contact reveals this month
+    reveals_count = await db.contact_reveals.count_documents({
+        "account_id": current_user.account_id,
+        "revealed_at": {"$gte": month_start}
+    })
+    
+    # Get searches this month
+    searches_count = await db.cv_search_usage.count_documents({
+        "account_id": current_user.account_id,
+        "searched_at": {"$gte": month_start}
+    })
+    
+    has_access = tier_config.get("cv_search_enabled", False)
+    contact_limit = tier_config.get("contact_reveals_limit", 0)
+    
+    return {
+        "has_access": has_access,
+        "tier": tier_id,
+        "tier_name": tier_config.get("name"),
+        "contact_reveals_limit": contact_limit,
+        "contact_reveals_used": reveals_count,
+        "contact_reveals_remaining": max(0, contact_limit - reveals_count),
+        "searches_this_month": searches_count,
+        "upgrade_required": not has_access
+    }
+
+
 @api_router.get("/cv-search")
 async def search_candidates(
     current_user: User = Depends(get_current_recruiter),
     q: Optional[str] = None,
     skills: Optional[str] = None,
     location: Optional[str] = None,
+    experience_min: Optional[int] = None,
+    experience_max: Optional[int] = None,
+    industry: Optional[str] = None,
+    salary_min: Optional[int] = None,
+    salary_max: Optional[int] = None,
+    availability: Optional[str] = None,
     skip: int = 0,
     limit: int = 50
 ):
     """Search the CV database / talent pool"""
-    # Check feature access
-    await check_feature(current_user, FeatureId.TALENT_CV_DATABASE)
+    
+    # Get account and tier info
+    account = await db.accounts.find_one({"id": current_user.account_id})
+    if not account:
+        raise HTTPException(status_code=404, detail="Account not found")
+    
+    tier_id = account.get("tier_id", "starter")
+    tier_config = get_tier_config(TierId(tier_id))
+    
+    # Check if tier has CV search access
+    if not tier_config.get("cv_search_enabled", False):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail={
+                "error": "upgrade_required",
+                "message": "CV Search is available on Growth plan and above. Upgrade to access the talent pool.",
+                "upgrade_to": "growth"
+            }
+        )
     
     # Build query
     query = {"role": "job_seeker"}
@@ -2690,33 +2766,225 @@ async def search_candidates(
             {"first_name": {"$regex": q, "$options": "i"}},
             {"last_name": {"$regex": q, "$options": "i"}},
             {"about_me": {"$regex": q, "$options": "i"}},
+            {"headline": {"$regex": q, "$options": "i"}},
             {"skills": {"$elemMatch": {"$regex": q, "$options": "i"}}}
         ]
     
     if skills:
-        skill_list = [s.strip() for s in skills.split(",")]
-        query["skills"] = {"$in": skill_list}
+        skill_list = [s.strip().lower() for s in skills.split(",")]
+        query["skills"] = {"$elemMatch": {"$regex": "|".join(skill_list), "$options": "i"}}
     
     if location:
         query["location"] = {"$regex": location, "$options": "i"}
     
+    if industry:
+        industry_query = [
+            {"industry": {"$regex": industry, "$options": "i"}},
+            {"preferred_industry": {"$regex": industry, "$options": "i"}}
+        ]
+        if "$or" in query:
+            query["$and"] = [{"$or": query.pop("$or")}, {"$or": industry_query}]
+        else:
+            query["$or"] = industry_query
+    
+    if experience_min is not None:
+        query["years_experience"] = query.get("years_experience", {})
+        query["years_experience"]["$gte"] = experience_min
+    
+    if experience_max is not None:
+        query["years_experience"] = query.get("years_experience", {})
+        query["years_experience"]["$lte"] = experience_max
+    
+    if salary_min is not None:
+        query["expected_salary"] = query.get("expected_salary", {})
+        query["expected_salary"]["$gte"] = salary_min
+    
+    if salary_max is not None:
+        query["expected_salary"] = query.get("expected_salary", {})
+        query["expected_salary"]["$lte"] = salary_max
+    
+    if availability:
+        query["availability_status"] = availability
+    
     # Execute search
     candidates = []
     cursor = db.users.find(query).skip(skip).limit(limit)
+    
+    # Get already revealed contacts for this account
+    revealed_ids = set()
+    reveals_cursor = db.contact_reveals.find({"account_id": current_user.account_id})
+    async for reveal in reveals_cursor:
+        revealed_ids.add(reveal.get("candidate_id"))
+    
     async for user in cursor:
         if "_id" in user:
             del user["_id"]
         if "password_hash" in user:
             del user["password_hash"]
+        
+        # Mask contact info if not revealed
+        candidate_id = user.get("id")
+        is_revealed = candidate_id in revealed_ids
+        
+        if not is_revealed:
+            # Mask email and phone
+            if user.get("email"):
+                email_parts = user["email"].split("@")
+                if len(email_parts) == 2:
+                    masked = email_parts[0][:2] + "***@" + email_parts[1]
+                    user["email_masked"] = masked
+                user["email"] = None
+            if user.get("phone"):
+                user["phone_masked"] = user["phone"][:3] + "****" + user["phone"][-2:] if len(user.get("phone", "")) > 5 else "****"
+                user["phone"] = None
+        
+        user["contact_revealed"] = is_revealed
         candidates.append(user)
     
     total = await db.users.count_documents(query)
+    
+    # Track this search
+    await db.cv_search_usage.insert_one({
+        "account_id": current_user.account_id,
+        "user_id": current_user.id,
+        "searched_at": datetime.utcnow(),
+        "query_params": {
+            "q": q,
+            "skills": skills,
+            "location": location,
+            "experience_min": experience_min,
+            "experience_max": experience_max,
+            "industry": industry,
+            "salary_min": salary_min,
+            "salary_max": salary_max,
+            "availability": availability
+        },
+        "results_count": total
+    })
+    
+    # Check for high usage notification
+    now = datetime.utcnow()
+    month_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+    searches_this_month = await db.cv_search_usage.count_documents({
+        "account_id": current_user.account_id,
+        "searched_at": {"$gte": month_start}
+    })
+    
+    if searches_this_month == CV_SEARCH_HIGH_USAGE_THRESHOLD:
+        # Create admin notification for high usage
+        await db.admin_notifications.insert_one({
+            "id": str(uuid.uuid4()),
+            "type": "high_cv_search_usage",
+            "account_id": current_user.account_id,
+            "company_name": account.get("company_name"),
+            "tier": tier_id,
+            "searches_count": searches_this_month,
+            "threshold": CV_SEARCH_HIGH_USAGE_THRESHOLD,
+            "message": f"Account {account.get('company_name')} has exceeded {CV_SEARCH_HIGH_USAGE_THRESHOLD:,} CV searches this month",
+            "created_at": now,
+            "is_read": False
+        })
     
     return {
         "candidates": candidates,
         "total": total,
         "skip": skip,
-        "limit": limit
+        "limit": limit,
+        "searches_this_month": searches_this_month
+    }
+
+
+@api_router.post("/cv-search/reveal/{candidate_id}")
+async def reveal_candidate_contact(
+    candidate_id: str,
+    current_user: User = Depends(get_current_recruiter)
+):
+    """Reveal a candidate's contact information (counts against monthly limit)"""
+    
+    # Get account and tier info
+    account = await db.accounts.find_one({"id": current_user.account_id})
+    if not account:
+        raise HTTPException(status_code=404, detail="Account not found")
+    
+    tier_id = account.get("tier_id", "starter")
+    tier_config = get_tier_config(TierId(tier_id))
+    
+    # Check if tier has CV search access
+    if not tier_config.get("cv_search_enabled", False):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="CV Search is not available on your plan"
+        )
+    
+    # Check if already revealed
+    existing_reveal = await db.contact_reveals.find_one({
+        "account_id": current_user.account_id,
+        "candidate_id": candidate_id
+    })
+    
+    if existing_reveal:
+        # Already revealed - return the candidate info without counting
+        candidate = await db.users.find_one({"id": candidate_id})
+        if candidate:
+            if "_id" in candidate:
+                del candidate["_id"]
+            if "password_hash" in candidate:
+                del candidate["password_hash"]
+            return {
+                "success": True,
+                "already_revealed": True,
+                "candidate": candidate
+            }
+    
+    # Check monthly limit
+    now = datetime.utcnow()
+    month_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+    
+    reveals_count = await db.contact_reveals.count_documents({
+        "account_id": current_user.account_id,
+        "revealed_at": {"$gte": month_start}
+    })
+    
+    contact_limit = tier_config.get("contact_reveals_limit", 0)
+    
+    if reveals_count >= contact_limit:
+        raise HTTPException(
+            status_code=status.HTTP_402_PAYMENT_REQUIRED,
+            detail={
+                "error": "limit_reached",
+                "message": f"You have used all {contact_limit:,} contact reveals for this month. Upgrade your plan for more reveals.",
+                "used": reveals_count,
+                "limit": contact_limit,
+                "upgrade_to": "pro" if tier_id == "growth" else "enterprise"
+            }
+        )
+    
+    # Get candidate
+    candidate = await db.users.find_one({"id": candidate_id, "role": "job_seeker"})
+    if not candidate:
+        raise HTTPException(status_code=404, detail="Candidate not found")
+    
+    # Record the reveal
+    await db.contact_reveals.insert_one({
+        "id": str(uuid.uuid4()),
+        "account_id": current_user.account_id,
+        "user_id": current_user.id,
+        "candidate_id": candidate_id,
+        "revealed_at": now
+    })
+    
+    # Clean response
+    if "_id" in candidate:
+        del candidate["_id"]
+    if "password_hash" in candidate:
+        del candidate["password_hash"]
+    
+    return {
+        "success": True,
+        "already_revealed": False,
+        "candidate": candidate,
+        "reveals_used": reveals_count + 1,
+        "reveals_remaining": contact_limit - reveals_count - 1
     }
 
 
