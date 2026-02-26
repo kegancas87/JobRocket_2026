@@ -60,6 +60,7 @@ const ApplicationManagement = ({ user }) => {
 
   const updateApplicationStatus = async (applicationId, newStatus, notes = '') => {
     try {
+      setUpdatingStatus(applicationId);
       await axios.put(`${API}/applications/${applicationId}/status?status=${newStatus}`, {
         notes
       }, getAuthHeaders());
@@ -75,9 +76,21 @@ const ApplicationManagement = ({ user }) => {
         }));
       }
       
+      toast({
+        title: "Status Updated",
+        description: `Application marked as ${newStatus}.`,
+        variant: "success",
+      });
+      
     } catch (error) {
       console.error('Error updating application status:', error);
-      throw error;
+      toast({
+        title: "Update Failed",
+        description: error.response?.data?.detail || "Failed to update application status.",
+        variant: "destructive",
+      });
+    } finally {
+      setUpdatingStatus(null);
     }
   };
 
