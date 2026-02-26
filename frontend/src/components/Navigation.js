@@ -48,6 +48,7 @@ const Navigation = ({ user, onLogout }) => {
       const items = [
         { name: 'Dashboard', path: '/', icon: Home },
         { name: 'Jobs', path: '/jobs', icon: Briefcase },
+        { name: 'Jobs Dashboard', path: '/jobs-dashboard', icon: BarChart3 },
         { name: 'My Jobs', path: '/my-jobs', icon: Building2 },
       ];
       if (hasBulkUpload) {
