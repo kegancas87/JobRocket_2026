@@ -190,6 +190,8 @@ TIER_CONFIG = {
         "multi_user_access": True,
         "role_based_permissions": True,
         "company_profile_level": CompanyProfileLevel.WHITE_LABEL,
+        "cv_search_enabled": True,  # CV search enabled
+        "contact_reveals_limit": 10000,  # 10,000 reveals per month
         "features": [
             # All features included
             FeatureId.ACCOUNT_RECRUITER_ACCOUNT,
