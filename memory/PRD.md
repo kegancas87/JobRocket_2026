@@ -1,7 +1,7 @@
 # JobRocket - Product Requirements Document
 
 > **Last Updated**: February 2026
-> **Version**: 2.5.0 (Jobs Dashboard Complete)
+> **Version**: 2.6.0 (Email Notifications Complete)
 
 ---
 
