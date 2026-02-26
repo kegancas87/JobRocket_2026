@@ -24,6 +24,7 @@ import AboutUsPage from "./components/AboutUsPage";
 import ContactPage from "./components/ContactPage";
 import PrivacyPolicyPage from "./components/PrivacyPolicyPage";
 import TermsOfServicePage from "./components/TermsOfServicePage";
+import CVSearchPage from "./components/CVSearchPage";
 import { ApplyButton } from "./components/EasyApply";
 import JobDetailsModal from "./components/JobDetailsModal";
 import Navigation from "./components/Navigation";
