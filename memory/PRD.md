@@ -143,6 +143,20 @@ JobRocket is a B2B SaaS recruitment platform targeting recruiters, businesses, a
     - View Profile button opens full applicant profile modal
     - Resume/CV download link
 
+### Phase 10: Email Notifications (Feb 2026)
+- [x] **Email Service Setup**
+  - SMTP integration with `mail.jobrocket.co.za:465`
+  - HTML email templates with Job Rocket branding
+  - Support for multiple email types (job alerts, applications, notifications)
+  
+- [x] **Application Email Notifications**
+  - **To Job Seeker (on apply)**: Confirmation email with job details and next steps
+  - **To Recruiter (on apply)**: New application notification with link to Jobs Dashboard
+  - **To Job Seeker (on rejection)**: Encouraging rejection email with CTA to browse more jobs
+  
+- [x] **Job Alert Notifications** (previously implemented)
+  - Email notifications when new jobs match saved alerts
+
 ---
 
 ## Backlog / Roadmap
