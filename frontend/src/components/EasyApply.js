@@ -519,7 +519,8 @@ const EasyApplyModal = ({ job, isOpen, onClose, onSuccess, user }) => {
           )}
         </CardContent>
       </Card>
-    </div>
+    </div>,
+    document.body
   );
 };
 
