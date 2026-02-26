@@ -387,7 +387,8 @@ const ApplicationManagement = ({ user }) => {
                 )}
               </CardContent>
             </Card>
-          ))
+            );
+          })
         )}
       </div>
     </div>
