@@ -1559,6 +1559,15 @@ async def update_application_status(
     # Check feature access for status tracking
     await check_feature(current_user, FeatureId.CANDIDATE_STATUS_TRACKING)
     
+    # Get the application first to have applicant info for email
+    application = await db.job_applications.find_one({
+        "id": application_id, 
+        "account_id": current_user.account_id
+    })
+    
+    if not application:
+        raise HTTPException(status_code=404, detail="Application not found")
+    
     result = await db.job_applications.update_one(
         {"id": application_id, "account_id": current_user.account_id},
         {"$set": {
@@ -1569,8 +1578,46 @@ async def update_application_status(
         }}
     )
     
-    if result.matched_count == 0:
-        raise HTTPException(status_code=404, detail="Application not found")
+    # Send rejection email if status is rejected
+    if status == ApplicationStatus.REJECTED:
+        try:
+            base_url = os.environ.get("FRONTEND_URL", "https://jobrocket.co.za")
+            
+            # Get applicant details
+            applicant_snapshot = application.get("applicant_snapshot", {})
+            applicant_email = applicant_snapshot.get("email")
+            applicant_first_name = applicant_snapshot.get("first_name", "Candidate")
+            
+            # If no snapshot email, try to get from user record
+            if not applicant_email:
+                applicant = await db.users.find_one({"id": application["applicant_id"]})
+                if applicant:
+                    applicant_email = applicant.get("email")
+                    applicant_first_name = applicant.get("first_name", "Candidate")
+            
+            if applicant_email:
+                # Get job details
+                job = await db.jobs.find_one({"id": application["job_id"]})
+                job_title = job.get("title", "Position") if job else "Position"
+                company_name = job.get("company_name", "Company") if job else "Company"
+                
+                rejection_email_content = EmailTemplates.application_rejected(
+                    applicant_name=applicant_first_name,
+                    job_title=job_title,
+                    company_name=company_name,
+                    jobs_url=f"{base_url}/jobs"
+                )
+                
+                email_service.send_email(
+                    email_type=EmailType.JOB_ALERTS,
+                    to_email=applicant_email,
+                    subject=f"Update on your application - {job_title} at {company_name}",
+                    html_content=rejection_email_content["html"],
+                    plain_content=rejection_email_content["plain"]
+                )
+        except Exception as e:
+            # Log error but don't fail the status update
+            print(f"Rejection email error: {str(e)}")
     
     return {"message": "Application status updated"}
 
