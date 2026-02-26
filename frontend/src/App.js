@@ -19,6 +19,7 @@ import MyApplications from "./components/MyApplications";
 import ApplicationManagement from "./components/ApplicationManagement";
 import JobPosting from "./components/JobPosting";
 import JobsDashboard from "./components/JobsDashboard";
+import Reports from "./components/Reports";
 import PackageManagement from "./components/PackageManagement";
 import NotificationsPage from "./components/NotificationsPage";
 import AboutUsPage from "./components/AboutUsPage";
