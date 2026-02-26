@@ -1446,6 +1446,14 @@ function App() {
                 )
               } />
 
+              <Route path="/reports" element={
+                user && user.role === 'recruiter' ? (
+                  <Reports user={user} />
+                ) : (
+                  <Navigate to="/" replace />
+                )
+              } />
+
               {/* Settings redirects to billing for recruiters */}
               <Route path="/settings" element={
                 user && user.role === 'recruiter' ? (
