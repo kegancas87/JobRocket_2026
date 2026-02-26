@@ -179,9 +179,10 @@ const EasyApplyModal = ({ job, isOpen, onClose, onSuccess, user }) => {
 
   if (!isOpen || !job) return null;
 
-  return (
-    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-      <Card className="w-full max-w-2xl max-h-[90vh] overflow-y-auto bg-white shadow-2xl">
+  // Use createPortal to render modal at document body level
+  return ReactDOM.createPortal(
+    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[9999] flex items-center justify-center p-4" style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0 }}>
+      <Card className="w-full max-w-2xl max-h-[90vh] overflow-y-auto bg-white shadow-2xl relative">
         <CardHeader className="border-b border-slate-200">
           <div className="flex items-center justify-between">
             <CardTitle className="flex items-center space-x-2">
