@@ -1344,6 +1344,49 @@ async def apply_to_job(
     if "_id" in application_dict:
         del application_dict["_id"]
     
+    # Send email notifications (non-blocking)
+    try:
+        base_url = os.environ.get("FRONTEND_URL", "https://jobrocket.co.za")
+        applicant_name = f"{current_user.first_name} {current_user.last_name}"
+        job_title = job.get("title", "Position")
+        company_name = job.get("company_name", "Company")
+        
+        # 1. Email to Job Seeker - Application Confirmation
+        seeker_email_content = EmailTemplates.application_submitted_confirmation(
+            applicant_name=current_user.first_name,
+            job_title=job_title,
+            company_name=company_name,
+            job_url=f"{base_url}/jobs"
+        )
+        email_service.send_email(
+            email_type=EmailType.JOB_ALERTS,
+            to_email=current_user.email,
+            subject=f"Application Submitted - {job_title} at {company_name}",
+            html_content=seeker_email_content["html"],
+            plain_content=seeker_email_content["plain"]
+        )
+        
+        # 2. Email to Recruiter - New Application Notification
+        account = await db.accounts.find_one({"id": job["account_id"]})
+        if account:
+            owner = await db.users.find_one({"id": account.get("owner_id")})
+            if owner and owner.get("email"):
+                recruiter_email_content = EmailTemplates.job_application_received(
+                    recruiter_name=owner.get("first_name", "Hiring Manager"),
+                    applicant_name=applicant_name,
+                    job_title=job_title,
+                    application_url=f"{base_url}/jobs-dashboard"
+                )
+                email_service.send_email(
+                    email_type=EmailType.JOB_ALERTS,
+                    to_email=owner["email"],
+                    subject=f"New Application - {applicant_name} applied for {job_title}",
+                    html_content=recruiter_email_content["html"],
+                    plain_content=recruiter_email_content["plain"]
+                )
+    except Exception as e:
+        print(f"Email notification error: {str(e)}")
+    
     return application_dict
 
 
