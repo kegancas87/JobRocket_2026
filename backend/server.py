@@ -1021,6 +1021,268 @@ async def delete_job(
 
 
 # ============================================
+# Jobs Dashboard Endpoints
+# ============================================
+
+@api_router.get("/jobs/dashboard")
+async def get_jobs_dashboard(
+    current_user: User = Depends(get_current_recruiter),
+    include_expired: bool = False,
+    search: str = None,
+    sort_by: str = "newest"
+):
+    """Get jobs dashboard data with stats and activity indicators"""
+    
+    now = datetime.utcnow()
+    
+    # Build query based on filters
+    base_query = {"account_id": current_user.account_id}
+    
+    if not include_expired:
+        # Only show active jobs that haven't expired
+        base_query["is_active"] = True
+        base_query["expiry_date"] = {"$gt": now}
+    
+    if search:
+        base_query["$or"] = [
+            {"title": {"$regex": search, "$options": "i"}},
+            {"location": {"$regex": search, "$options": "i"}},
+            {"description": {"$regex": search, "$options": "i"}}
+        ]
+    
+    # Determine sort order
+    sort_field = "posted_date"
+    sort_direction = -1  # Descending (newest first)
+    
+    if sort_by == "expiring_soon":
+        sort_field = "expiry_date"
+        sort_direction = 1  # Ascending (soonest expiring first)
+    elif sort_by == "most_applications":
+        sort_field = "application_count"  # Will be calculated
+        sort_direction = -1
+    elif sort_by == "posted_date":
+        sort_field = "posted_date"
+        sort_direction = -1
+    
+    # Fetch jobs
+    jobs_cursor = db.jobs.find(base_query).sort(sort_field, sort_direction)
+    jobs = []
+    
+    async for job in jobs_cursor:
+        if "_id" in job:
+            del job["_id"]
+        
+        job_id = job["id"]
+        
+        # Get application stats for this job
+        application_stats = await db.job_applications.aggregate([
+            {"$match": {"job_id": job_id}},
+            {"$group": {
+                "_id": "$status",
+                "count": {"$sum": 1}
+            }}
+        ]).to_list(None)
+        
+        # Process stats
+        total_applications = 0
+        shortlisted = 0
+        interviewed = 0
+        offered = 0
+        pending = 0
+        
+        for stat in application_stats:
+            count = stat["count"]
+            total_applications += count
+            if stat["_id"] == "shortlisted":
+                shortlisted = count
+            elif stat["_id"] == "interviewed":
+                interviewed = count
+            elif stat["_id"] == "offered":
+                offered = count
+            elif stat["_id"] == "pending":
+                pending = count
+        
+        # Calculate days until expiry
+        expiry_date = job.get("expiry_date", now)
+        days_until_expiry = (expiry_date - now).days
+        is_expired = days_until_expiry < 0
+        is_expiring_soon = 0 <= days_until_expiry <= 7
+        
+        job["stats"] = {
+            "total_applications": total_applications,
+            "pending": pending,
+            "shortlisted": shortlisted,
+            "interviewed": interviewed,
+            "offered": offered
+        }
+        job["days_until_expiry"] = days_until_expiry
+        job["is_expired"] = is_expired
+        job["is_expiring_soon"] = is_expiring_soon
+        
+        jobs.append(job)
+    
+    # Sort by application count if requested (need to do it after fetching)
+    if sort_by == "most_applications":
+        jobs.sort(key=lambda x: x["stats"]["total_applications"], reverse=True)
+    
+    # Calculate overall dashboard stats
+    total_active_jobs = await db.jobs.count_documents({
+        "account_id": current_user.account_id,
+        "is_active": True,
+        "expiry_date": {"$gt": now}
+    })
+    
+    total_expired_jobs = await db.jobs.count_documents({
+        "account_id": current_user.account_id,
+        "$or": [
+            {"is_active": False},
+            {"expiry_date": {"$lte": now}}
+        ]
+    })
+    
+    # Get application counts for this month
+    start_of_month = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+    
+    total_applications_this_month = await db.job_applications.count_documents({
+        "account_id": current_user.account_id,
+        "applied_date": {"$gte": start_of_month}
+    })
+    
+    # Get total interviews scheduled (applications with interviewed status)
+    total_interviews = await db.job_applications.count_documents({
+        "account_id": current_user.account_id,
+        "status": "interviewed"
+    })
+    
+    return {
+        "jobs": jobs,
+        "dashboard_stats": {
+            "total_active_jobs": total_active_jobs,
+            "total_expired_jobs": total_expired_jobs,
+            "total_applications_this_month": total_applications_this_month,
+            "total_interviews": total_interviews
+        }
+    }
+
+
+@api_router.put("/jobs/{job_id}/notes")
+async def update_job_notes(
+    job_id: str,
+    request: Request,
+    current_user: User = Depends(get_current_recruiter)
+):
+    """Update notes for a job"""
+    
+    body = await request.json()
+    notes = body.get("notes", "")
+    
+    result = await db.jobs.update_one(
+        {"id": job_id, "account_id": current_user.account_id},
+        {"$set": {
+            "recruiter_notes": notes,
+            "notes_updated_at": datetime.utcnow()
+        }}
+    )
+    
+    if result.matched_count == 0:
+        raise HTTPException(status_code=404, detail="Job not found")
+    
+    return {"message": "Notes updated successfully", "notes": notes}
+
+
+@api_router.put("/jobs/{job_id}/reactivate")
+async def reactivate_job(
+    job_id: str,
+    request: Request,
+    current_user: User = Depends(get_current_recruiter)
+):
+    """Reactivate an expired job with a new expiry date"""
+    
+    body = await request.json()
+    extension_days = body.get("extension_days", 35)  # Default to 35 days
+    
+    # Find the job
+    job = await db.jobs.find_one({
+        "id": job_id,
+        "account_id": current_user.account_id
+    })
+    
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found")
+    
+    # Set new expiry date from today
+    new_expiry_date = datetime.utcnow() + timedelta(days=extension_days)
+    
+    await db.jobs.update_one(
+        {"id": job_id},
+        {"$set": {
+            "is_active": True,
+            "expiry_date": new_expiry_date,
+            "reactivated_at": datetime.utcnow(),
+            "updated_at": datetime.utcnow()
+        }}
+    )
+    
+    return {
+        "message": "Job reactivated successfully",
+        "new_expiry_date": new_expiry_date.isoformat()
+    }
+
+
+@api_router.get("/jobs/{job_id}/applicants")
+async def get_job_applicants(
+    job_id: str,
+    current_user: User = Depends(get_current_recruiter),
+    status_filter: str = None
+):
+    """Get all applicants for a specific job with full profile info"""
+    
+    # Verify job belongs to account
+    job = await db.jobs.find_one({
+        "id": job_id,
+        "account_id": current_user.account_id
+    })
+    
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found")
+    
+    if "_id" in job:
+        del job["_id"]
+    
+    # Build application query
+    app_query = {"job_id": job_id}
+    if status_filter and status_filter != "all":
+        app_query["status"] = status_filter
+    
+    # Fetch applications
+    applications = []
+    cursor = db.job_applications.find(app_query).sort("applied_date", -1)
+    
+    async for app in cursor:
+        if "_id" in app:
+            del app["_id"]
+        
+        # Get full applicant profile
+        applicant = await db.users.find_one({"id": app["applicant_id"]})
+        if applicant:
+            if "_id" in applicant:
+                del applicant["_id"]
+            # Remove sensitive data
+            applicant.pop("password_hash", None)
+            app["applicant_profile"] = applicant
+        
+        applications.append(app)
+    
+    return {
+        "job": job,
+        "applications": applications,
+        "total_count": len(applications)
+    }
+
+
+
+
+# ============================================
 # Job Applications Endpoints
 # ============================================
 
