@@ -585,7 +585,7 @@ Note: This link will expire in 7 days.`);
                       </Button>
                     </div>
                     
-                    {member.branches.length > 0 && (
+                    {member.branches && member.branches.length > 0 && (
                       <div className="mt-4 pt-4 border-t border-slate-200">
                         <p className="text-sm font-medium text-slate-700 mb-2">Assigned Branches:</p>
                         <div className="flex flex-wrap gap-2">
@@ -598,7 +598,7 @@ Note: This link will expire in 7 days.`);
                       </div>
                     )}
                   </div>
-                ))
+                )})
               )}
             </div>
           </CardContent>
