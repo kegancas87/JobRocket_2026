@@ -540,26 +540,32 @@ Note: This link will expire in 7 days.`);
                   <p className="text-slate-600 mb-4">Invite your first team member to start collaborating</p>
                 </div>
               ) : (
-                teamMembers.map((member) => (
+                teamMembers.map((member) => {
+                  const user = member.user || {};
+                  const firstName = user.first_name || 'Unknown';
+                  const lastName = user.last_name || 'User';
+                  const email = user.email || 'No email';
+                  
+                  return (
                   <div key={member.member_id} className="p-6 border border-slate-200 rounded-xl hover:shadow-md transition-all">
                     <div className="flex items-center justify-between">
                       <div className="flex items-center space-x-4">
                         <div className="w-12 h-12 bg-gradient-to-br from-blue-100 to-slate-200 rounded-full flex items-center justify-center">
                           <span className="font-bold text-slate-700">
-                            {member.user.first_name[0]}{member.user.last_name[0]}
+                            {firstName[0]}{lastName[0]}
                           </span>
                         </div>
                         <div>
                           <h4 className="font-semibold text-slate-800">
-                            {member.user.first_name} {member.user.last_name}
+                            {firstName} {lastName}
                           </h4>
-                          <p className="text-sm text-slate-600">{member.user.email}</p>
+                          <p className="text-sm text-slate-600">{email}</p>
                           <div className="flex items-center space-x-3 mt-1">
                             <div className="flex items-center space-x-1">
                               {getRoleIcon(member.role)}
                               <span className="text-sm text-slate-600 capitalize">{member.role}</span>
                             </div>
-                            {member.branches.length > 0 && (
+                            {member.branches && member.branches.length > 0 && (
                               <div className="flex items-center space-x-1">
                                 <Building2 className="w-3 h-3 text-slate-500" />
                                 <span className="text-xs text-slate-500">
