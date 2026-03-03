@@ -3904,6 +3904,101 @@ async def cancel_company_invitation(
     return {"message": "Invitation cancelled successfully"}
 
 
+@api_router.put("/company/members/{member_id}")
+async def update_team_member(
+    member_id: str,
+    update_data: dict,
+    current_user: User = Depends(get_current_user)
+):
+    """Update a team member's role or branch assignments"""
+    if not current_user.account_id:
+        raise HTTPException(status_code=400, detail="User not associated with an account")
+    
+    if current_user.account_role not in [AccountRole.OWNER, AccountRole.ADMIN]:
+        raise HTTPException(status_code=403, detail="Only owners and admins can update team members")
+    
+    # Find the member
+    member = await db.users.find_one({
+        "id": member_id,
+        "account_id": current_user.account_id
+    })
+    
+    if not member:
+        raise HTTPException(status_code=404, detail="Team member not found")
+    
+    # Prevent modifying owner
+    if member.get("account_role") == "owner" and current_user.account_role != "owner":
+        raise HTTPException(status_code=403, detail="Cannot modify account owner")
+    
+    # Build update fields
+    update_fields = {}
+    
+    if "role" in update_data:
+        # Validate role
+        valid_roles = ["admin", "recruiter", "member", "viewer"]
+        if update_data["role"] not in valid_roles:
+            raise HTTPException(status_code=400, detail=f"Invalid role. Must be one of: {valid_roles}")
+        update_fields["account_role"] = update_data["role"]
+    
+    if "branch_ids" in update_data:
+        update_fields["branch_ids"] = update_data["branch_ids"]
+    
+    if not update_fields:
+        raise HTTPException(status_code=400, detail="No valid fields to update")
+    
+    update_fields["updated_at"] = datetime.utcnow()
+    
+    await db.users.update_one(
+        {"id": member_id},
+        {"$set": update_fields}
+    )
+    
+    return {"message": "Team member updated successfully"}
+
+
+@api_router.delete("/company/members/{member_id}")
+async def remove_team_member(
+    member_id: str,
+    current_user: User = Depends(get_current_user)
+):
+    """Remove a team member from the company"""
+    if not current_user.account_id:
+        raise HTTPException(status_code=400, detail="User not associated with an account")
+    
+    if current_user.account_role not in [AccountRole.OWNER, AccountRole.ADMIN]:
+        raise HTTPException(status_code=403, detail="Only owners and admins can remove team members")
+    
+    # Find the member
+    member = await db.users.find_one({
+        "id": member_id,
+        "account_id": current_user.account_id
+    })
+    
+    if not member:
+        raise HTTPException(status_code=404, detail="Team member not found")
+    
+    # Prevent removing owner
+    if member.get("account_role") == "owner":
+        raise HTTPException(status_code=403, detail="Cannot remove account owner")
+    
+    # Prevent self-removal
+    if member_id == current_user.id:
+        raise HTTPException(status_code=403, detail="Cannot remove yourself")
+    
+    # Remove member from account (set account_id to null)
+    await db.users.update_one(
+        {"id": member_id},
+        {"$set": {
+            "account_id": None,
+            "account_role": None,
+            "branch_ids": [],
+            "removed_from_account_at": datetime.utcnow()
+        }}
+    )
+    
+    return {"message": "Team member removed successfully"}
+
+
 # Health Check
 # ============================================
 

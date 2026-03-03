@@ -41,6 +41,15 @@ const CompanyStructure = ({ user, onUpdateUser }) => {
   const [showInviteUser, setShowInviteUser] = useState(false);
   const [editingBranch, setEditingBranch] = useState(null);
   
+  // Team member edit/remove states
+  const [editingMember, setEditingMember] = useState(null);
+  const [showEditMember, setShowEditMember] = useState(false);
+  const [showRemoveConfirm, setShowRemoveConfirm] = useState(null);
+  const [memberEditForm, setMemberEditForm] = useState({
+    role: 'recruiter',
+    branch_ids: []
+  });
+  
   const [branchForm, setBranchForm] = useState({
     name: '',
     location: '',
@@ -101,6 +110,55 @@ const CompanyStructure = ({ user, onUpdateUser }) => {
   useEffect(() => {
     fetchAllData();
   }, []);
+
+  // Team member edit/remove handlers
+  const handleEditMember = (member) => {
+    setEditingMember(member);
+    setMemberEditForm({
+      role: member.account_role || member.role || 'recruiter',
+      branch_ids: member.branch_ids || []
+    });
+    setShowEditMember(true);
+  };
+
+  const handleUpdateMember = async (e) => {
+    e.preventDefault();
+    if (!editingMember) return;
+    
+    setLoading(true);
+    try {
+      await axios.put(
+        `${API}/company/members/${editingMember.id}`,
+        {
+          role: memberEditForm.role,
+          branch_ids: memberEditForm.branch_ids
+        },
+        getAuthHeaders()
+      );
+      setShowEditMember(false);
+      setEditingMember(null);
+      fetchTeamMembers();
+    } catch (error) {
+      console.error('Error updating member:', error);
+      alert(error.response?.data?.detail || 'Failed to update team member');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleRemoveMember = async (memberId) => {
+    setLoading(true);
+    try {
+      await axios.delete(`${API}/company/members/${memberId}`, getAuthHeaders());
+      setShowRemoveConfirm(null);
+      fetchTeamMembers();
+    } catch (error) {
+      console.error('Error removing member:', error);
+      alert(error.response?.data?.detail || 'Failed to remove team member');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const handleAddBranch = async (e) => {
     e.preventDefault();
@@ -541,13 +599,17 @@ Note: This link will expire in 7 days.`);
                 </div>
               ) : (
                 teamMembers.map((member) => {
-                  const user = member.user || {};
-                  const firstName = user.first_name || 'Unknown';
-                  const lastName = user.last_name || 'User';
-                  const email = user.email || 'No email';
+                  // Member data comes directly from user collection
+                  const firstName = member.first_name || 'Unknown';
+                  const lastName = member.last_name || 'User';
+                  const email = member.email || 'No email';
+                  const memberRole = member.account_role || member.role || 'member';
+                  const isOwner = memberRole === 'owner';
+                  const canEdit = user?.account_role === 'owner' || user?.account_role === 'admin';
+                  const canRemove = canEdit && !isOwner && member.id !== user?.id;
                   
                   return (
-                  <div key={member.member_id} className="p-6 border border-slate-200 rounded-xl hover:shadow-md transition-all">
+                  <div key={member.id} className="p-6 border border-slate-200 rounded-xl hover:shadow-md transition-all">
                     <div className="flex items-center justify-between">
                       <div className="flex items-center space-x-4">
                         <div className="w-12 h-12 bg-gradient-to-br from-blue-100 to-slate-200 rounded-full flex items-center justify-center">
@@ -558,42 +620,69 @@ Note: This link will expire in 7 days.`);
                         <div>
                           <h4 className="font-semibold text-slate-800">
                             {firstName} {lastName}
+                            {isOwner && (
+                              <Badge className="ml-2 bg-amber-100 text-amber-800 border-amber-300" variant="outline">
+                                Owner
+                              </Badge>
+                            )}
                           </h4>
                           <p className="text-sm text-slate-600">{email}</p>
                           <div className="flex items-center space-x-3 mt-1">
                             <div className="flex items-center space-x-1">
-                              {getRoleIcon(member.role)}
-                              <span className="text-sm text-slate-600 capitalize">{member.role}</span>
+                              {getRoleIcon(memberRole)}
+                              <span className="text-sm text-slate-600 capitalize">{memberRole}</span>
                             </div>
-                            {member.branches && member.branches.length > 0 && (
+                            {member.branch_ids && member.branch_ids.length > 0 && (
                               <div className="flex items-center space-x-1">
                                 <Building2 className="w-3 h-3 text-slate-500" />
                                 <span className="text-xs text-slate-500">
-                                  {member.branches.length} branch{member.branches.length !== 1 ? 'es' : ''}
+                                  {member.branch_ids.length} branch{member.branch_ids.length !== 1 ? 'es' : ''}
                                 </span>
                               </div>
                             )}
                           </div>
                         </div>
                       </div>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="text-slate-600 hover:text-slate-700"
-                      >
-                        <Settings className="w-4 h-4" />
-                      </Button>
+                      
+                      {/* Action Buttons */}
+                      {canEdit && (
+                        <div className="flex items-center space-x-2">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleEditMember(member)}
+                            className="text-slate-600 hover:text-blue-600 hover:border-blue-300"
+                            title="Edit member"
+                          >
+                            <Edit2 className="w-4 h-4" />
+                          </Button>
+                          {canRemove && (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => setShowRemoveConfirm(member)}
+                              className="text-slate-600 hover:text-red-600 hover:border-red-300"
+                              title="Remove member"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </Button>
+                          )}
+                        </div>
+                      )}
                     </div>
                     
-                    {member.branches && member.branches.length > 0 && (
+                    {member.branch_ids && member.branch_ids.length > 0 && (
                       <div className="mt-4 pt-4 border-t border-slate-200">
                         <p className="text-sm font-medium text-slate-700 mb-2">Assigned Branches:</p>
                         <div className="flex flex-wrap gap-2">
-                          {member.branches.map((branch) => (
-                            <Badge key={branch.id} variant="outline" className="text-xs">
-                              {branch.name}
-                            </Badge>
-                          ))}
+                          {member.branch_ids.map((branchId) => {
+                            const branch = branches.find(b => b.id === branchId);
+                            return branch ? (
+                              <Badge key={branchId} variant="outline" className="text-xs">
+                                {branch.name}
+                              </Badge>
+                            ) : null;
+                          })}
                         </div>
                       </div>
                     )}
@@ -673,6 +762,134 @@ Note: This link will expire in 7 days.`);
             </div>
           </CardContent>
         </Card>
+      )}
+
+      {/* Edit Member Modal */}
+      {showEditMember && editingMember && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-xl p-6 w-full max-w-md mx-4 shadow-2xl">
+            <div className="flex items-center justify-between mb-6">
+              <h3 className="text-xl font-bold text-slate-800">Edit Team Member</h3>
+              <Button variant="ghost" size="sm" onClick={() => setShowEditMember(false)}>
+                <X className="w-5 h-5" />
+              </Button>
+            </div>
+            
+            <div className="mb-4 p-3 bg-slate-50 rounded-lg">
+              <p className="font-medium text-slate-800">
+                {editingMember.first_name} {editingMember.last_name}
+              </p>
+              <p className="text-sm text-slate-600">{editingMember.email}</p>
+            </div>
+
+            <form onSubmit={handleUpdateMember} className="space-y-4">
+              <div>
+                <Label className="text-slate-700">Role</Label>
+                <select
+                  value={memberEditForm.role}
+                  onChange={(e) => setMemberEditForm({ ...memberEditForm, role: e.target.value })}
+                  className="w-full mt-1 border border-slate-200 rounded-lg p-2.5 focus:ring-2 focus:ring-blue-500"
+                  disabled={editingMember.account_role === 'owner'}
+                >
+                  <option value="admin">Admin</option>
+                  <option value="recruiter">Recruiter</option>
+                  <option value="member">Member</option>
+                  <option value="viewer">Viewer</option>
+                </select>
+                <p className="text-xs text-slate-500 mt-1">
+                  Admin can manage team & settings. Recruiter can post jobs. Member has basic access.
+                </p>
+              </div>
+
+              {branches.length > 0 && (
+                <div>
+                  <Label className="text-slate-700">Branch Access</Label>
+                  <div className="mt-2 space-y-2 max-h-40 overflow-y-auto border border-slate-200 rounded-lg p-3">
+                    {branches.map((branch) => (
+                      <label key={branch.id} className="flex items-center space-x-2 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={memberEditForm.branch_ids.includes(branch.id)}
+                          onChange={(e) => {
+                            if (e.target.checked) {
+                              setMemberEditForm({
+                                ...memberEditForm,
+                                branch_ids: [...memberEditForm.branch_ids, branch.id]
+                              });
+                            } else {
+                              setMemberEditForm({
+                                ...memberEditForm,
+                                branch_ids: memberEditForm.branch_ids.filter(id => id !== branch.id)
+                              });
+                            }
+                          }}
+                          className="rounded border-slate-300"
+                        />
+                        <span className="text-sm text-slate-700">{branch.name}</span>
+                        {branch.is_headquarters && (
+                          <Badge variant="outline" className="text-xs">HQ</Badge>
+                        )}
+                      </label>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              <div className="flex justify-end space-x-3 pt-4">
+                <Button type="button" variant="outline" onClick={() => setShowEditMember(false)}>
+                  Cancel
+                </Button>
+                <Button type="submit" disabled={loading} className="bg-blue-600 hover:bg-blue-700">
+                  {loading ? 'Saving...' : 'Save Changes'}
+                </Button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Remove Member Confirmation Modal */}
+      {showRemoveConfirm && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-xl p-6 w-full max-w-md mx-4 shadow-2xl">
+            <div className="flex items-center justify-between mb-6">
+              <h3 className="text-xl font-bold text-slate-800">Remove Team Member</h3>
+              <Button variant="ghost" size="sm" onClick={() => setShowRemoveConfirm(null)}>
+                <X className="w-5 h-5" />
+              </Button>
+            </div>
+            
+            <div className="mb-6">
+              <div className="flex items-center space-x-3 p-4 bg-red-50 rounded-lg mb-4">
+                <div className="w-10 h-10 bg-red-100 rounded-full flex items-center justify-center">
+                  <Trash2 className="w-5 h-5 text-red-600" />
+                </div>
+                <div>
+                  <p className="font-medium text-slate-800">
+                    {showRemoveConfirm.first_name} {showRemoveConfirm.last_name}
+                  </p>
+                  <p className="text-sm text-slate-600">{showRemoveConfirm.email}</p>
+                </div>
+              </div>
+              <p className="text-slate-600">
+                Are you sure you want to remove this member from your team? They will lose access to all company resources.
+              </p>
+            </div>
+
+            <div className="flex justify-end space-x-3">
+              <Button variant="outline" onClick={() => setShowRemoveConfirm(null)}>
+                Cancel
+              </Button>
+              <Button 
+                onClick={() => handleRemoveMember(showRemoveConfirm.id)}
+                disabled={loading}
+                className="bg-red-600 hover:bg-red-700 text-white"
+              >
+                {loading ? 'Removing...' : 'Remove Member'}
+              </Button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
