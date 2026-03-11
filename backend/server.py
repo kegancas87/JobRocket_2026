@@ -90,13 +90,16 @@ app = FastAPI(title="JobRocket API", version="2.0.0")
 # Create router with /api prefix
 api_router = APIRouter(prefix="/api")
 
-# CORS
+# CORS Configuration - Production ready
+CORS_ORIGINS = os.environ.get('CORS_ORIGINS', 'https://jobrocket.co.za,https://www.jobrocket.co.za')
+allowed_origins = [origin.strip() for origin in CORS_ORIGINS.split(',')]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=allowed_origins,
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],
+    allow_headers=["Authorization", "Content-Type", "Accept", "Origin", "X-Requested-With"],
 )
 
 # Ensure upload directory exists
