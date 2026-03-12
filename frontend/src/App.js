@@ -1245,8 +1245,10 @@ function App() {
     );
   }
 
-  // Check if user needs onboarding (job seekers and recruiters)
-  const needsOnboarding = user && !user.onboarding_completed && (user.role === 'job_seeker' || user.role === 'recruiter');
+  // ONBOARDING DISABLED - Users go directly to dashboard
+  // TODO: Re-enable onboarding flow when ready to fix
+  // Original check was: user && !user.onboarding_completed && (user.role === 'job_seeker' || user.role === 'recruiter')
+  const needsOnboarding = false; // Disabled - bypass onboarding
 
   const handleOnboardingComplete = () => {
     const updatedUser = { ...user, onboarding_completed: true, onboarding_progress: 100 };
@@ -1255,7 +1257,7 @@ function App() {
     setCurrentPage(user.role === 'recruiter' ? 'dashboard' : 'jobs');
   };
 
-  // Show onboarding for users who haven't completed it
+  // Show onboarding for users who haven't completed it (CURRENTLY DISABLED)
   if (needsOnboarding) {
     const OnboardingComponent = user.role === 'recruiter' ? RecruiterOnboarding : JobSeekerOnboarding;
     return (
