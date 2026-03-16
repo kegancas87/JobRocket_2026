@@ -13,7 +13,7 @@ from datetime import datetime, timedelta
 import uuid
 
 # Configuration
-BASE_URL = "https://job-rocket-billing.preview.emergentagent.com/api"
+BASE_URL = "https://jobs-dashboard-3.preview.emergentagent.com/api"
 HEADERS = {"Content-Type": "application/json"}
 
 # Payfast Test Configuration

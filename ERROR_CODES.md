@@ -9,6 +9,55 @@
 | 402 | Payment Required | Subscription or payment issue |
 | 403 | Forbidden | User doesn't have permission for this action |
 | 404 | Not Found | Requested resource doesn't exist |
+| 422 | Unprocessable Entity | Request validation failed (FastAPI automatic) |
+| 500 | Internal Server Error | Unexpected server error - check logs |
+| 502 | Bad Gateway | Backend service unavailable (Nginx) |
+| 503 | Service Unavailable | Server overloaded or down |
+| 504 | Gateway Timeout | Backend took too long to respond |
+
+---
+
+## 500 Internal Server Errors
+
+These occur when something unexpected goes wrong. **Check server logs for details.**
+
+### Common Causes:
+
+| Cause | How to Debug |
+|-------|--------------|
+| **Database connection failed** | Check MongoDB is running: `sudo systemctl status mongod` |
+| **Missing environment variable** | Check `.env` file has all required variables |
+| **File permission error** | Check uploads folder permissions: `chmod -R 755 uploads` |
+| **Memory exhaustion** | Check server memory: `free -m` |
+| **Code bug/exception** | Check logs: `pm2 logs jobrocket-api` or backend error log |
+| **External service failure** | PayFast, Email SMTP, or Google OAuth issues |
+| **Invalid data in database** | Corrupted or unexpected data format |
+
+### Where to Find Logs:
+
+```bash
+# PM2 logs (if using PM2)
+pm2 logs jobrocket-api
+
+# Or check the log file directly
+tail -100 /var/log/jobrocket/error.log
+
+# Nginx error logs
+tail -100 /var/log/nginx/error.log
+```
+
+---
+
+## 422 Validation Errors (FastAPI Automatic)
+
+FastAPI automatically returns 422 when request data doesn't match expected schema:
+
+| Error Type | Example |
+|------------|---------|
+| Missing required field | `{"detail":[{"loc":["body","email"],"msg":"field required","type":"value_error.missing"}]}` |
+| Invalid email format | `{"detail":[{"loc":["body","email"],"msg":"value is not a valid email address","type":"value_error.email"}]}` |
+| Wrong data type | `{"detail":[{"loc":["body","age"],"msg":"value is not a valid integer","type":"type_error.integer"}]}` |
+| String too short/long | `{"detail":[{"loc":["body","password"],"msg":"ensure this value has at least 6 characters","type":"value_error.any_str.min_length"}]}` |
 
 ---
 
@@ -161,3 +210,61 @@ The frontend displays these errors as toast notifications. Common user-facing me
 | `rejected` | Application rejected |
 | `withdrawn` | Candidate withdrew application |
 | `hired` | Candidate accepted and hired |
+
+---
+
+## Troubleshooting 500 Errors
+
+### Step 1: Check what endpoint failed
+Look at the browser's Network tab or server access logs to see which API endpoint returned 500.
+
+### Step 2: Check backend logs
+```bash
+# If using PM2
+pm2 logs jobrocket-api --lines 100
+
+# Or tail the error log
+tail -100 /var/log/supervisor/backend.err.log
+```
+
+### Step 3: Common fixes
+
+| Symptom | Fix |
+|---------|-----|
+| `MongoServerError` | Restart MongoDB: `sudo systemctl restart mongod` |
+| `Connection refused` | Check MongoDB is running |
+| `ENOENT` / `FileNotFoundError` | Create missing directory or check file path |
+| `PermissionError` | Fix permissions: `chmod -R 755 /var/www/jobrocket/uploads` |
+| `KeyError` / `TypeError` | Database has unexpected data - check the specific document |
+| `smtp` / `email` errors | Check email credentials in `.env` |
+| `payfast` errors | Check PayFast credentials and sandbox/production mode |
+| `jwt` / `token` errors | Check JWT_SECRET is set in `.env` |
+
+### Step 4: Restart services
+```bash
+# Restart backend
+pm2 restart jobrocket-api
+
+# Or if using systemd
+sudo systemctl restart jobrocket
+```
+
+---
+
+## Quick Reference: All Status Codes
+
+| Code | Meaning | User Action |
+|------|---------|-------------|
+| 200 | Success | None - request worked |
+| 201 | Created | None - resource created |
+| 400 | Bad Request | Fix the input data |
+| 401 | Unauthorized | Log in again |
+| 402 | Payment Required | Update payment/subscription |
+| 403 | Forbidden | Contact admin for access |
+| 404 | Not Found | Check the URL/ID |
+| 422 | Validation Error | Fix the form data |
+| 500 | Server Error | Contact support, check logs |
+| 502 | Bad Gateway | Backend is down |
+| 503 | Service Unavailable | Server overloaded |
+| 504 | Gateway Timeout | Try again later |
+

@@ -9,7 +9,7 @@ import json
 from datetime import datetime, timedelta
 import random
 
-BASE_URL = "https://job-rocket-billing.preview.emergentagent.com/api"
+BASE_URL = "https://jobs-dashboard-3.preview.emergentagent.com/api"
 
 # Demo user credentials
 DEMO_USERS = {

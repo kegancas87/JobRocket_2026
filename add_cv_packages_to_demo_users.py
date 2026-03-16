@@ -35,7 +35,7 @@ async def add_cv_packages_to_demo_recruiters():
         }
     ]
     
-    base_url = "https://job-rocket-billing.preview.emergentagent.com/api"
+    base_url = "https://jobs-dashboard-3.preview.emergentagent.com/api"
     
     try:
         added_count = 0

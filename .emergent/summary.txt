@@ -1,195 +1,172 @@
 <analysis>**original_problem_statement:**
-The user's primary goal is to enhance the Job Rocket application, focusing on recruiter-facing features and monetization.
+The user's initial goal was to build a comprehensive Recruiter Job Dashboard to serve as an operational hub. After initial clarification, the scope was refined to include:
+- A Jobs Dashboard screen for recruiters to view and manage their listed jobs (active/expired), see application counts, and track pipeline movement (shortlisted, interviews, offers).
+- The ability to re-activate expired jobs and add notes.
+- An applicant pipeline view when clicking into a job.
+- Suggested additions like a quick stats bar, expiring soon badges, and search functionality.
 
-**Key requirements from this and previous sessions:**
-1.  **Automated Billing System:** Implement a comprehensive, automated monthly billing system using PayFast.
-    *   Track monthly subscription payments.
-    *   Handle payment failures by making the recruiter account inactive, disabling features.
-    *   Implement a 7-day grace period with daily automated payment retries.
-    *   Reset the billing cycle to the new date upon successful late payment.
-    *   The entire process must be automated.
-    *   Handle billing for add-ons (like extra seats) separately, with pro-rata calculations for mid-cycle additions.
-    *   Generate and allow downloading of payment history statements.
-2.  **Tier-Based CV Search:** Enhance the CV search feature to be dependent on the recruiter's subscription tier.
-    *   **Starter:** No access. Show an Upgrade to Growth prompt.
-    *   **Growth:** CV search with a limit of 1,500 contact reveals per month.
-    *   **Pro:** CV search with a limit of 5,000 contact reveals per month.
-    *   **Enterprise:** CV search with a limit of 10,000 contact reveals per month.
-    *   Track search usage and send an admin notification if a user performs over 20,000 searches in a month.
-3.  **UI/UX Improvements:**
-    *   Fix job cards for job seekers to show a clear Applied status instead of a broken modal UI.
-    *   Fix the recruiter's job list to correctly hide soft-deleted (archived) jobs from the active view.
-    *   Replace outdated browser  notifications with modern, non-blocking toast notifications.
-4.  **Bug Fixes:**
-    *   Fix the entire application workflow, ensuring job applications appear for recruiters and job seekers can view and withdraw their applications.
-    *   Fix the Google OAuth  error (Blocked on user).
-    *   Fix broken links to legal pages in the footer (Pending user verification).
+Later, the user requested:
+- Implementation of three specific MVP reports: Time-to-Fill, Pipeline Conversion, and Recruiter Workload.
+- Implementation of email notifications for job applications (to recruiter and job seeker) and rejections (to job seeker).
+- A UI change to move Billing into a dropdown menu under the user's name and add a Reports section.
+- A bug fix for a crash on the Teams tab under Structure.
+- Functionality to edit and remove users from the Teams tab.
+- A fix for the Google OAuth login.
+- A production-readiness check and configuration for deployment to a VPS, including hiding secrets and setting production URLs.
+- Disabling the flawed onboarding flow, redirecting users straight to the dashboard after login/registration.
+- A comprehensive list of all application error codes.
 
 **User's preferred language**: English
 
 **what currently exists?**
-The application is a multi-tenant SaaS job board. The agent has successfully implemented a complete, automated billing system with PayFast integration, including subscription status management (, , ), a 7-day grace period with daily payment checks, pro-rata logic for add-ons, and statement generation.
-
-A major enhancement to the CV Search feature was also completed, introducing tier-based access controls, contact reveal limits, usage tracking, and a full-featured search UI.
-
-Several critical UI/UX issues and bugs were fixed: the job application workflow is now functional from end to end (apply, view for recruiter, view/withdraw for job seeker), deleted jobs are correctly handled in the recruiter UI, and outdated alerts have been replaced with modern toast notifications.
+The application is a multi-tenant SaaS job board. In this session, the agent built a new **Jobs Dashboard** and a **Reports** page with three MVP reports (Time-to-Fill, Pipeline Conversion, Workload). Email notifications for the application lifecycle (applied, received, rejected) were implemented. The main navigation was updated to include a user dropdown menu for Billing and Reports. A critical bug on the Company Structure page was fixed, and edit/remove functionality for team members was added. The application was configured for production deployment (CORS, ENV variables for secrets). The user-facing onboarding flow has been disabled, redirecting users straight to their respective dashboards. A comprehensive error code document was created.
 
 **Last working item**:
--   **Last item agent was working**: The user requested a final enhancement to the CV Search feature. The task is to update the candidate result cards to display more information (job title, location, current company, salary) and to add the candidate's phone number to the contact information revealed upon clicking Reveal Contact.
--   **Status**: IN PROGRESS
--   **Agent Testing Done**: N
--   **Which testing method agent to use?**: both. The backend endpoint for CV search needs to be updated to return the additional data. The frontend  component needs to be updated to display it. Testing can be done with  for the backend and  for the frontend.
--   **User Testing Done**: N
+-   **Last item agent was working**: The agent was tasked with providing a comprehensive list of all error codes used in the application, as the user encountered a 500 error not present in the initial list.
+-   **Status**: COMPLETED
+-   **Agent Testing Done**: N/A
+-   **Which testing method agent to use?**: NA
+-   **User Testing Done**: Y
 
 **All Pending/In progress Issue list**:
 -   **Issue 1: Google OAuth fails with  (P0)**
-    -   **Attempted fixes**: This is a recurring issue from a previous session. The fix requires the user to add the correct preview URL to their Google Cloud Console project's Authorized JavaScript Origins and Authorized Redirect URIs.
-    -   **Next debug checklist**: Ask the user to confirm they have updated the settings in their Google Cloud Console.
-    -   **Why fix this issue and what will be achieved with the fix?**: This is a critical P0 authentication feature, blocking a key login method.
+    -   **Attempted fixes**: This is a recurring issue. The agent has updated the backend and frontend  files with the user-provided credentials. The user was instructed on which production URLs (, ) to add to their Google Cloud Console for Authorized JavaScript Origins and Authorized Redirect URIs.
+    -   **Next debug checklist**: Confirm with the user that they have updated the Google Cloud Console settings. Once confirmed, attempt to test the Google login flow.
+    -   **Why fix this issue and what will be achieved with the fix?**: This is a critical P0 authentication feature, blocking a key login method for the production environment.
     -   **Status**: BLOCKED
     -   **Is recurring issue?**: Y
     -   **Should Test frontend/backend/both after fix?**: Frontend
     -   **Blocked on other issue**: User action required in the Google Cloud Console.
 
--   **Issue 2: Legal page links are not working correctly (P1)**
-    -   **Attempted fixes**: The agent corrected the  attributes in . The issue might be due to user-side browser caching.
+-   **Issue 2: Legal page links in the footer may be broken (P2)**
+    -   **Attempted fixes**: A fix was applied in a previous session. The issue might be due to user-side browser caching. This was not re-verified in the current session.
     -   **Next debug checklist**:
-        1.  Re-verify the fix by navigating to the footer and clicking the Terms of Service and Privacy Policy links.
-        2.  Use  to capture proof of successful navigation.
-        3.  Present the evidence to the user and instruct them to perform a hard refresh (Ctrl+Shift+R or Cmd+Shift+R).
-    -   **Why fix this issue and what will be achieved with the fix?**: Ensures users can access standard legal documents.
+        1.  Navigate to the footer.
+        2.  Click the Terms of Service and Privacy Policy links.
+        3.  Use  to capture proof of successful or failed navigation.
+        4.  If successful, instruct the user to perform a hard refresh. If failed, investigate the  attributes in  again.
+    -   **Why fix this issue and what will be achieved with the fix?**: Ensures users can access standard legal documents, which is important for compliance.
     -   **Status**: USER VERIFICATION PENDING
     -   **Is recurring issue?**: Y
     -   **Should Test frontend/backend/both after fix?**: Frontend
+    -   **Blocked on other issue**: None.
 
 **In progress Task List**:
--   **Task 1: Enhance CV Search Candidate Cards (P0)**
-    -   **Where to resume**:
-        1.  Modify the user model/schema () if necessary to include fields for current job title, company, and phone number.
-        2.  Update the CV Search backend endpoint in  () to fetch and return this new data for each candidate.
-        3.  Update the frontend component  to render the job title, company, and salary on the main candidate card.
-        4.  Update the Reveal Contact functionality to also show the candidate's phone number alongside their email.
-    -   **What will be achieved with this?**: Provides recruiters with more relevant information at a glance, improving the utility of the CV search feature.
-    -   **Status**: IN PROGRESS
-    -   **Should Test frontend/backend/both after fix?**: Both
-    -   **Blocked on something**: None.
+-   None.
 
 **Upcoming and Future Tasks**
 -   **Upcoming Tasks**:
-    -   **P1: Recruiter Reporting Feature**: Add a reporting feature for recruiters. The first report should be on CV search usage, tracking the number of searches.
-    -   **P1: Job Application Notifications**: Implement email notifications to recruiters when a job seeker applies for a job.
-    -   **P2: Comprehensive Application Testing**: A full regression test using  once all high-priority features are complete.
+    -   **P0: Fix and Re-enable Onboarding Flow**: The user requested to disable the flawed onboarding flow but wants it fixed later. The current implementation skips it entirely.
+    -   **P1: Enhance CV Search Candidate Cards**: This was the last pending task from the previous fork and was skipped. It involves adding more candidate details (job title, location, company, salary, phone number) to the CV search results.
+    -   **P1: Implement More Email Notifications**: Implement notifications for Application Shortlisted, Interview Scheduled, and Offer Made as suggested by the agent.
+    -   **P2: Add Filters to Reports**: Enhance the new reports with filters for specific jobs or recruiters.
+
 -   **Future Tasks**:
-    -   **P2: AI Match Score for CV Search**: Implement the AI scoring feature for candidate ranking.
+    -   **P1: Recruiter Reporting Feature**: Add a report on CV search usage.
+    -   **P2: Refactor **: This file is still extremely large (~4000 lines) and is a major source of technical debt. Inline page components should be extracted into the  directory.
+    -   **P2: AI Match Score for CV Search**: Implement an AI scoring feature for candidate ranking.
     -   **P2: Talent Pool Alerts**: Allow recruiters to save searches and get alerts for new matching candidates.
-    -   **P2: Paid Features for Job Seekers**: Introduce monetization features for the job seeker user type.
+    -   **P2: Paid Features for Job Seekers**: Introduce monetization for the job seeker user type.
     -   **P2: Stripe Integration**: Add Stripe as an alternative payment gateway.
     -   **P3: Quick Stats for Admin Dashboard**: Add a Quick Stats feature.
     -   **P3: In-App Notifications**: Implement a real-time, in-app notification system.
 
 **Completed work in this session**
--   **Automated Billing System (DONE)**: Implemented the full PayFast billing system, including subscription management, a 7-day grace period with cron jobs (), pro-rata logic for add-ons, and downloadable PDF statements (). Tested all states (, , ) and UI banners.
--   **Tiered CV Search (DONE)**: Implemented a completely new, feature-rich CV search page () with tier-based access, contact reveal limits, usage tracking, and an upgrade prompt for starter-tier users.
--   **Job Application Workflow Fix (DONE)**: Fixed the entire application flow. Recruiters can now see applications on their dashboard (), and job seekers can view their sent applications and withdraw them ().
--   **Recruiter Job Deletion Fix (DONE)**: Fixed a bug where soft-deleted jobs were still appearing in the active list. The backend  endpoint now correctly filters for .
--   **Job Seeker Applied Badge Fix (DONE)**: Fixed a major UI bug where job cards would break after applying. Job cards now correctly display a non-interactive Applied badge after a user has applied.
--   **Modern Toast Notifications (DONE)**: Replaced native browser  calls with modern, non-blocking  toasts in  and . Added the  component to .
--   **Easy Apply Modal Fix (DONE)**: Fixed a CSS/portal issue causing the Easy Apply modal to render inline, breaking the page layout. It now correctly appears as an overlay.
+-   **Jobs Dashboard Feature (DONE)**: Created a new page () with a stats bar, job cards showing activity, filters, and a modal for viewing applicants in a pipeline view.
+-   **MVP Reporting Feature (DONE)**: Created a new Reports page with three complete reports: Time-to-Fill, Pipeline Conversion, and Recruiter Workload, including data fetching, UI, and CSV export functionality.
+-   **Email Notification System (DONE)**: Implemented email sending for: New Application (to Recruiter), Application Confirmation (to Job Seeker), and Application Rejected (to Job Seeker).
+-   **UI Navigation Update (DONE)**: Refactored the main navigation to move Billing and add Reports into a responsive user dropdown menu for recruiters.
+-   **Team Management Bug Fix & Enhancement (DONE)**: Fixed a critical crash on the  page and implemented functionality for the settings button on team member cards to allow editing roles/permissions and removing users.
+-   **Production Readiness (DONE)**: Configured the application for production by setting production URLs, securing CORS policies, and moving all secrets (PayFast, JWT, Google OAuth) to environment variables. A deployment guide was generated.
+-   **Onboarding Flow Disabled (DONE)**: Modified  to bypass the onboarding flow, sending users directly to their dashboard after login/registration.
+-   **Error Code Documentation (DONE)**: Investigated and documented all API error codes (4xx and 5xx) in a new file .
 
 **Earlier issues found/mentioned but not fixed**
--   The P0 Google OAuth  issue remains unresolved and is blocked on user action.
+-   See **Issue 2** in  regarding the legal page links. It was carried over but not addressed in this session.
 
 **Known issue recurrence from previous fork**
--   None.
+-   **Issue recurrence in previous fork**: Google OAuth  error.
+-   **Recurrence count**: 2+
+-   **Status**: BLOCKED
 
 **Code Architecture**
 
 
 **Key Technical Concepts**
--   **Tier-Based Feature Gating**: Using middleware and subscription status checks to grant or deny access to features (e.g., CV Search) based on the user's plan.
--   **Usage Tracking & Limits**: Incrementing counters in the database ( collection) to track API usage (e.g., contact reveals) and enforcing monthly limits.
--   **Scheduled Tasks (Cron Jobs)**: Using  to run a daily Python script () for automated tasks like checking payment statuses and managing grace periods.
--   **PDF Generation**: Using the  library on the backend to dynamically generate PDF statements from database records.
--   **React Portals**: Used  to fix the  rendering issue, ensuring it appears correctly in the DOM hierarchy as a top-level overlay.
--   **Modern UI Notifications**: Replaced blocking  with the non-blocking  toast notification library for a better user experience.
+-   **API-First Reporting**: Building dedicated, filterable API endpoints to power frontend report components.
+-   **Production Readiness**: The process of securing an application for deployment, including managing environment variables for secrets, configuring CORS for a specific domain, and removing debug information.
+-   **Feature Flagging (Simple)**: Disabling the onboarding flow by changing a conditional check to a hardcoded , effectively turning the feature off without removing the code.
+-   **Graceful Error Handling (UI)**: Fixing a UI crash by adding null checks ( optional chaining) to prevent rendering errors when API data is incomplete or missing.
 
 **key DB schema**
--   **users**:
-    -    sub-document: Now includes , , , , .
-    -    sub-document: New fields to track  and  with a .
--   **applications**:  field is used to track , , , , .  stores user details at time of application.
--   **billing_summaries**: New collection to store the output of the daily billing cron job for logging and reporting.
+-   **jobs**:  (type: ) was used, derived from .  (type: ) was added to the  collection to calculate Time-to-Fill.
+-   **applications**:  field (enum: ) is critical for pipeline reports.  field added.
 
 **changes in tech stack**
--   ****: Added and configured for running the daily billing task.
--   ****: Added for generating PDF statements.
--   ****: Used for making API calls to the PayFast service.
--   All new dependencies have been added to .
+-   None.
 
 **All files of reference**
--   : The core of the application logic, heavily modified with new endpoints and middleware.
--   : The new, comprehensive component for the tiered CV search feature.
--   : The frontend for the entire billing system.
--   : The script for the daily cron job that automates payment checks.
--   : Recruiter's view for job applications.
--   : Job seeker's view for their applications, with withdraw functionality.
--   : Main router, had the CV search component extracted and the global Toaster added.
--   : Logic for generating PDF statements.
+-   : Core logic for all new endpoints (Reports, Jobs Dashboard, Team Management) and email triggers.
+-   : Central point for routing, the onboarding disable logic, and the fix for the team management bug.
+-   : New feature component for recruiters to manage jobs.
+-   : New feature component displaying the three MVP reports.
+-   : Contains the updated responsive navigation with the user dropdown menu.
+-   : New documentation file created for the user.
 
 **Areas that need refactoring**:
--   ** is still extremely large (~4000 lines)** despite extracting the CV search component. It contains many other page components defined inline that should be moved to separate files in the  directory. This is a high-priority refactoring task to improve maintainability.
--   **** is also large and could benefit from extracting the Edit Job modal into its own component.
+-   ** remains a critical piece of technical debt (~4000 lines).** Extracting inline components is a high-priority task to improve maintainability.
+-   **** is also large and could benefit from extracting modals into separate components.
 
 **key api endpoints**
--   **New/Updated**:
-    -   : Enhanced search with filters and pagination.
-    -   : Unlocks candidate contact info and tracks usage.
-    -   : Fetches payment history.
-    -   : Downloads a PDF statement for a given date range.
-    -   : Gets current subscription and usage details.
-    -   : Handles purchasing additional user seats.
-    -   : Fetches applications for a recruiter's jobs.
-    -   : Fetches applications for the current job seeker.
-    -   : Updates an application's status (for recruiters).
-    -   : Withdraws an application (for job seekers).
-    -   : Checks if a user has applied to a list of jobs.
+-   **Jobs Dashboard**:
+    -   : Gets stats for the quick-view bar.
+    -   : Fetches jobs with application counts for the main list.
+    -   : Adds a note to a job.
+    -   : Gets applicants for the pipeline view modal.
+-   **Reports**:
+    -   : Powers the Time-to-Fill report.
+    -   : Powers the Pipeline Conversion report.
+    -   : Powers the Recruiter Workload report.
+-   **Team Management**:
+    -   : Updates a team member's role or permissions.
+    -   : Removes a team member.
 
 **Critical Info for New Agent**
--   **IMMEDIATE TASK**: The immediate task is to complete the user's enhancement request for the CV Search candidate cards. This involves a small backend change to return more data and a frontend change to display it.
--   **COMPLEX FEATURES ARE DONE**: The most complex work (billing system, tiered CV search, application workflow) is complete and tested. The current task is a minor addition to a finished feature.
--   **REFACTOR **:  is a major source of technical debt. After completing the current task, strongly consider proposing to refactor it by extracting inline components into separate files.
--   **BLOCKED/PENDING ISSUES**: Remember the Google OAuth issue is **blocked** on the user, and the Legal Pages fix is **pending user verification**. Do not start work on Google Auth. Be prepared to guide the user on clearing their cache for the legal pages.
+-   **Onboarding is Disabled**: The onboarding flow is intentionally disabled via a hardcoded  in . Do not fix this by re-enabling it. The user wants the flow itself to be fixed as a future task.
+-   **Production Config**: The app has been configured for production at . All secrets are now in  files. Do not hardcode credentials.
+-   **Google OAuth is Blocked on User**: Do not attempt to work on the Google OAuth issue until the user confirms they have updated their Google Cloud Console with the production URLs provided.
+-   **Skipped Task**: The task from the previous fork (enhancing CV Search cards) was skipped in favor of the user's new requests. This is still a pending requirement.
 
 **documents and test reports created in this job**
--   : Updated with details of the new billing and CV search systems.
--   : Test report from  confirming the application workflow fix.
--   : Test report from  confirming the billing system implementation.
+-   
+-    (updated with new features)
+-    (for the Jobs Dashboard feature)
 
 **Last 10 User Messages and any pending HUMAN messages**
-1.  **User**: Requested enhancement on the CV search feature with specific tier-based rules from an Excel sheet.
-2.  **Agent**: Asked clarifying questions about contact limits, AI scoring, and UI prompts.
-3.  **User**: Provided detailed requirements for each tier, contact reveal limits, and deferred AI features.
-4.  **Agent**: Implemented the full tiered CV search feature.
-5.  **Agent**: Tested the feature for Pro, Starter, and Search/Reveal functionality, providing screenshots.
-6.  **User**: Requested a further enhancement to the candidate cards shown in the CV search results.
-7.  **User**: Specified the exact fields to add: job title, location, current company, salary.
-8.  **User**: Also requested that the revealed contact info include a telephone number in addition to the email.
-9.  **Agent**: Acknowledged the request and started working on the enhancement.
-10. **(PENDING)** User is waiting for the CV search candidate card enhancement to be completed.
+1.  **User**: Praised the agent for the excellent work on the reports feature. (Status: Acknowledged)
+2.  **User**: Reported a runtime error on the Teams tab under Structure. (Status: Completed, bug fixed)
+3.  **User**: Requested that the settings button on the fixed Teams page be made functional to edit/remove users. (Status: Completed)
+4.  **User**: Requested to fix Google OAuth and provided production credentials. (Status: Blocked, agent provided instructions for user)
+5.  **User**: Clarified that production URLs should not contain emergent. (Status: Acknowledged, agent provided correct URLs)
+6.  **User**: Stated they are moving to a production VPS and asked for a production-readiness check. (Status: Completed)
+7.  **User**: Provided details for production configuration (domain, CORS, PayFast keys, DB location). (Status: Completed, agent configured the app)
+8.  **User**: Reported a major problem with the onboarding flow on production and asked to disable it completely for now. (Status: Completed)
+9.  **User**: Asked which files were changed to disable onboarding for their developer. (Status: Completed, agent provided summary)
+10. **User**: Asked for a list of all error codes. (Status: Completed)
 
 **Project Health Check:**
--   **Broken**: Google OAuth Login/Registration ( error, blocked on user).
--   **Mocked**: Payfast integration is running in sandbox mode with placeholder credentials.
+-   **Broken**: Google OAuth Login/Registration ( error, blocked on user action in Google Cloud Console).
+-   **Mocked**: None. Payfast integration is now configured with production credentials in the  file but has not been tested in a live production environment.
 
 **3rd Party Integrations**
--   **Payfast**: Sandbox integration for recurring subscription payments. Fully automated with cron jobs and webhooks.
--   **Google OAuth 2.0**: For user authentication (Currently Broken).
--   **SMTP**: Direct integration for sending emails.
+-   **Payfast**: Configured with production credentials for recurring subscription payments.
+-   **Google OAuth 2.0**: Configured with production credentials but is non-functional and blocked on the user.
+-   **SMTP**: Direct integration configured for sending emails.
 -   **fpdf**: For server-side PDF generation.
 -   **apscheduler**: For running scheduled backend tasks.
 
 **Testing status**
--   **Testing agent used after significant changes**: YES. The agent was used to validate the billing system and the application workflow fixes, with all tests passing.
+-   **Testing agent used after significant changes**: YES. The agent was used to validate the new Jobs Dashboard feature.
 -   **Troubleshoot agent used after agent stuck in loop**: NO
 -   **Test files created**: []
 -   **Known regressions**: None.
@@ -201,4 +178,5 @@ Several critical UI/UX issues and bugs were fixed: the job application workflow 
 -   **Admin**:  (password: )
 
 **What agent forgot to execute**
--   The agent was in the middle of implementing the user's latest request (enhancing CV search cards) when the session ended. The work is not complete.</analysis>
+-   **CV Search Card Enhancement**: The agent did not implement the user's request from the *previous* fork to enhance the CV Search candidate cards (adding job title, location, company, salary, and phone number). The user's new request for the Jobs Dashboard took priority, and this was never circled back to.
+-   **Legal Links Verification**: The agent did not follow up on the USER VERIFICATION PENDING status of the legal page links from the previous handoff. It remains unresolved.</analysis>

@@ -341,20 +341,20 @@
 
 ```bash
 # Test beginner user login
-curl -X POST "https://job-rocket-billing.preview.emergentagent.com/api/auth/login" \
+curl -X POST "https://jobs-dashboard-3.preview.emergentagent.com/api/auth/login" \
   -H "Content-Type: application/json" \
   -d '{"email": "sarah.johnson@demo.com", "password": "demo123"}'
 
 # Test advanced user profile
-curl -X POST "https://job-rocket-billing.preview.emergentagent.com/api/auth/login" \
+curl -X POST "https://jobs-dashboard-3.preview.emergentagent.com/api/auth/login" \
   -H "Content-Type: application/json" \
   -d '{"email": "michael.chen@demo.com", "password": "demo123"}'
 
 # View all available jobs
-curl "https://job-rocket-billing.preview.emergentagent.com/api/jobs"
+curl "https://jobs-dashboard-3.preview.emergentagent.com/api/jobs"
 
 # Check user profile progress
-curl -X GET "https://job-rocket-billing.preview.emergentagent.com/api/auth/me" \
+curl -X GET "https://jobs-dashboard-3.preview.emergentagent.com/api/auth/me" \
   -H "Authorization: Bearer YOUR_TOKEN"
 ```
 
@@ -371,4 +371,4 @@ All demo users are set up with realistic data to showcase:
 - ✅ Role-based access control
 - ✅ Professional UI/UX design
 
-**Start testing by visiting:** https://job-rocket-billing.preview.emergentagent.com
+**Start testing by visiting:** https://jobs-dashboard-3.preview.emergentagent.com

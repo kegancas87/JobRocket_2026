@@ -7,7 +7,7 @@ import requests
 import os
 from datetime import datetime
 
-BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://job-rocket-billing.preview.emergentagent.com').rstrip('/')
+BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://jobs-dashboard-3.preview.emergentagent.com').rstrip('/')
 
 # Test credentials
 RECRUITER_EMAIL = "hr@techcorp.co.za"
