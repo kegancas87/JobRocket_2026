@@ -3250,6 +3250,293 @@ async def toggle_ai_matching(
         "message": f"AI matching {'enabled' if enabled else 'disabled'}. Using {'AI' if enabled else 'keyword'} matching."
     }
 
+
+# ============================================
+# Admin User Management Endpoints
+# ============================================
+
+@api_router.get("/admin/users")
+async def admin_list_users(
+    role: Optional[str] = Query(None, description="Filter by role: job_seeker, recruiter"),
+    search: Optional[str] = Query(None, description="Search by name or email"),
+    skip: int = Query(0, ge=0),
+    limit: int = Query(50, le=200),
+    current_user: User = Depends(verify_admin_user)
+):
+    """List all users with optional filters"""
+    query = {}
+    if role:
+        query["role"] = role
+    if search:
+        query["$or"] = [
+            {"email": {"$regex": search, "$options": "i"}},
+            {"first_name": {"$regex": search, "$options": "i"}},
+            {"last_name": {"$regex": search, "$options": "i"}}
+        ]
+    
+    total = await db.users.count_documents(query)
+    cursor = db.users.find(query, {"password": 0, "password_hash": 0, "_id": 0}).skip(skip).limit(limit).sort("created_at", -1)
+    users = await cursor.to_list(length=limit)
+    
+    return {"users": users, "total": total, "skip": skip, "limit": limit}
+
+
+@api_router.get("/admin/users/{user_id}")
+async def admin_get_user(
+    user_id: str,
+    current_user: User = Depends(verify_admin_user)
+):
+    """Get full user details including profile"""
+    user = await db.users.find_one({"id": user_id}, {"password": 0, "password_hash": 0, "_id": 0})
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    # If recruiter, also get account info
+    if user.get("role") == "recruiter" and user.get("account_id"):
+        account = await db.accounts.find_one({"id": user["account_id"]}, {"_id": 0})
+        user["account"] = account
+    
+    return user
+
+
+@api_router.post("/admin/users")
+async def admin_create_user(
+    request: Request,
+    current_user: User = Depends(verify_admin_user)
+):
+    """Create a new user (job seeker or recruiter) with full profile"""
+    body = await request.json()
+    
+    # Required fields
+    email = body.get("email", "").strip().lower()
+    password = body.get("password", "")
+    first_name = body.get("first_name", "").strip()
+    last_name = body.get("last_name", "").strip()
+    role = body.get("role", "job_seeker")
+    
+    if not email or not password or not first_name or not last_name:
+        raise HTTPException(status_code=400, detail="Email, password, first_name, and last_name are required")
+    
+    if role not in ["job_seeker", "recruiter"]:
+        raise HTTPException(status_code=400, detail="Role must be job_seeker or recruiter")
+    
+    # Check if email exists
+    existing = await db.users.find_one({"email": email})
+    if existing:
+        raise HTTPException(status_code=400, detail="Email already registered")
+    
+    # Hash password
+    pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+    password_hash = pwd_context.hash(password)
+    
+    # Create user document
+    user_id = str(uuid.uuid4())
+    now = datetime.utcnow()
+    
+    user_doc = {
+        "id": user_id,
+        "email": email,
+        "password": password_hash,
+        "first_name": first_name,
+        "last_name": last_name,
+        "role": role,
+        "created_at": now,
+        "updated_at": now,
+        "onboarding_completed": True,
+        "onboarding_progress": 100,
+        "is_active": True
+    }
+    
+    # Add optional profile fields
+    profile_fields = [
+        "phone", "location", "about_me", "skills", "job_title",
+        "linkedin_url", "portfolio_url", "expected_salary_min", "expected_salary_max",
+        "availability", "work_type_preferences", "employment_type_preferences"
+    ]
+    for field in profile_fields:
+        if field in body and body[field] is not None:
+            user_doc[field] = body[field]
+    
+    # Handle work experience, education, achievements for job seekers
+    if role == "job_seeker":
+        if "work_experience" in body:
+            user_doc["work_experience"] = body["work_experience"]
+        if "education" in body:
+            user_doc["education"] = body["education"]
+        if "achievements" in body:
+            user_doc["achievements"] = body["achievements"]
+        
+        # Initialize profile progress
+        user_doc["profile_progress"] = {}
+    
+    # Handle recruiter-specific setup
+    if role == "recruiter":
+        account_id = body.get("account_id")
+        
+        if account_id:
+            # Add to existing account
+            account = await db.accounts.find_one({"id": account_id})
+            if not account:
+                raise HTTPException(status_code=400, detail="Account not found")
+            user_doc["account_id"] = account_id
+            user_doc["account_role"] = body.get("account_role", "user")
+        else:
+            # Create new account if company info provided
+            company_name = body.get("company_name", f"{first_name}'s Company")
+            tier_id = body.get("tier_id", "starter")
+            
+            account_doc = {
+                "id": str(uuid.uuid4()),
+                "name": company_name,
+                "owner_id": user_id,
+                "tier_id": tier_id,
+                "subscription_status": "active",
+                "billing_cycle": "monthly",
+                "current_user_count": 1,
+                "max_users": get_tier_config(tier_id).get("max_users", 1),
+                "features": get_tier_config(tier_id).get("features", []),
+                "credit_balance": body.get("credit_balance", 0),
+                "created_at": now,
+                "updated_at": now
+            }
+            
+            # Optional account fields
+            if "company_website" in body:
+                account_doc["website"] = body["company_website"]
+            if "company_industry" in body:
+                account_doc["industry"] = body["company_industry"]
+            if "company_size" in body:
+                account_doc["company_size"] = body["company_size"]
+            if "company_description" in body:
+                account_doc["description"] = body["company_description"]
+            
+            await db.accounts.insert_one(account_doc)
+            user_doc["account_id"] = account_doc["id"]
+            user_doc["account_role"] = "owner"
+    
+    await db.users.insert_one(user_doc)
+    
+    # Remove sensitive fields from response
+    user_doc.pop("password", None)
+    user_doc.pop("_id", None)
+    
+    return {"message": "User created successfully", "user": user_doc}
+
+
+@api_router.put("/admin/users/{user_id}")
+async def admin_update_user(
+    user_id: str,
+    request: Request,
+    current_user: User = Depends(verify_admin_user)
+):
+    """Update user profile and account settings"""
+    body = await request.json()
+    
+    user = await db.users.find_one({"id": user_id})
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    update_fields = {"updated_at": datetime.utcnow()}
+    
+    # Basic profile fields
+    basic_fields = [
+        "first_name", "last_name", "phone", "location", "about_me", 
+        "job_title", "skills", "linkedin_url", "portfolio_url",
+        "expected_salary_min", "expected_salary_max", "availability",
+        "work_type_preferences", "employment_type_preferences", "is_active"
+    ]
+    for field in basic_fields:
+        if field in body:
+            update_fields[field] = body[field]
+    
+    # Handle password change
+    if "password" in body and body["password"]:
+        pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+        update_fields["password"] = pwd_context.hash(body["password"])
+    
+    # Handle work experience, education, achievements for job seekers
+    if user.get("role") == "job_seeker":
+        if "work_experience" in body:
+            update_fields["work_experience"] = body["work_experience"]
+        if "education" in body:
+            update_fields["education"] = body["education"]
+        if "achievements" in body:
+            update_fields["achievements"] = body["achievements"]
+    
+    # Update user
+    await db.users.update_one({"id": user_id}, {"$set": update_fields})
+    
+    # Recalculate profile progress for job seekers
+    if user.get("role") == "job_seeker":
+        await calculate_profile_progress(user_id)
+    
+    # Handle recruiter account updates
+    if user.get("role") == "recruiter" and user.get("account_id"):
+        account_updates = {}
+        account_fields = ["company_name", "company_website", "company_industry", "company_size", "company_description"]
+        field_mapping = {
+            "company_name": "name",
+            "company_website": "website",
+            "company_industry": "industry",
+            "company_size": "company_size",
+            "company_description": "description"
+        }
+        for field in account_fields:
+            if field in body:
+                account_updates[field_mapping[field]] = body[field]
+        
+        # Handle tier change
+        if "tier_id" in body:
+            new_tier = body["tier_id"]
+            tier_config = get_tier_config(new_tier)
+            account_updates["tier_id"] = new_tier
+            account_updates["max_users"] = tier_config.get("max_users", 1)
+            account_updates["features"] = tier_config.get("features", [])
+        
+        # Handle credit balance
+        if "credit_balance" in body:
+            account_updates["credit_balance"] = body["credit_balance"]
+        
+        if account_updates:
+            account_updates["updated_at"] = datetime.utcnow()
+            await db.accounts.update_one({"id": user["account_id"]}, {"$set": account_updates})
+    
+    return {"message": "User updated successfully"}
+
+
+@api_router.delete("/admin/users/{user_id}")
+async def admin_delete_user(
+    user_id: str,
+    current_user: User = Depends(verify_admin_user)
+):
+    """Delete a user (soft delete by deactivating)"""
+    user = await db.users.find_one({"id": user_id})
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    # Don't allow deleting admins
+    if user.get("role") == "admin":
+        raise HTTPException(status_code=400, detail="Cannot delete admin users")
+    
+    # Soft delete - deactivate user
+    await db.users.update_one(
+        {"id": user_id},
+        {"$set": {"is_active": False, "updated_at": datetime.utcnow()}}
+    )
+    
+    return {"message": "User deactivated successfully"}
+
+
+@api_router.get("/admin/accounts-list")
+async def admin_list_accounts(
+    current_user: User = Depends(verify_admin_user)
+):
+    """List all accounts for dropdown selection"""
+    cursor = db.accounts.find({}, {"_id": 0, "id": 1, "name": 1, "tier_id": 1, "owner_id": 1})
+    accounts = await cursor.to_list(length=500)
+    return {"accounts": accounts}
+
+
 @api_router.post("/cv-search/match")
 async def match_candidates(
     job_id: str,
