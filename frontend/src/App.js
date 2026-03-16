@@ -1135,7 +1135,16 @@ function App() {
     const savedUser = localStorage.getItem('user');
     
     if (token && savedUser) {
-      setUser(JSON.parse(savedUser));
+      // Force onboarding_completed to true since onboarding is disabled
+      const parsedUser = JSON.parse(savedUser);
+      const userWithOnboardingComplete = {
+        ...parsedUser,
+        onboarding_completed: true,
+        onboarding_progress: 100
+      };
+      setUser(userWithOnboardingComplete);
+      // Update localStorage with the forced values
+      localStorage.setItem('user', JSON.stringify(userWithOnboardingComplete));
       setIsAuthenticated(true);
     }
     setLoading(false);
