@@ -269,11 +269,55 @@ Tasks performed:
 
 ---
 
+### Phase 13: Job Seeker Profile Improvements (Dec 2025)
+- [x] **Header UI Dropdown for Job Seekers**
+  - Profile, Notifications, and Sign Out now under user name dropdown
+  - Consistent with recruiter navigation pattern
+  
+- [x] **Profile Picture Upload**
+  - Camera button on profile sidebar opens file picker
+  - Supports JPG, PNG, WebP (max 5MB)
+  - Auto-updates profile after upload
+
+- [x] **Media Tab Improvements**
+  - Video Introduction upload (MP4, MOV, AVI, WebM, max 50MB)
+  - LinkedIn Profile and Personal Website/Portfolio inputs now editable
+  - Removed GitHub and Other link fields (per user request)
+  - Save Links button persists media form data
+  
+- [x] **Profile Section Edit/Delete**
+  - Work Experience: Edit and delete buttons for each entry
+  - Education: Edit and delete buttons for each entry
+  - Awards/Achievements: Edit and delete buttons for each entry
+  - Edit populates form with existing data for inline editing
+  - Entries display count in section headers
+
+- [x] **Profile Completion Points System**
+  - Points auto-calculate on every profile update
+  - Profile picture: +5 points
+  - About me (50+ chars): +10 points
+  - Work experience: +10 points
+  - Skills (5+): +20 points
+  - Education: +10 points
+  - Achievements: +10 points
+  - Intro video: +20 points
+  - Job applications (5+): +10 points
+  - Email alerts: +5 points
+  - Total: 100 points possible
+
+- [x] **Onboarding Bypass**
+  - Onboarding popup disabled at login/registration
+  - Users go directly to profile/dashboard
+  - `onboarding_completed: true` set automatically
+
+---
+
 ## Notes
 
 - Payfast is in SANDBOX mode
 - Static files at `/api/uploads/` (mounted AFTER router include)
-- Onboarding: both job_seeker and recruiter redirected if onboarding_completed is falsy
+- Onboarding: Currently DISABLED - users go straight to dashboard
 - Admin role skips onboarding entirely
 - Recruiter Step 1 updates account document (company info)
 - Recruiter Step 4 has dual CTAs instead of Continue button
+
