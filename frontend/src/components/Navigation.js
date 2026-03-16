@@ -58,16 +58,17 @@ const Navigation = ({ user, onLogout }) => {
         { name: 'Billing', path: '/billing', icon: CreditCard },
         { name: 'Reports', path: '/reports', icon: PieChart }
       ];
+    } else if (user?.role === 'job_seeker') {
+      // Job seeker dropdown: Profile, Notifications
+      return [
+        { name: 'Profile', path: '/profile', icon: User },
+        { name: 'Notifications', path: '/notifications', icon: Bell }
+      ];
     }
     return [];
   };
 
   const getNavItems = () => {
-    const commonItems = [
-      { name: 'Jobs', path: '/jobs', icon: Briefcase },
-      { name: 'Profile', path: '/profile', icon: User }
-    ];
-
     if (user?.role === 'recruiter') {
       const features = user?.account?.features || [];
       const hasBulkUpload = features.includes('JOB_BULK_UPLOAD');
@@ -97,12 +98,10 @@ const Navigation = ({ user, onLogout }) => {
         { name: 'Profile', path: '/profile', icon: User }
       ];
     } else {
-      // Job seeker
+      // Job seeker - Profile and Notifications moved to dropdown
       return [
         { name: 'Jobs', path: '/jobs', icon: Briefcase },
-        { name: 'My Applications', path: '/my-applications', icon: FileText },
-        { name: 'Profile', path: '/profile', icon: User },
-        { name: 'Notifications', path: '/notifications', icon: Bell }
+        { name: 'My Applications', path: '/my-applications', icon: FileText }
       ];
     }
   };

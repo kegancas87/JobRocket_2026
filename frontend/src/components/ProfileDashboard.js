@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
 import { Textarea } from "./ui/textarea";
@@ -29,7 +29,9 @@ import {
   Zap,
   FileText,
   Bell,
-  Trash2
+  Trash2,
+  Pencil,
+  Loader2
 } from "lucide-react";
 import axios from 'axios';
 
@@ -94,6 +96,20 @@ const ProfileDashboard = ({ user, onUpdateUser }) => {
     salary_range: ''
   });
 
+  // Profile picture upload state
+  const profilePictureRef = useRef(null);
+  const [uploadingPicture, setUploadingPicture] = useState(false);
+
+  // Video upload state
+  const videoRef = useRef(null);
+  const [uploadingVideo, setUploadingVideo] = useState(false);
+
+  // Media/Portfolio links state
+  const [mediaForm, setMediaForm] = useState({
+    linkedin_url: user.linkedin_url || '',
+    portfolio_url: user.portfolio_url || ''
+  });
+
   const toggleEmploymentType = (type) => {
     setNewJobAlert(prev => ({
       ...prev,
@@ -122,11 +138,65 @@ const ProfileDashboard = ({ user, onUpdateUser }) => {
     };
   };
 
+  const getUploadHeaders = () => {
+    const token = localStorage.getItem('token');
+    return {
+      headers: {
+        'Authorization': `Bearer ${token}`
+      }
+    };
+  };
+
+  const handleProfilePictureUpload = async (file) => {
+    if (!file) return;
+    setUploadingPicture(true);
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      const response = await axios.post(`${API}/uploads/profile-picture`, formData, getUploadHeaders());
+      await fetchCurrentUser();
+    } catch (error) {
+      console.error('Error uploading profile picture:', error);
+    } finally {
+      setUploadingPicture(false);
+    }
+  };
+
+  const handleVideoUpload = async (file) => {
+    if (!file) return;
+    // Validate file size (50MB max)
+    if (file.size > 50 * 1024 * 1024) {
+      alert('Video file must be less than 50MB');
+      return;
+    }
+    setUploadingVideo(true);
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      const response = await axios.post(`${API}/uploads/video`, formData, getUploadHeaders());
+      await fetchCurrentUser();
+    } catch (error) {
+      console.error('Error uploading video:', error);
+    } finally {
+      setUploadingVideo(false);
+    }
+  };
+
+  const handleMediaSubmit = async (e) => {
+    e.preventDefault();
+    await updateProfile(mediaForm);
+  };
+
   const fetchCurrentUser = async () => {
     try {
       const response = await axios.get(`${API}/auth/me`, getAuthHeaders());
       setProfile(response.data);
       setProgress(response.data.profile_progress || {});
+      // Update mediaForm with fetched data
+      setMediaForm({
+        linkedin_url: response.data.linkedin_url || '',
+        portfolio_url: response.data.portfolio_url || ''
+      });
       onUpdateUser(response.data);
     } catch (error) {
       console.error('Error fetching user data:', error);
@@ -235,6 +305,197 @@ const ProfileDashboard = ({ user, onUpdateUser }) => {
     }
   };
 
+  // Delete functions
+  const deleteWorkExperience = async (experienceId) => {
+    if (!window.confirm('Are you sure you want to delete this work experience?')) return;
+    try {
+      await axios.delete(`${API}/profile/work-experience/${experienceId}`, getAuthHeaders());
+      await fetchCurrentUser();
+    } catch (error) {
+      console.error('Error deleting work experience:', error);
+    }
+  };
+
+  const deleteEducation = async (educationId) => {
+    if (!window.confirm('Are you sure you want to delete this education entry?')) return;
+    try {
+      await axios.delete(`${API}/profile/education/${educationId}`, getAuthHeaders());
+      await fetchCurrentUser();
+    } catch (error) {
+      console.error('Error deleting education:', error);
+    }
+  };
+
+  const deleteAchievement = async (achievementId) => {
+    if (!window.confirm('Are you sure you want to delete this achievement?')) return;
+    try {
+      await axios.delete(`${API}/profile/achievement/${achievementId}`, getAuthHeaders());
+      await fetchCurrentUser();
+    } catch (error) {
+      console.error('Error deleting achievement:', error);
+    }
+  };
+
+  // Edit functions - populate form and scroll to it
+  const editWorkExperience = (exp) => {
+    setWorkExperience({
+      id: exp.id,
+      company: exp.company || '',
+      position: exp.position || '',
+      start_date: exp.start_date ? exp.start_date.split('T')[0] : '',
+      end_date: exp.end_date ? exp.end_date.split('T')[0] : '',
+      current: exp.current || false,
+      description: exp.description || '',
+      location: exp.location || ''
+    });
+    setActiveTab('experience');
+    // Scroll to form
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const editEducation = (edu) => {
+    setEducation({
+      id: edu.id,
+      institution: edu.institution || '',
+      degree: edu.degree || '',
+      field_of_study: edu.field_of_study || '',
+      level: edu.level || 'Bachelors',
+      start_date: edu.start_date ? edu.start_date.split('T')[0] : '',
+      end_date: edu.end_date ? edu.end_date.split('T')[0] : '',
+      current: edu.current || false,
+      grade: edu.grade || ''
+    });
+    setActiveTab('education');
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const editAchievement = (ach) => {
+    setAchievement({
+      id: ach.id,
+      title: ach.title || '',
+      description: ach.description || '',
+      date_achieved: ach.date_achieved ? ach.date_achieved.split('T')[0] : '',
+      issuer: ach.issuer || '',
+      credential_url: ach.credential_url || ''
+    });
+    setActiveTab('achievements');
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  // Update functions (for editing existing entries)
+  const updateWorkExperience = async (e) => {
+    e.preventDefault();
+    if (!workExperience.id) {
+      // No id means it's a new entry, use add
+      return addWorkExperience(e);
+    }
+    try {
+      await axios.put(`${API}/profile/work-experience/${workExperience.id}`, {
+        ...workExperience,
+        start_date: new Date(workExperience.start_date).toISOString(),
+        end_date: workExperience.end_date ? new Date(workExperience.end_date).toISOString() : null
+      }, getAuthHeaders());
+      
+      setWorkExperience({
+        company: '',
+        position: '',
+        start_date: '',
+        end_date: '',
+        current: false,
+        description: '',
+        location: ''
+      });
+      await fetchCurrentUser();
+    } catch (error) {
+      console.error('Error updating work experience:', error);
+    }
+  };
+
+  const updateEducation = async (e) => {
+    e.preventDefault();
+    if (!education.id) {
+      return addEducation(e);
+    }
+    try {
+      await axios.put(`${API}/profile/education/${education.id}`, {
+        ...education,
+        start_date: new Date(education.start_date).toISOString(),
+        end_date: education.end_date ? new Date(education.end_date).toISOString() : null
+      }, getAuthHeaders());
+      
+      setEducation({
+        institution: '',
+        degree: '',
+        field_of_study: '',
+        level: 'Bachelors',
+        start_date: '',
+        end_date: '',
+        current: false,
+        grade: ''
+      });
+      await fetchCurrentUser();
+    } catch (error) {
+      console.error('Error updating education:', error);
+    }
+  };
+
+  const updateAchievement = async (e) => {
+    e.preventDefault();
+    if (!achievement.id) {
+      return addAchievement(e);
+    }
+    try {
+      await axios.put(`${API}/profile/achievement/${achievement.id}`, {
+        ...achievement,
+        date_achieved: new Date(achievement.date_achieved).toISOString()
+      }, getAuthHeaders());
+      
+      setAchievement({
+        title: '',
+        description: '',
+        date_achieved: '',
+        issuer: '',
+        credential_url: ''
+      });
+      await fetchCurrentUser();
+    } catch (error) {
+      console.error('Error updating achievement:', error);
+    }
+  };
+
+  const cancelEdit = (type) => {
+    if (type === 'experience') {
+      setWorkExperience({
+        company: '',
+        position: '',
+        start_date: '',
+        end_date: '',
+        current: false,
+        description: '',
+        location: ''
+      });
+    } else if (type === 'education') {
+      setEducation({
+        institution: '',
+        degree: '',
+        field_of_study: '',
+        level: 'Bachelors',
+        start_date: '',
+        end_date: '',
+        current: false,
+        grade: ''
+      });
+    } else if (type === 'achievement') {
+      setAchievement({
+        title: '',
+        description: '',
+        date_achieved: '',
+        issuer: '',
+        credential_url: ''
+      });
+    }
+  };
+
   const setupEmailAlerts = async () => {
     try {
       await axios.post(`${API}/profile/email-alerts`, {}, getAuthHeaders());
@@ -336,9 +597,11 @@ const ProfileDashboard = ({ user, onUpdateUser }) => {
                 <div className="text-center mb-6">
                   <div className="relative inline-block mb-4">
                     <div className="w-24 h-24 bg-gradient-to-br from-blue-100 to-slate-200 rounded-full flex items-center justify-center overflow-hidden">
-                      {profile.profile_picture_url ? (
+                      {uploadingPicture ? (
+                        <Loader2 className="w-8 h-8 text-blue-500 animate-spin" />
+                      ) : profile.profile_picture_url ? (
                         <img 
-                          src={profile.profile_picture_url} 
+                          src={profile.profile_picture_url.startsWith('http') ? profile.profile_picture_url : `${BACKEND_URL}${profile.profile_picture_url}`}
                           alt="Profile" 
                           className="w-full h-full object-cover"
                         />
@@ -346,10 +609,20 @@ const ProfileDashboard = ({ user, onUpdateUser }) => {
                         <User className="w-12 h-12 text-slate-400" />
                       )}
                     </div>
+                    <input
+                      ref={profilePictureRef}
+                      type="file"
+                      accept=".jpg,.jpeg,.png,.webp"
+                      onChange={(e) => handleProfilePictureUpload(e.target.files[0])}
+                      className="hidden"
+                      data-testid="profile-picture-input"
+                    />
                     <Button
                       size="sm"
                       className="absolute -bottom-2 -right-2 w-8 h-8 rounded-full p-0"
-                      onClick={() => {/* Handle profile picture upload */}}
+                      onClick={() => profilePictureRef.current?.click()}
+                      disabled={uploadingPicture}
+                      data-testid="profile-picture-btn"
                     >
                       <Camera className="w-4 h-4" />
                     </Button>
@@ -570,7 +843,7 @@ const ProfileDashboard = ({ user, onUpdateUser }) => {
                   <CardHeader>
                     <CardTitle className="flex items-center space-x-2">
                       <Briefcase className="w-5 h-5 text-blue-600" />
-                      <span>Work Experience</span>
+                      <span>{workExperience.id ? 'Edit Work Experience' : 'Work Experience'}</span>
                       {!progress.work_history && (
                         <Badge className="bg-yellow-100 text-yellow-800 text-xs">
                           +10 points
@@ -579,7 +852,7 @@ const ProfileDashboard = ({ user, onUpdateUser }) => {
                     </CardTitle>
                   </CardHeader>
                   <CardContent>
-                    <form onSubmit={addWorkExperience} className="space-y-6">
+                    <form onSubmit={workExperience.id ? updateWorkExperience : addWorkExperience} className="space-y-6">
                       {/* Work experience form fields */}
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                         <div className="space-y-2">
@@ -658,34 +931,85 @@ const ProfileDashboard = ({ user, onUpdateUser }) => {
                         />
                       </div>
 
-                      <Button 
-                        type="submit"
-                        className="bg-gradient-to-r from-blue-600 to-slate-700 hover:from-blue-700 hover:to-slate-800"
-                      >
-                        <Plus className="w-4 h-4 mr-2" />
-                        Add Experience
-                      </Button>
+                      <div className="flex space-x-3">
+                        <Button 
+                          type="submit"
+                          className="bg-gradient-to-r from-blue-600 to-slate-700 hover:from-blue-700 hover:to-slate-800"
+                          data-testid="save-experience-btn"
+                        >
+                          {workExperience.id ? (
+                            <>
+                              <Save className="w-4 h-4 mr-2" />
+                              Update Experience
+                            </>
+                          ) : (
+                            <>
+                              <Plus className="w-4 h-4 mr-2" />
+                              Add Experience
+                            </>
+                          )}
+                        </Button>
+                        {workExperience.id && (
+                          <Button 
+                            type="button"
+                            variant="outline"
+                            onClick={() => cancelEdit('experience')}
+                            data-testid="cancel-edit-experience-btn"
+                          >
+                            Cancel
+                          </Button>
+                        )}
+                      </div>
                     </form>
 
                     {/* Display existing work experience */}
                     <div className="mt-8 space-y-4">
-                      {profile.work_experience?.map((exp, index) => (
-                        <div key={index} className="border border-slate-200 rounded-lg p-4">
-                          <div className="flex items-start justify-between">
-                            <div>
-                              <h4 className="font-semibold text-slate-800">{exp.position}</h4>
-                              <p className="text-blue-600 font-medium">{exp.company}</p>
-                              <p className="text-sm text-slate-600">{exp.location}</p>
-                              <p className="text-sm text-slate-500">
-                                {new Date(exp.start_date).toLocaleDateString()} - {
-                                  exp.current ? 'Present' : new Date(exp.end_date).toLocaleDateString()
-                                }
-                              </p>
+                      <h4 className="font-semibold text-slate-700">Your Experience ({profile.work_experience?.length || 0})</h4>
+                      {profile.work_experience?.length > 0 ? (
+                        profile.work_experience.map((exp, index) => (
+                          <div key={exp.id || index} className="border border-slate-200 rounded-lg p-4 hover:border-blue-200 transition-colors">
+                            <div className="flex items-start justify-between">
+                              <div className="flex-1">
+                                <h4 className="font-semibold text-slate-800">{exp.position}</h4>
+                                <p className="text-blue-600 font-medium">{exp.company}</p>
+                                <p className="text-sm text-slate-600">{exp.location}</p>
+                                <p className="text-sm text-slate-500">
+                                  {new Date(exp.start_date).toLocaleDateString('en-ZA', { year: 'numeric', month: 'short' })} - {
+                                    exp.current ? 'Present' : new Date(exp.end_date).toLocaleDateString('en-ZA', { year: 'numeric', month: 'short' })
+                                  }
+                                </p>
+                              </div>
+                              <div className="flex space-x-2">
+                                <Button 
+                                  variant="ghost" 
+                                  size="sm"
+                                  onClick={() => editWorkExperience(exp)}
+                                  className="text-blue-600 hover:text-blue-700 hover:bg-blue-50"
+                                  data-testid={`edit-experience-${index}`}
+                                >
+                                  <Pencil className="w-4 h-4" />
+                                </Button>
+                                <Button 
+                                  variant="ghost" 
+                                  size="sm"
+                                  onClick={() => deleteWorkExperience(exp.id)}
+                                  className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                                  data-testid={`delete-experience-${index}`}
+                                >
+                                  <Trash2 className="w-4 h-4" />
+                                </Button>
+                              </div>
                             </div>
+                            <p className="mt-2 text-slate-700 text-sm">{exp.description}</p>
                           </div>
-                          <p className="mt-2 text-slate-700 text-sm">{exp.description}</p>
+                        ))
+                      ) : (
+                        <div className="text-center py-8 text-slate-500">
+                          <Briefcase className="w-12 h-12 mx-auto mb-3 text-slate-300" />
+                          <p>No work experience added yet</p>
+                          <p className="text-sm">Add your work history to improve your profile</p>
                         </div>
-                      ))}
+                      )}
                     </div>
                   </CardContent>
                 </Card>
@@ -697,7 +1021,7 @@ const ProfileDashboard = ({ user, onUpdateUser }) => {
                   <CardHeader>
                     <CardTitle className="flex items-center space-x-2">
                       <GraduationCap className="w-5 h-5 text-blue-600" />
-                      <span>Education</span>
+                      <span>{education.id ? 'Edit Education' : 'Education'}</span>
                       {!progress.education && (
                         <Badge className="bg-yellow-100 text-yellow-800 text-xs">
                           +10 points
@@ -706,7 +1030,7 @@ const ProfileDashboard = ({ user, onUpdateUser }) => {
                     </CardTitle>
                   </CardHeader>
                   <CardContent>
-                    <form onSubmit={addEducation} className="space-y-6">
+                    <form onSubmit={education.id ? updateEducation : addEducation} className="space-y-6">
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                         <div className="space-y-2">
                           <Label htmlFor="institution">Institution</Label>
@@ -799,22 +1123,45 @@ const ProfileDashboard = ({ user, onUpdateUser }) => {
                         <Label htmlFor="edu_current">I'm currently studying here</Label>
                       </div>
 
-                      <Button 
-                        type="submit"
-                        className="bg-gradient-to-r from-blue-600 to-slate-700 hover:from-blue-700 hover:to-slate-800"
-                      >
-                        <Plus className="w-4 h-4 mr-2" />
-                        Add Education
-                      </Button>
+                      <div className="flex space-x-3">
+                        <Button 
+                          type="submit"
+                          className="bg-gradient-to-r from-blue-600 to-slate-700 hover:from-blue-700 hover:to-slate-800"
+                          data-testid="save-education-btn"
+                        >
+                          {education.id ? (
+                            <>
+                              <Save className="w-4 h-4 mr-2" />
+                              Update Education
+                            </>
+                          ) : (
+                            <>
+                              <Plus className="w-4 h-4 mr-2" />
+                              Add Education
+                            </>
+                          )}
+                        </Button>
+                        {education.id && (
+                          <Button 
+                            type="button"
+                            variant="outline"
+                            onClick={() => cancelEdit('education')}
+                            data-testid="cancel-edit-education-btn"
+                          >
+                            Cancel
+                          </Button>
+                        )}
+                      </div>
                     </form>
 
                     {/* Display existing education */}
                     <div className="mt-8 space-y-4">
+                      <h4 className="font-semibold text-slate-700">Your Education ({profile.education?.length || 0})</h4>
                       {profile.education?.length > 0 ? (
                         profile.education.map((edu, index) => (
-                          <div key={index} className="border border-slate-200 rounded-lg p-4">
+                          <div key={edu.id || index} className="border border-slate-200 rounded-lg p-4 hover:border-blue-200 transition-colors">
                             <div className="flex items-start justify-between">
-                              <div>
+                              <div className="flex-1">
                                 <h4 className="font-semibold text-slate-800">{edu.degree}</h4>
                                 <p className="text-blue-600 font-medium">{edu.institution}</p>
                                 <p className="text-sm text-slate-600">{edu.field_of_study}</p>
@@ -827,7 +1174,27 @@ const ProfileDashboard = ({ user, onUpdateUser }) => {
                                   <Badge className="mt-2 bg-green-100 text-green-800">{edu.grade}</Badge>
                                 )}
                               </div>
-                              <Badge variant="outline" className="capitalize">{edu.level}</Badge>
+                              <div className="flex items-center space-x-2">
+                                <Badge variant="outline" className="capitalize">{edu.level}</Badge>
+                                <Button 
+                                  variant="ghost" 
+                                  size="sm"
+                                  onClick={() => editEducation(edu)}
+                                  className="text-blue-600 hover:text-blue-700 hover:bg-blue-50"
+                                  data-testid={`edit-education-${index}`}
+                                >
+                                  <Pencil className="w-4 h-4" />
+                                </Button>
+                                <Button 
+                                  variant="ghost" 
+                                  size="sm"
+                                  onClick={() => deleteEducation(edu.id)}
+                                  className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                                  data-testid={`delete-education-${index}`}
+                                >
+                                  <Trash2 className="w-4 h-4" />
+                                </Button>
+                              </div>
                             </div>
                           </div>
                         ))
@@ -849,7 +1216,7 @@ const ProfileDashboard = ({ user, onUpdateUser }) => {
                   <CardHeader>
                     <CardTitle className="flex items-center space-x-2">
                       <Award className="w-5 h-5 text-blue-600" />
-                      <span>Awards & Achievements</span>
+                      <span>{achievement.id ? 'Edit Award/Achievement' : 'Awards & Achievements'}</span>
                       {!progress.achievements && (
                         <Badge className="bg-yellow-100 text-yellow-800 text-xs">
                           +10 points
@@ -858,7 +1225,7 @@ const ProfileDashboard = ({ user, onUpdateUser }) => {
                     </CardTitle>
                   </CardHeader>
                   <CardContent>
-                    <form onSubmit={addAchievement} className="space-y-6">
+                    <form onSubmit={achievement.id ? updateAchievement : addAchievement} className="space-y-6">
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                         <div className="space-y-2">
                           <Label htmlFor="achievement_title">Award / Achievement Title</Label>
@@ -914,20 +1281,43 @@ const ProfileDashboard = ({ user, onUpdateUser }) => {
                         />
                       </div>
 
-                      <Button 
-                        type="submit"
-                        className="bg-gradient-to-r from-blue-600 to-slate-700 hover:from-blue-700 hover:to-slate-800"
-                      >
-                        <Plus className="w-4 h-4 mr-2" />
-                        Add Achievement
-                      </Button>
+                      <div className="flex space-x-3">
+                        <Button 
+                          type="submit"
+                          className="bg-gradient-to-r from-blue-600 to-slate-700 hover:from-blue-700 hover:to-slate-800"
+                          data-testid="save-achievement-btn"
+                        >
+                          {achievement.id ? (
+                            <>
+                              <Save className="w-4 h-4 mr-2" />
+                              Update Achievement
+                            </>
+                          ) : (
+                            <>
+                              <Plus className="w-4 h-4 mr-2" />
+                              Add Achievement
+                            </>
+                          )}
+                        </Button>
+                        {achievement.id && (
+                          <Button 
+                            type="button"
+                            variant="outline"
+                            onClick={() => cancelEdit('achievement')}
+                            data-testid="cancel-edit-achievement-btn"
+                          >
+                            Cancel
+                          </Button>
+                        )}
+                      </div>
                     </form>
 
                     {/* Display existing achievements */}
                     <div className="mt-8 space-y-4">
+                      <h4 className="font-semibold text-slate-700">Your Achievements ({profile.achievements?.length || 0})</h4>
                       {profile.achievements?.length > 0 ? (
                         profile.achievements.map((ach, index) => (
-                          <div key={index} className="border border-slate-200 rounded-lg p-4">
+                          <div key={ach.id || index} className="border border-slate-200 rounded-lg p-4 hover:border-blue-200 transition-colors">
                             <div className="flex items-start justify-between">
                               <div className="flex-1">
                                 <div className="flex items-center space-x-2">
@@ -949,6 +1339,26 @@ const ProfileDashboard = ({ user, onUpdateUser }) => {
                                     View Credential →
                                   </a>
                                 )}
+                              </div>
+                              <div className="flex space-x-2">
+                                <Button 
+                                  variant="ghost" 
+                                  size="sm"
+                                  onClick={() => editAchievement(ach)}
+                                  className="text-blue-600 hover:text-blue-700 hover:bg-blue-50"
+                                  data-testid={`edit-achievement-${index}`}
+                                >
+                                  <Pencil className="w-4 h-4" />
+                                </Button>
+                                <Button 
+                                  variant="ghost" 
+                                  size="sm"
+                                  onClick={() => deleteAchievement(ach.id)}
+                                  className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                                  data-testid={`delete-achievement-${index}`}
+                                >
+                                  <Trash2 className="w-4 h-4" />
+                                </Button>
                               </div>
                             </div>
                           </div>
@@ -982,21 +1392,76 @@ const ProfileDashboard = ({ user, onUpdateUser }) => {
                   <CardContent>
                     <div className="space-y-6">
                       {/* Video Introduction */}
-                      <div className="border-2 border-dashed border-slate-300 rounded-lg p-8 text-center">
-                        <Video className="w-16 h-16 mx-auto mb-4 text-slate-400" />
-                        <h3 className="text-lg font-semibold text-slate-800 mb-2">Video Introduction</h3>
-                        <p className="text-slate-600 mb-4">
-                          Record a 60-second video introducing yourself to potential employers
-                        </p>
-                        <Button variant="outline" className="border-blue-600 text-blue-600 hover:bg-blue-50">
-                          <Upload className="w-4 h-4 mr-2" />
-                          Upload Video
-                        </Button>
-                        <p className="text-xs text-slate-500 mt-2">MP4 format, max 50MB</p>
+                      <div>
+                        <input
+                          ref={videoRef}
+                          type="file"
+                          accept=".mp4,.mov,.avi,.webm"
+                          onChange={(e) => handleVideoUpload(e.target.files[0])}
+                          className="hidden"
+                          data-testid="video-upload-input"
+                        />
+                        {profile.video_intro_url ? (
+                          <div>
+                            <h3 className="text-lg font-semibold text-slate-800 mb-3">Your Video Introduction</h3>
+                            <video 
+                              controls 
+                              className="w-full max-w-md rounded-lg shadow-lg mb-4"
+                              src={profile.video_intro_url.startsWith('http') ? profile.video_intro_url : `${BACKEND_URL}${profile.video_intro_url}`}
+                            >
+                              Your browser does not support the video tag.
+                            </video>
+                            <Button 
+                              variant="outline" 
+                              onClick={() => videoRef.current?.click()}
+                              disabled={uploadingVideo}
+                              data-testid="replace-video-btn"
+                            >
+                              {uploadingVideo ? (
+                                <>
+                                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                                  Uploading...
+                                </>
+                              ) : (
+                                <>
+                                  <Upload className="w-4 h-4 mr-2" />
+                                  Replace Video
+                                </>
+                              )}
+                            </Button>
+                          </div>
+                        ) : (
+                          <div 
+                            className="border-2 border-dashed border-slate-300 rounded-lg p-8 text-center cursor-pointer hover:border-blue-400 hover:bg-slate-50 transition-colors"
+                            onClick={() => videoRef.current?.click()}
+                            data-testid="video-upload-zone"
+                          >
+                            {uploadingVideo ? (
+                              <>
+                                <Loader2 className="w-16 h-16 mx-auto mb-4 text-blue-500 animate-spin" />
+                                <h3 className="text-lg font-semibold text-slate-800 mb-2">Uploading Video...</h3>
+                                <p className="text-slate-600">Please wait while your video is being uploaded</p>
+                              </>
+                            ) : (
+                              <>
+                                <Video className="w-16 h-16 mx-auto mb-4 text-slate-400" />
+                                <h3 className="text-lg font-semibold text-slate-800 mb-2">Video Introduction</h3>
+                                <p className="text-slate-600 mb-4">
+                                  Record a 60-second video introducing yourself to potential employers
+                                </p>
+                                <Button variant="outline" className="border-blue-600 text-blue-600 hover:bg-blue-50">
+                                  <Upload className="w-4 h-4 mr-2" />
+                                  Upload Video
+                                </Button>
+                                <p className="text-xs text-slate-500 mt-2">MP4, MOV, AVI, or WebM format, max 50MB</p>
+                              </>
+                            )}
+                          </div>
+                        )}
                       </div>
 
                       {/* Portfolio Links */}
-                      <div className="space-y-4">
+                      <form onSubmit={handleMediaSubmit} className="space-y-4">
                         <h3 className="text-lg font-semibold text-slate-800">Portfolio Links</h3>
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                           <div className="space-y-2">
@@ -1005,18 +1470,9 @@ const ProfileDashboard = ({ user, onUpdateUser }) => {
                               id="linkedin_url"
                               type="url"
                               placeholder="https://linkedin.com/in/yourprofile"
-                              value={profile.linkedin_url || ''}
-                              disabled
-                            />
-                          </div>
-                          <div className="space-y-2">
-                            <Label htmlFor="github_url">GitHub / GitLab</Label>
-                            <Input
-                              id="github_url"
-                              type="url"
-                              placeholder="https://github.com/yourusername"
-                              value={profile.github_url || ''}
-                              disabled
+                              value={mediaForm.linkedin_url}
+                              onChange={(e) => setMediaForm(prev => ({ ...prev, linkedin_url: e.target.value }))}
+                              data-testid="linkedin-input"
                             />
                           </div>
                           <div className="space-y-2">
@@ -1025,39 +1481,31 @@ const ProfileDashboard = ({ user, onUpdateUser }) => {
                               id="portfolio_url"
                               type="url"
                               placeholder="https://yourportfolio.com"
-                              value={profile.portfolio_url || ''}
-                              disabled
-                            />
-                          </div>
-                          <div className="space-y-2">
-                            <Label htmlFor="other_url">Other Link</Label>
-                            <Input
-                              id="other_url"
-                              type="url"
-                              placeholder="https://..."
-                              value={profile.other_url || ''}
-                              disabled
+                              value={mediaForm.portfolio_url}
+                              onChange={(e) => setMediaForm(prev => ({ ...prev, portfolio_url: e.target.value }))}
+                              data-testid="portfolio-input"
                             />
                           </div>
                         </div>
-                        <p className="text-sm text-slate-500">
-                          Portfolio link editing coming soon. Add your links during profile setup.
-                        </p>
-                      </div>
-
-                      {/* Display existing video if any */}
-                      {profile.video_intro_url && (
-                        <div className="mt-6">
-                          <h3 className="text-lg font-semibold text-slate-800 mb-3">Your Video Introduction</h3>
-                          <video 
-                            controls 
-                            className="w-full max-w-md rounded-lg shadow-lg"
-                            src={profile.video_intro_url}
-                          >
-                            Your browser does not support the video tag.
-                          </video>
-                        </div>
-                      )}
+                        <Button 
+                          type="submit"
+                          disabled={loading}
+                          className="bg-gradient-to-r from-blue-600 to-slate-700 hover:from-blue-700 hover:to-slate-800"
+                          data-testid="save-media-btn"
+                        >
+                          {loading ? (
+                            <div className="flex items-center space-x-2">
+                              <Loader2 className="w-4 h-4 animate-spin" />
+                              <span>Saving...</span>
+                            </div>
+                          ) : (
+                            <div className="flex items-center space-x-2">
+                              <Save className="w-4 h-4" />
+                              <span>Save Links</span>
+                            </div>
+                          )}
+                        </Button>
+                      </form>
                     </div>
                   </CardContent>
                 </Card>

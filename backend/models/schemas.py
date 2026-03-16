@@ -230,6 +230,8 @@ class UserProfileUpdate(BaseModel):
     skills: Optional[List[str]] = None
     profile_picture_url: Optional[str] = None
     intro_video_url: Optional[str] = None
+    linkedin_url: Optional[str] = None
+    portfolio_url: Optional[str] = None
 
 
 # ============================================

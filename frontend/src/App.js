@@ -1142,7 +1142,15 @@ function App() {
   }, []);
 
   const handleLogin = (userData) => {
-    setUser(userData);
+    // Force onboarding_completed to true since onboarding is disabled
+    const userWithOnboardingComplete = {
+      ...userData,
+      onboarding_completed: true,
+      onboarding_progress: 100
+    };
+    
+    setUser(userWithOnboardingComplete);
+    localStorage.setItem('user', JSON.stringify(userWithOnboardingComplete));
     setIsAuthenticated(true);
     
     // Role-based routing after login
@@ -1166,7 +1174,15 @@ function App() {
   };
 
   const handleRegister = (userData) => {
-    setUser(userData);
+    // Force onboarding_completed to true since onboarding is disabled
+    const userWithOnboardingComplete = {
+      ...userData,
+      onboarding_completed: true,
+      onboarding_progress: 100
+    };
+    
+    setUser(userWithOnboardingComplete);
+    localStorage.setItem('user', JSON.stringify(userWithOnboardingComplete));
     setIsAuthenticated(true);
     setCurrentPage('profile'); // Always go to profile after registration
   };

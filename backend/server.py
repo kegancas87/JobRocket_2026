@@ -104,7 +104,7 @@ app.add_middleware(
 
 # Ensure upload directory exists
 Path(UPLOAD_PATH).mkdir(parents=True, exist_ok=True)
-for subdir in ["cvs", "profile_pictures", "documents", "images"]:
+for subdir in ["cvs", "profile_pictures", "documents", "images", "videos"]:
     (Path(UPLOAD_PATH) / subdir).mkdir(parents=True, exist_ok=True)
 
 # NOTE: Static files mount is done AFTER router include to avoid shadowing upload POST endpoints
@@ -1760,6 +1760,76 @@ async def get_company_jobs(account_id: str):
 # User Profile Endpoints
 # ============================================
 
+async def calculate_profile_progress(user_id: str):
+    """Calculate and update job seeker profile completion points"""
+    user = await db.users.find_one({"id": user_id})
+    if not user or user.get("role") != "job_seeker":
+        return
+    
+    progress = user.get("profile_progress", {})
+    total_points = 0
+    
+    # Profile picture: 5 points
+    if user.get("profile_picture_url"):
+        progress["profile_picture"] = True
+        total_points += 5
+    
+    # About me (50+ chars): 10 points
+    about_me = user.get("about_me", "")
+    if about_me and len(about_me) >= 50:
+        progress["about_me"] = True
+        total_points += 10
+    
+    # Work experience: 10 points
+    if user.get("work_experience") and len(user.get("work_experience", [])) > 0:
+        progress["work_history"] = True
+        total_points += 10
+    
+    # 5+ skills: 20 points
+    if user.get("skills") and len(user.get("skills", [])) >= 5:
+        progress["skills"] = True
+        total_points += 20
+    
+    # Education: 10 points
+    if user.get("education") and len(user.get("education", [])) > 0:
+        progress["education"] = True
+        total_points += 10
+    
+    # Achievements: 10 points
+    if user.get("achievements") and len(user.get("achievements", [])) > 0:
+        progress["achievements"] = True
+        total_points += 10
+    
+    # Intro video: 20 points
+    if user.get("video_intro_url"):
+        progress["intro_video"] = True
+        progress["media"] = True
+        total_points += 20
+    
+    # Job applications (5+): 10 points
+    applications_count = await db.applications.count_documents({"user_id": user_id})
+    if applications_count >= 5:
+        progress["job_applications"] = applications_count
+        total_points += 10
+    else:
+        progress["job_applications"] = applications_count
+    
+    # Email alerts: 5 points
+    if user.get("email_alerts_enabled") or progress.get("email_alerts"):
+        progress["email_alerts"] = True
+        total_points += 5
+    
+    # Update progress with total points
+    progress["total_points"] = total_points
+    
+    await db.users.update_one(
+        {"id": user_id},
+        {"$set": {"profile_progress": progress, "updated_at": datetime.utcnow()}}
+    )
+    
+    return progress
+
+
 @api_router.put("/profile")
 async def update_profile(
     profile_data: UserProfileUpdate,
@@ -1774,6 +1844,10 @@ async def update_profile(
         {"id": current_user.id},
         {"$set": update_dict}
     )
+    
+    # Recalculate profile progress for job seekers
+    if current_user.role == "job_seeker":
+        await calculate_profile_progress(current_user.id)
     
     return {"message": "Profile updated successfully"}
 
@@ -1809,6 +1883,10 @@ async def add_work_experience(
         }
     )
     
+    # Recalculate profile progress
+    if current_user.role == "job_seeker":
+        await calculate_profile_progress(current_user.id)
+    
     return {"message": "Work experience added successfully", "work_experience": work_entry}
 
 
@@ -1822,7 +1900,35 @@ async def delete_work_experience(
         {"id": current_user.id},
         {"$pull": {"work_experience": {"id": experience_id}}}
     )
+    # Recalculate progress after deletion
+    if current_user.role == "job_seeker":
+        await calculate_profile_progress(current_user.id)
     return {"message": "Work experience deleted successfully"}
+
+
+@api_router.put("/profile/work-experience/{experience_id}")
+async def update_work_experience(
+    experience_id: str,
+    request: Request,
+    current_user: User = Depends(get_current_user)
+):
+    """Update work experience entry"""
+    body = await request.json()
+    
+    # Build update dict
+    update_fields = {}
+    for field in ["company", "position", "location", "start_date", "end_date", "current", "description"]:
+        if field in body:
+            update_fields[f"work_experience.$.{field}"] = body[field]
+    
+    update_fields["work_experience.$.updated_at"] = datetime.utcnow().isoformat()
+    update_fields["updated_at"] = datetime.utcnow()
+    
+    await db.users.update_one(
+        {"id": current_user.id, "work_experience.id": experience_id},
+        {"$set": update_fields}
+    )
+    return {"message": "Work experience updated successfully"}
 
 
 @api_router.post("/profile/education")
@@ -1857,6 +1963,10 @@ async def add_education(
         }
     )
     
+    # Recalculate profile progress
+    if current_user.role == "job_seeker":
+        await calculate_profile_progress(current_user.id)
+    
     return {"message": "Education added successfully", "education": education_entry}
 
 
@@ -1870,7 +1980,35 @@ async def delete_education(
         {"id": current_user.id},
         {"$pull": {"education": {"id": education_id}}}
     )
+    # Recalculate progress after deletion
+    if current_user.role == "job_seeker":
+        await calculate_profile_progress(current_user.id)
     return {"message": "Education deleted successfully"}
+
+
+@api_router.put("/profile/education/{education_id}")
+async def update_education(
+    education_id: str,
+    request: Request,
+    current_user: User = Depends(get_current_user)
+):
+    """Update education entry"""
+    body = await request.json()
+    
+    # Build update dict
+    update_fields = {}
+    for field in ["institution", "degree", "field_of_study", "level", "start_date", "end_date", "current", "grade"]:
+        if field in body:
+            update_fields[f"education.$.{field}"] = body[field]
+    
+    update_fields["education.$.updated_at"] = datetime.utcnow().isoformat()
+    update_fields["updated_at"] = datetime.utcnow()
+    
+    await db.users.update_one(
+        {"id": current_user.id, "education.id": education_id},
+        {"$set": update_fields}
+    )
+    return {"message": "Education updated successfully"}
 
 
 @api_router.post("/profile/achievement")
@@ -1902,6 +2040,10 @@ async def add_achievement(
         }
     )
     
+    # Recalculate profile progress
+    if current_user.role == "job_seeker":
+        await calculate_profile_progress(current_user.id)
+    
     return {"message": "Achievement added successfully", "achievement": achievement_entry}
 
 
@@ -1915,7 +2057,35 @@ async def delete_achievement(
         {"id": current_user.id},
         {"$pull": {"achievements": {"id": achievement_id}}}
     )
+    # Recalculate progress after deletion
+    if current_user.role == "job_seeker":
+        await calculate_profile_progress(current_user.id)
     return {"message": "Achievement deleted successfully"}
+
+
+@api_router.put("/profile/achievement/{achievement_id}")
+async def update_achievement(
+    achievement_id: str,
+    request: Request,
+    current_user: User = Depends(get_current_user)
+):
+    """Update achievement entry"""
+    body = await request.json()
+    
+    # Build update dict
+    update_fields = {}
+    for field in ["title", "description", "date_achieved", "issuer", "credential_url"]:
+        if field in body:
+            update_fields[f"achievements.$.{field}"] = body[field]
+    
+    update_fields["achievements.$.updated_at"] = datetime.utcnow().isoformat()
+    update_fields["updated_at"] = datetime.utcnow()
+    
+    await db.users.update_one(
+        {"id": current_user.id, "achievements.id": achievement_id},
+        {"$set": update_fields}
+    )
+    return {"message": "Achievement updated successfully"}
 
 
 @api_router.post("/profile/email-alerts")
@@ -2213,6 +2383,56 @@ async def upload_profile_picture(
     
     file_url = f"/api/uploads/profile_pictures/{filename}"
     await db.users.update_one({"id": current_user.id}, {"$set": {"profile_picture_url": file_url, "updated_at": datetime.utcnow()}})
+    
+    # Recalculate profile progress
+    if current_user.role == "job_seeker":
+        await calculate_profile_progress(current_user.id)
+    
+    return {"url": file_url, "filename": file.filename}
+
+@api_router.post("/uploads/video")
+async def upload_video(
+    file: UploadFile = File(...),
+    current_user: User = Depends(get_current_user)
+):
+    """Upload a video introduction"""
+    if not file.filename.lower().endswith(('.mp4', '.mov', '.avi', '.webm')):
+        raise HTTPException(status_code=400, detail="Unsupported video format. Use MP4, MOV, AVI, or WebM")
+    
+    content = await file.read()
+    # 50MB limit for video files
+    video_max_size = 50 * 1024 * 1024
+    if len(content) > video_max_size:
+        raise HTTPException(status_code=400, detail="Video too large (max 50MB)")
+    
+    video_dir = Path(UPLOAD_PATH) / "videos"
+    video_dir.mkdir(parents=True, exist_ok=True)
+    
+    ext = Path(file.filename).suffix
+    filename = f"{current_user.id}_video_{uuid.uuid4().hex[:8]}{ext}"
+    filepath = video_dir / filename
+    
+    with open(filepath, "wb") as f:
+        f.write(content)
+    
+    file_url = f"/api/uploads/videos/{filename}"
+    
+    # Update user profile with video URL and update profile progress
+    await db.users.update_one(
+        {"id": current_user.id}, 
+        {
+            "$set": {
+                "video_intro_url": file_url, 
+                "updated_at": datetime.utcnow(),
+                "profile_progress.media": True,
+                "profile_progress.intro_video": True
+            }
+        }
+    )
+    
+    # Recalculate profile progress
+    if current_user.role == "job_seeker":
+        await calculate_profile_progress(current_user.id)
     
     return {"url": file_url, "filename": file.filename}
 
