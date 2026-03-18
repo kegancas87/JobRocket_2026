@@ -207,36 +207,36 @@ const MyApplications = ({ user }) => {
         ) : (
           filteredApplications.map(({ application, job }) => (
             <Card key={application.id} className="bg-white/80 backdrop-blur-sm border-0 shadow-xl hover:shadow-2xl transition-all duration-300">
-              <CardContent className="p-6">
-                <div className="flex items-start justify-between">
-                  <div className="flex-1">
+              <CardContent className="p-4 sm:p-6">
+                <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
+                  <div className="flex-1 min-w-0">
                     <div className="flex items-start space-x-4">
-                      <div className="flex-1">
-                        <h4 className="font-bold text-slate-800 text-lg mb-2">{job.title}</h4>
+                      <div className="flex-1 min-w-0">
+                        <h4 className="font-bold text-slate-800 text-lg mb-2 truncate">{job.title}</h4>
                         
-                        <div className="flex items-center space-x-4 text-sm text-slate-600 mb-3">
+                        <div className="flex flex-wrap items-center gap-2 sm:gap-4 text-sm text-slate-600 mb-3">
                           <div className="flex items-center space-x-1">
-                            <Building2 className="w-4 h-4" />
-                            <span>{job.company_name}</span>
+                            <Building2 className="w-4 h-4 flex-shrink-0" />
+                            <span className="truncate">{job.company_name}</span>
                           </div>
                           <div className="flex items-center space-x-1">
-                            <MapPin className="w-4 h-4" />
-                            <span>{job.location}</span>
+                            <MapPin className="w-4 h-4 flex-shrink-0" />
+                            <span className="truncate">{job.location}</span>
                           </div>
                           <div className="flex items-center space-x-1">
-                            <Calendar className="w-4 h-4" />
-                            <span>Applied {formatDate(application.applied_date)}</span>
+                            <Calendar className="w-4 h-4 flex-shrink-0" />
+                            <span className="whitespace-nowrap">Applied {formatDate(application.applied_date)}</span>
                           </div>
                         </div>
 
-                        <div className="flex items-center space-x-3 mb-4">
-                          <Badge variant="outline">{job.job_type}</Badge>
-                          <Badge variant="outline">{job.work_type}</Badge>
-                          <Badge variant="outline">{job.industry}</Badge>
+                        <div className="flex flex-wrap items-center gap-2 mb-4">
+                          <Badge variant="outline" className="text-xs">{job.job_type}</Badge>
+                          <Badge variant="outline" className="text-xs">{job.work_type}</Badge>
+                          <Badge variant="outline" className="text-xs">{job.industry}</Badge>
                         </div>
 
                         {application.cover_letter && (
-                          <div className="mt-4 p-4 bg-slate-50 rounded-lg">
+                          <div className="mt-4 p-3 sm:p-4 bg-slate-50 rounded-lg">
                             <p className="text-sm text-slate-700 font-medium mb-2">Your Cover Letter:</p>
                             <p className="text-sm text-slate-600 line-clamp-3">
                               {application.cover_letter}
@@ -247,42 +247,45 @@ const MyApplications = ({ user }) => {
                     </div>
                   </div>
 
-                  <div className="flex flex-col items-end space-y-3">
+                  <div className="flex flex-row sm:flex-col items-center sm:items-end justify-between sm:justify-start gap-3 pt-3 sm:pt-0 border-t sm:border-t-0 border-slate-200">
                     <Badge 
                       variant="outline" 
-                      className={`flex items-center space-x-1 px-3 py-1 ${getStatusColor(application.status)}`}
+                      className={`flex items-center space-x-1 px-2 sm:px-3 py-1 text-xs sm:text-sm whitespace-nowrap ${getStatusColor(application.status)}`}
                     >
                       {getStatusIcon(application.status)}
                       <span className="capitalize font-medium">{application.status}</span>
                     </Badge>
 
-                    {application.last_updated !== application.applied_date && (
-                      <p className="text-xs text-slate-500">
-                        Updated {formatDate(application.last_updated)}
-                      </p>
-                    )}
+                    <div className="flex flex-col items-end gap-2">
+                      {application.last_updated !== application.applied_date && (
+                        <p className="text-xs text-slate-500 whitespace-nowrap">
+                          Updated {formatDate(application.last_updated)}
+                        </p>
+                      )}
 
-                    {canWithdraw(application.status) && (
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => handleWithdraw(application.id, job?.title || 'this position')}
-                        disabled={withdrawing === application.id}
-                        className="text-red-600 border-red-200 hover:bg-red-50 hover:border-red-300"
-                      >
-                        {withdrawing === application.id ? (
-                          <span className="flex items-center">
-                            <div className="w-3 h-3 border-2 border-red-400 border-t-transparent rounded-full animate-spin mr-2" />
-                            Withdrawing...
-                          </span>
-                        ) : (
-                          <span className="flex items-center">
-                            <Undo2 className="w-3 h-3 mr-1" />
-                            Withdraw
-                          </span>
-                        )}
-                      </Button>
-                    )}
+                      {canWithdraw(application.status) && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleWithdraw(application.id, job?.title || 'this position')}
+                          disabled={withdrawing === application.id}
+                          className="text-red-600 border-red-200 hover:bg-red-50 hover:border-red-300 text-xs sm:text-sm px-2 sm:px-3"
+                        >
+                          {withdrawing === application.id ? (
+                            <span className="flex items-center">
+                              <div className="w-3 h-3 border-2 border-red-400 border-t-transparent rounded-full animate-spin mr-1 sm:mr-2" />
+                              <span className="hidden sm:inline">Withdrawing...</span>
+                              <span className="sm:hidden">...</span>
+                            </span>
+                          ) : (
+                            <span className="flex items-center">
+                              <Undo2 className="w-3 h-3 mr-1" />
+                              Withdraw
+                            </span>
+                          )}
+                        </Button>
+                      )}
+                    </div>
                   </div>
                 </div>
 
