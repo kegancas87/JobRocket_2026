@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo, useCallback } from 'react';
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "./ui/card";
@@ -22,26 +22,6 @@ import axios from 'axios';
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
 
-// REMINDER: DO NOT HARDCODE THE URL, OR ADD ANY FALLBACKS OR REDIRECT URLS, THIS BREAKS THE AUTH
-const handleGoogleSuccess = async (credentialResponse, onAuth, setError, setLoading, role, companyName) => {
-  setLoading(true);
-  setError('');
-  try {
-    const response = await axios.post(`${API}/auth/google`, {
-      credential: credentialResponse.credential,
-      role: role || 'job_seeker',
-      company_name: companyName || undefined,
-    });
-    localStorage.setItem('token', response.data.access_token);
-    localStorage.setItem('user', JSON.stringify(response.data.user));
-    onAuth(response.data.user);
-  } catch (error) {
-    setError(error.response?.data?.detail || 'Google authentication failed');
-  } finally {
-    setLoading(false);
-  }
-};
-
 const LoginPage = ({ onLogin, onSwitchToRegister }) => {
   const [formData, setFormData] = useState({
     email: '',
@@ -50,6 +30,29 @@ const LoginPage = ({ onLogin, onSwitchToRegister }) => {
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+
+  // Memoize Google success handler to prevent re-initialization of GoogleLogin
+  const handleGoogleLoginSuccess = useCallback(async (credentialResponse) => {
+    setLoading(true);
+    setError('');
+    try {
+      const response = await axios.post(`${API}/auth/google`, {
+        credential: credentialResponse.credential,
+        role: 'job_seeker',
+      });
+      localStorage.setItem('token', response.data.access_token);
+      localStorage.setItem('user', JSON.stringify(response.data.user));
+      onLogin(response.data.user);
+    } catch (error) {
+      setError(error.response?.data?.detail || 'Google authentication failed');
+    } finally {
+      setLoading(false);
+    }
+  }, [onLogin]);
+
+  const handleGoogleError = useCallback(() => {
+    setError('Google login failed. Please try again.');
+  }, []);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -67,6 +70,19 @@ const LoginPage = ({ onLogin, onSwitchToRegister }) => {
       setLoading(false);
     }
   };
+
+  // Memoize GoogleLogin to prevent re-initialization
+  const googleLoginButton = useMemo(() => (
+    <GoogleLogin
+      onSuccess={handleGoogleLoginSuccess}
+      onError={handleGoogleError}
+      text="signin_with"
+      shape="rectangular"
+      width="360"
+      logo_alignment="center"
+      useOneTap={false}
+    />
+  ), [handleGoogleLoginSuccess, handleGoogleError]);
 
   return (
     <div 
@@ -170,14 +186,7 @@ const LoginPage = ({ onLogin, onSwitchToRegister }) => {
             </div>
             
             <div className="mt-4 flex justify-center" data-testid="google-login-btn">
-              <GoogleLogin
-                onSuccess={(credentialResponse) => handleGoogleSuccess(credentialResponse, onLogin, setError, setLoading)}
-                onError={() => setError('Google login failed')}
-                text="signin_with"
-                shape="rectangular"
-                width="360"
-                logo_alignment="center"
-              />
+              {googleLoginButton}
             </div>
           </div>
           
@@ -218,6 +227,34 @@ const RegisterPage = ({ onRegister, onSwitchToLogin }) => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
+  // Memoize Google success handler - use formData.role from ref to avoid dependency issues
+  const roleRef = React.useRef(formData.role);
+  React.useEffect(() => {
+    roleRef.current = formData.role;
+  }, [formData.role]);
+
+  const handleGoogleRegisterSuccess = useCallback(async (credentialResponse) => {
+    setLoading(true);
+    setError('');
+    try {
+      const response = await axios.post(`${API}/auth/google`, {
+        credential: credentialResponse.credential,
+        role: roleRef.current,
+      });
+      localStorage.setItem('token', response.data.access_token);
+      localStorage.setItem('user', JSON.stringify(response.data.user));
+      onRegister(response.data.user);
+    } catch (error) {
+      setError(error.response?.data?.detail || 'Google authentication failed');
+    } finally {
+      setLoading(false);
+    }
+  }, [onRegister]);
+
+  const handleGoogleError = useCallback(() => {
+    setError('Google registration failed. Please try again.');
+  }, []);
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
@@ -234,6 +271,19 @@ const RegisterPage = ({ onRegister, onSwitchToLogin }) => {
       setLoading(false);
     }
   };
+
+  // Memoize GoogleLogin to prevent re-initialization
+  const googleRegisterButton = useMemo(() => (
+    <GoogleLogin
+      onSuccess={handleGoogleRegisterSuccess}
+      onError={handleGoogleError}
+      text="signup_with"
+      shape="rectangular"
+      width="360"
+      logo_alignment="center"
+      useOneTap={false}
+    />
+  ), [handleGoogleRegisterSuccess, handleGoogleError]);
 
   return (
     <div 
@@ -403,14 +453,7 @@ const RegisterPage = ({ onRegister, onSwitchToLogin }) => {
             </div>
             
             <div className="mt-4 flex justify-center" data-testid="google-register-btn">
-              <GoogleLogin
-                onSuccess={(credentialResponse) => handleGoogleSuccess(credentialResponse, onRegister, setError, setLoading, formData.role)}
-                onError={() => setError('Google registration failed')}
-                text="signup_with"
-                shape="rectangular"
-                width="360"
-                logo_alignment="center"
-              />
+              {googleRegisterButton}
             </div>
           </div>
           
