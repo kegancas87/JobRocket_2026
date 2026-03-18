@@ -3327,7 +3327,7 @@ async def admin_create_user(
     
     # Hash password
     pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
-    password_hash = pwd_context.hash(password)
+    hashed_password = pwd_context.hash(password)
     
     # Create user document
     user_id = str(uuid.uuid4())
@@ -3336,7 +3336,7 @@ async def admin_create_user(
     user_doc = {
         "id": user_id,
         "email": email,
-        "password": password_hash,
+        "password_hash": hashed_password,
         "first_name": first_name,
         "last_name": last_name,
         "role": role,
@@ -3452,7 +3452,7 @@ async def admin_update_user(
     # Handle password change
     if "password" in body and body["password"]:
         pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
-        update_fields["password"] = pwd_context.hash(body["password"])
+        update_fields["password_hash"] = pwd_context.hash(body["password"])
     
     # Handle work experience, education, achievements for job seekers
     if user.get("role") == "job_seeker":

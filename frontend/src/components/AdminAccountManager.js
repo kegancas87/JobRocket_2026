@@ -11,7 +11,7 @@ import {
   ArrowUpRight, ChevronRight, Loader2, Check, X, Shield,
   History, DollarSign, UserPlus, Package, AlertCircle, Trash2,
   User, Briefcase, GraduationCap, Award, Mail, Phone, MapPin,
-  Save, Pencil, Eye, ChevronDown
+  Save, Pencil, Eye, EyeOff, ChevronDown
 } from "lucide-react";
 import axios from 'axios';
 
@@ -112,6 +112,7 @@ const AdminAccountManager = ({ user }) => {
   const [showUserModal, setShowUserModal] = useState(false);
   const [editingUser, setEditingUser] = useState(null);
   const [accountsList, setAccountsList] = useState([]);
+  const [showPassword, setShowPassword] = useState(false);
   const [userForm, setUserForm] = useState({
     email: '',
     password: '',
@@ -302,6 +303,7 @@ const AdminAccountManager = ({ user }) => {
       account_id: '', company_name: '', company_website: '', company_industry: '',
       company_size: '', company_description: '', tier_id: 'starter', credit_balance: 0
     });
+    setShowPassword(false);
     setNewSkill('');
     setNewWorkExp({ company: '', position: '', location: '', start_date: '', end_date: '', current: false, description: '' });
     setNewEducation({ institution: '', degree: '', field_of_study: '', level: 'Bachelors', start_date: '', end_date: '', current: false, grade: '' });
@@ -930,7 +932,23 @@ const AdminAccountManager = ({ user }) => {
               </div>
               <div className="space-y-2">
                 <Label>{editingUser ? 'New Password (leave blank to keep)' : 'Password *'}</Label>
-                <Input type="password" value={userForm.password} onChange={(e) => setUserForm(f => ({ ...f, password: e.target.value }))} placeholder="••••••••" data-testid="user-password" />
+                <div className="relative">
+                  <Input 
+                    type={showPassword ? "text" : "password"} 
+                    value={userForm.password} 
+                    onChange={(e) => setUserForm(f => ({ ...f, password: e.target.value }))} 
+                    placeholder={showPassword ? "Enter password" : "••••••••"} 
+                    className="pr-10"
+                    data-testid="user-password" 
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                  >
+                    {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
+                </div>
               </div>
               <div className="space-y-2">
                 <Label>Role *</Label>
