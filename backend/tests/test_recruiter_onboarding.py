@@ -14,7 +14,7 @@ import pytest
 import requests
 import os
 
-BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://jobs-dashboard-3.preview.emergentagent.com')
+BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://job-rocket-preview.preview.emergentagent.com')
 
 # Test credentials from review request
 RECRUITER_PRO = {"email": "careers@fintechsa.co.za", "password": "demo123"}

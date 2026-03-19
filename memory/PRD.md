@@ -1,7 +1,7 @@
 # JobRocket - Product Requirements Document
 
-> **Last Updated**: February 2026
-> **Version**: 2.7.0 (Recruiter Reports MVP Complete)
+> **Last Updated**: March 2026
+> **Version**: 2.8.0 (Cosmetic Branding Complete)
 
 ---
 
@@ -309,6 +309,15 @@ Tasks performed:
   - Onboarding popup disabled at login/registration
   - Users go directly to profile/dashboard
   - `onboarding_completed: true` set automatically
+
+---
+
+### Phase 14: Branding & Cosmetic Updates (March 2026)
+- [x] **Custom Branding**
+  - Website title changed from "Emergent | Fullstack App" to "Job Rocket"
+  - Custom rocket favicon added (`/favicon.ico`)
+  - "Made with Emergent" badge removed from all pages
+  - Meta description updated
 
 ---
 
