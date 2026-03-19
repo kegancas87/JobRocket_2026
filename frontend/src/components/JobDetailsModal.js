@@ -167,7 +167,7 @@ const JobDetailsModal = ({ job, user, isOpen, onClose, onApplicationSuccess }) =
                 {job.salary && (
                   <div className="bg-emerald-50 p-3 sm:p-4 rounded-lg">
                     <div className="flex items-center space-x-1.5 sm:space-x-2 text-emerald-700 mb-1">
-                      <DollarSign className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                      <span className="font-bold text-sm sm:text-base">R</span>
                       <span className="font-medium text-xs sm:text-sm">Salary</span>
                     </div>
                     <p className="font-bold text-emerald-800 text-sm sm:text-base">{job.salary}</p>

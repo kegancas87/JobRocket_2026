@@ -726,7 +726,7 @@ Marketing Manager,Johannesburg,R45000 - R60000,Permanent,Onsite,Marketing,"Join 
                               <span>{job.location}</span>
                             </div>
                             <div className="flex items-center space-x-1">
-                              <DollarSign className="w-4 h-4" />
+                              <span className="font-semibold text-slate-600">R</span>
                               <span>{job.salary}</span>
                             </div>
                           </div>
@@ -805,7 +805,7 @@ Marketing Manager,Johannesburg,R45000 - R60000,Permanent,Onsite,Marketing,"Join 
                               <span>{job.location}</span>
                             </div>
                             <div className="flex items-center space-x-1">
-                              <DollarSign className="w-4 h-4" />
+                              <span className="font-semibold text-slate-600">R</span>
                               <span>{job.salary}</span>
                             </div>
                           </div>

@@ -469,7 +469,7 @@ const JobsDashboard = ({ user }) => {
                         <span>{job.job_type}</span>
                       </div>
                       <div className="flex items-center gap-1">
-                        <DollarSign className="w-4 h-4" />
+                        <span className="font-semibold">R</span>
                         <span>{job.salary || 'Salary not disclosed'}</span>
                       </div>
                       <div className="flex items-center gap-1">

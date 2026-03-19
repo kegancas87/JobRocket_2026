@@ -575,8 +575,8 @@ const CandidateCard = ({ candidate, onReveal, revealing }) => {
                   )}
                   {candidate.expected_salary && (
                     <span className="flex items-center">
-                      <DollarSign className="w-4 h-4 mr-1 text-slate-400" />
-                      R{candidate.expected_salary.toLocaleString()}/mo
+                      <span className="font-semibold mr-1 text-slate-400">R</span>
+                      {candidate.expected_salary.toLocaleString()}/mo
                     </span>
                   )}
                   {candidate.availability_status && (

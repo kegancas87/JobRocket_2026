@@ -258,7 +258,7 @@ const EasyApplyModal = ({ job, isOpen, onClose, onSuccess, user }) => {
                   </div>
                   {job.salary && (
                     <div className="flex items-center space-x-2 text-slate-600">
-                      <DollarSign className="w-4 h-4" />
+                      <span className="font-semibold">R</span>
                       <span>{job.salary}</span>
                     </div>
                   )}

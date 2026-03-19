@@ -1646,7 +1646,7 @@ const ProfileDashboard = ({ user, onUpdateUser }) => {
                                     </span>
                                     {alert.salary_range && (
                                       <span className="flex items-center">
-                                        <DollarSign className="w-3 h-3 mr-1" />
+                                        <span className="font-semibold mr-1">R</span>
                                         {alert.salary_range}
                                       </span>
                                     )}
