@@ -874,7 +874,7 @@ async def check_and_send_job_alerts(job: dict):
 async def get_jobs(
     current_user: User = Depends(get_current_recruiter),
     skip: int = 0,
-    limit: int = 10000,
+    limit: int = 150000,
     include_archived: bool = False
 ):
     """Get jobs for current account"""
@@ -900,7 +900,7 @@ async def get_jobs(
 async def get_archived_jobs(
     current_user: User = Depends(get_current_recruiter),
     skip: int = 0,
-    limit: int = 10000
+    limit: int = 150000
 ):
     """Get archived/deleted jobs for current account"""
     
@@ -921,7 +921,7 @@ async def get_archived_jobs(
 @api_router.get("/public/jobs")
 async def get_public_jobs(
     skip: int = 0,
-    limit: int = 10000,
+    limit: int = 150000,
     location: Optional[str] = None,
     job_type: Optional[str] = None,
     work_type: Optional[str] = None
