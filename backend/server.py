@@ -1785,10 +1785,10 @@ async def calculate_profile_progress(user_id: str):
         progress["work_history"] = True
         total_points += 10
     
-    # 5+ skills: 20 points
+    # 5+ skills: 15 points
     if user.get("skills") and len(user.get("skills", [])) >= 5:
         progress["skills"] = True
-        total_points += 20
+        total_points += 15
     
     # Education: 10 points
     if user.get("education") and len(user.get("education", [])) > 0:
@@ -1800,24 +1800,25 @@ async def calculate_profile_progress(user_id: str):
         progress["achievements"] = True
         total_points += 10
     
-    # Intro video: 20 points
+    # Intro video: 25 points (higher value to encourage video uploads)
     if user.get("video_intro_url"):
         progress["intro_video"] = True
         progress["media"] = True
-        total_points += 20
+        total_points += 25
     
-    # Job applications (5+): 10 points
+    # Job applications (5+): 5 points
     applications_count = await db.applications.count_documents({"user_id": user_id})
     if applications_count >= 5:
         progress["job_applications"] = applications_count
-        total_points += 10
+        total_points += 5
     else:
         progress["job_applications"] = applications_count
     
-    # Email alerts: 5 points
-    if user.get("email_alerts_enabled") or progress.get("email_alerts"):
+    # Email alerts: 10 points (higher value to encourage alerts setup)
+    job_alerts = await db.job_alerts.count_documents({"user_id": user_id})
+    if job_alerts > 0 or user.get("email_alerts_enabled") or progress.get("email_alerts"):
         progress["email_alerts"] = True
-        total_points += 5
+        total_points += 10
     
     # Update progress with total points
     progress["total_points"] = total_points

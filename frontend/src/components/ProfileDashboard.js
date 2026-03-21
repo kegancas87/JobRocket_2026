@@ -1100,7 +1100,7 @@ const ProfileDashboard = ({ user, onUpdateUser }) => {
                       <span>Skills</span>
                       {!progress.skills && (
                         <Badge className="bg-yellow-100 text-yellow-800 text-xs">
-                          +20 points (5+ skills)
+                          +15 points (5+ skills)
                         </Badge>
                       )}
                     </CardTitle>
@@ -1687,7 +1687,7 @@ const ProfileDashboard = ({ user, onUpdateUser }) => {
                       <span>Media & Portfolio</span>
                       {!progress.media && (
                         <Badge className="bg-yellow-100 text-yellow-800 text-xs">
-                          +15 points
+                          +25 points
                         </Badge>
                       )}
                     </CardTitle>
@@ -1828,7 +1828,7 @@ const ProfileDashboard = ({ user, onUpdateUser }) => {
                       <span>Job Alerts</span>
                       {!progress.email_alerts && (
                         <Badge className="bg-yellow-100 text-yellow-800 text-xs">
-                          +5 points
+                          +10 points
                         </Badge>
                       )}
                     </CardTitle>

@@ -292,17 +292,17 @@ Tasks performed:
   - Edit populates form with existing data for inline editing
   - Entries display count in section headers
 
-- [x] **Profile Completion Points System**
+- [x] **Profile Completion Points System** (Updated March 2026)
   - Points auto-calculate on every profile update
   - Profile picture: +5 points
   - About me (50+ chars): +10 points
   - Work experience: +10 points
-  - Skills (5+): +20 points
+  - Skills (5+): +15 points
   - Education: +10 points
   - Achievements: +10 points
-  - Intro video: +20 points
-  - Job applications (5+): +10 points
-  - Email alerts: +5 points
+  - **Intro video: +25 points** (increased to encourage video uploads)
+  - Job applications (5+): +5 points
+  - **Job Alerts: +10 points** (increased to encourage alert setup)
   - Total: 100 points possible
 
 - [x] **Onboarding Bypass**
