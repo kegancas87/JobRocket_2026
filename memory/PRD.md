@@ -1,7 +1,7 @@
 # JobRocket - Product Requirements Document
 
 > **Last Updated**: March 2026
-> **Version**: 2.9.0 (Document Management Added)
+> **Version**: 2.10.0 (Shareable Job Details Page)
 
 ---
 
@@ -343,6 +343,29 @@ Tasks performed:
 - [x] **Job Listing Improvements**
   - Currency changed from $ to R (South African Rand)
   - Job listing limit increased to 150,000 (background security limit)
+
+### Phase 16: Shareable Job Details Page (March 2026)
+- [x] **Job Details Page**
+  - Changed from modal to dedicated page at `/jobs/{jobId}`
+  - Shareable URL for job listings
+  - Full navigation header and seamless navigation
+  - Job information: title, company, location, salary (R), job type, work type, posted date
+  - Job description, experience, qualifications sections
+  - Apply button with inline application form
+  - Share button with native share API or clipboard copy
+  - About the Company sidebar
+  - Job Details sidebar with posting info
+  
+- [x] **Application Flow on Page**
+  - "Apply Now" button shows application form on same page
+  - User info pre-filled from profile
+  - Cover letter, resume upload, additional info fields
+  - Already applied state with link to "My Applications"
+  
+- [x] **Video Upload Validation**
+  - Frontend duration check (max 60 seconds)
+  - Backend duration validation using ffprobe
+  - 50MB file size limit
 
 ---
 

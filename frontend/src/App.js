@@ -27,6 +27,7 @@ import ContactPage from "./components/ContactPage";
 import PrivacyPolicyPage from "./components/PrivacyPolicyPage";
 import TermsOfServicePage from "./components/TermsOfServicePage";
 import CVSearchPage from "./components/CVSearchPage";
+import JobDetailsPage from "./components/JobDetailsPage";
 import { ApplyButton } from "./components/EasyApply";
 import JobDetailsModal from "./components/JobDetailsModal";
 import Navigation from "./components/Navigation";
@@ -393,6 +394,8 @@ const CompanyProfilePage = ({ companyId }) => {
 };
 
 const JobCard = ({ job, user, onSave, onApply, onJobClick }) => {
+  const navigate = useNavigate();
+  
   const formatSalary = (salaryMin, salaryMax, currency = 'ZAR') => {
     if (!salaryMin && !salaryMax) return null;
     if (salaryMin && salaryMax) {
@@ -403,16 +406,12 @@ const JobCard = ({ job, user, onSave, onApply, onJobClick }) => {
   };
 
   const handleCardClick = () => {
-    if (onJobClick) {
-      onJobClick(job);
-    }
+    navigate(`/jobs/${job.id}`);
   };
 
   const handleJobTitleClick = (e) => {
     e.stopPropagation();
-    if (onJobClick) {
-      onJobClick(job);
-    }
+    navigate(`/jobs/${job.id}`);
   };
 
   return (
@@ -1234,6 +1233,13 @@ function App() {
                 onLogout={handleLogout}
               />
             } />
+            <Route path="/jobs/:jobId" element={
+              <>
+                <Navigation user={null} onLogout={handleLogout} />
+                <JobDetailsPage user={null} />
+                <Footer />
+              </>
+            } />
             <Route path="/company/:companyId" element={
               <CompanyProfileWrapper />
             } />
@@ -1342,6 +1348,10 @@ function App() {
                   user={user} 
                   onLogout={handleLogout}
                 />
+              } />
+
+              <Route path="/jobs/:jobId" element={
+                <JobDetailsPage user={user} />
               } />
 
               <Route path="/company/:companyId" element={
