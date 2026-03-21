@@ -175,11 +175,43 @@ const ProfileDashboard = ({ user, onUpdateUser }) => {
 
   const handleVideoUpload = async (file) => {
     if (!file) return;
+    
     // Validate file size (50MB max)
     if (file.size > 50 * 1024 * 1024) {
       alert('Video file must be less than 50MB');
       return;
     }
+    
+    // Validate video duration (max 60 seconds)
+    const validateDuration = () => {
+      return new Promise((resolve, reject) => {
+        const video = document.createElement('video');
+        video.preload = 'metadata';
+        
+        video.onloadedmetadata = () => {
+          window.URL.revokeObjectURL(video.src);
+          if (video.duration > 60) {
+            reject(new Error(`Video is ${Math.round(video.duration)} seconds. Maximum allowed is 60 seconds.`));
+          } else {
+            resolve(video.duration);
+          }
+        };
+        
+        video.onerror = () => {
+          reject(new Error('Could not read video file. Please try a different format.'));
+        };
+        
+        video.src = URL.createObjectURL(file);
+      });
+    };
+    
+    try {
+      await validateDuration();
+    } catch (error) {
+      alert(error.message);
+      return;
+    }
+    
     setUploadingVideo(true);
     try {
       const formData = new FormData();
@@ -188,6 +220,7 @@ const ProfileDashboard = ({ user, onUpdateUser }) => {
       await fetchCurrentUser();
     } catch (error) {
       console.error('Error uploading video:', error);
+      alert(error.response?.data?.detail || 'Error uploading video');
     } finally {
       setUploadingVideo(false);
     }

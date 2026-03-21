@@ -2395,7 +2395,7 @@ async def upload_video(
     file: UploadFile = File(...),
     current_user: User = Depends(get_current_user)
 ):
-    """Upload a video introduction"""
+    """Upload a video introduction (max 60 seconds)"""
     if not file.filename.lower().endswith(('.mp4', '.mov', '.avi', '.webm')):
         raise HTTPException(status_code=400, detail="Unsupported video format. Use MP4, MOV, AVI, or WebM")
     
@@ -2412,8 +2412,36 @@ async def upload_video(
     filename = f"{current_user.id}_video_{uuid.uuid4().hex[:8]}{ext}"
     filepath = video_dir / filename
     
+    # Write file temporarily to check duration
     with open(filepath, "wb") as f:
         f.write(content)
+    
+    # Validate video duration using ffprobe (max 60 seconds)
+    try:
+        import subprocess
+        result = subprocess.run(
+            ['ffprobe', '-v', 'error', '-show_entries', 'format=duration', '-of', 'default=noprint_wrappers=1:nokey=1', str(filepath)],
+            capture_output=True,
+            text=True,
+            timeout=30
+        )
+        if result.returncode == 0 and result.stdout.strip():
+            duration = float(result.stdout.strip())
+            if duration > 60:
+                # Delete the file and return error
+                filepath.unlink()
+                raise HTTPException(
+                    status_code=400, 
+                    detail=f"Video is {int(duration)} seconds. Maximum allowed is 60 seconds."
+                )
+    except subprocess.TimeoutExpired:
+        # If ffprobe times out, allow the upload but log warning
+        print(f"Warning: ffprobe timeout for video {filename}")
+    except HTTPException:
+        raise
+    except Exception as e:
+        # If ffprobe fails for other reasons, allow upload but log warning
+        print(f"Warning: Could not validate video duration: {e}")
     
     file_url = f"/api/uploads/videos/{filename}"
     
