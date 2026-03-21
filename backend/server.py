@@ -2464,6 +2464,214 @@ async def upload_document(
 
 
 # ============================================
+# Profile Documents Management
+# ============================================
+
+@api_router.post("/profile/documents")
+async def upload_profile_document(
+    file: UploadFile = File(...),
+    document_type: str = Form("other"),
+    current_user: User = Depends(get_current_user)
+):
+    """Upload a profile document (CV or additional document). Max 5 documents total (1 CV + 4 others)."""
+    
+    # Validate document type
+    valid_types = ["cv", "certificate", "portfolio", "reference", "other"]
+    if document_type not in valid_types:
+        raise HTTPException(status_code=400, detail=f"Invalid document type. Must be one of: {', '.join(valid_types)}")
+    
+    # Validate file type
+    allowed_extensions = ('.pdf', '.doc', '.docx')
+    if not file.filename.lower().endswith(allowed_extensions):
+        raise HTTPException(status_code=400, detail="Only PDF, DOC, and DOCX files are allowed")
+    
+    # Read and validate file size (10MB limit for high-definition PDFs)
+    content = await file.read()
+    if len(content) > MAX_FILE_SIZE:
+        raise HTTPException(status_code=400, detail="File too large. Maximum size is 10MB")
+    
+    # Get user's current documents
+    user = await db.users.find_one({"id": current_user.id})
+    current_docs = user.get("profile_documents", []) if user else []
+    
+    # Check document limits
+    cv_count = sum(1 for d in current_docs if d.get("document_type") == "cv")
+    other_count = sum(1 for d in current_docs if d.get("document_type") != "cv")
+    
+    if document_type == "cv":
+        if cv_count >= 1:
+            raise HTTPException(status_code=400, detail="You can only upload 1 CV. Please delete the existing one first.")
+    else:
+        if other_count >= 4:
+            raise HTTPException(status_code=400, detail="You can upload a maximum of 4 additional documents. Please delete one first.")
+    
+    # Create secure filename
+    doc_dir = Path(UPLOAD_PATH) / "profile_documents"
+    doc_dir.mkdir(parents=True, exist_ok=True)
+    
+    ext = Path(file.filename).suffix.lower()
+    safe_filename = f"{current_user.id}_{document_type}_{uuid.uuid4().hex[:12]}{ext}"
+    filepath = doc_dir / safe_filename
+    
+    # Write file securely
+    with open(filepath, "wb") as f:
+        f.write(content)
+    
+    # Create document record
+    doc_record = {
+        "id": uuid.uuid4().hex[:16],
+        "filename": safe_filename,
+        "original_name": file.filename,
+        "document_type": document_type,
+        "file_url": f"/api/uploads/profile_documents/{safe_filename}",
+        "file_size": len(content),
+        "uploaded_at": datetime.utcnow().isoformat(),
+        "content_type": file.content_type
+    }
+    
+    # Update user's profile documents
+    await db.users.update_one(
+        {"id": current_user.id},
+        {"$push": {"profile_documents": doc_record}}
+    )
+    
+    # Update profile completion if CV uploaded
+    if document_type == "cv":
+        await db.users.update_one(
+            {"id": current_user.id},
+            {"$set": {"cv_url": doc_record["file_url"]}}
+        )
+    
+    return {
+        "success": True,
+        "document": doc_record,
+        "message": f"Document uploaded successfully"
+    }
+
+
+@api_router.get("/profile/documents")
+async def get_profile_documents(current_user: User = Depends(get_current_user)):
+    """Get all profile documents for the current user"""
+    
+    user = await db.users.find_one({"id": current_user.id})
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    documents = user.get("profile_documents", [])
+    
+    # Separate CV and other documents
+    cv_doc = next((d for d in documents if d.get("document_type") == "cv"), None)
+    other_docs = [d for d in documents if d.get("document_type") != "cv"]
+    
+    return {
+        "cv": cv_doc,
+        "documents": other_docs,
+        "total_count": len(documents),
+        "can_upload_cv": cv_doc is None,
+        "can_upload_other": len(other_docs) < 4
+    }
+
+
+@api_router.delete("/profile/documents/{document_id}")
+async def delete_profile_document(
+    document_id: str,
+    current_user: User = Depends(get_current_user)
+):
+    """Delete a profile document"""
+    
+    user = await db.users.find_one({"id": current_user.id})
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    documents = user.get("profile_documents", [])
+    doc_to_delete = next((d for d in documents if d.get("id") == document_id), None)
+    
+    if not doc_to_delete:
+        raise HTTPException(status_code=404, detail="Document not found")
+    
+    # Delete the file from disk
+    try:
+        filepath = Path(UPLOAD_PATH) / "profile_documents" / doc_to_delete["filename"]
+        if filepath.exists():
+            filepath.unlink()
+    except Exception as e:
+        print(f"Warning: Could not delete file from disk: {e}")
+    
+    # Remove from user's documents
+    await db.users.update_one(
+        {"id": current_user.id},
+        {"$pull": {"profile_documents": {"id": document_id}}}
+    )
+    
+    # Clear cv_url if this was the CV
+    if doc_to_delete.get("document_type") == "cv":
+        await db.users.update_one(
+            {"id": current_user.id},
+            {"$set": {"cv_url": None}}
+        )
+    
+    return {"success": True, "message": "Document deleted successfully"}
+
+
+@api_router.get("/profile/documents/{document_id}/download")
+async def download_profile_document(
+    document_id: str,
+    current_user: User = Depends(get_current_user)
+):
+    """Download a profile document (for the owner)"""
+    from fastapi.responses import FileResponse
+    
+    user = await db.users.find_one({"id": current_user.id})
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    documents = user.get("profile_documents", [])
+    doc = next((d for d in documents if d.get("id") == document_id), None)
+    
+    if not doc:
+        raise HTTPException(status_code=404, detail="Document not found")
+    
+    filepath = Path(UPLOAD_PATH) / "profile_documents" / doc["filename"]
+    if not filepath.exists():
+        raise HTTPException(status_code=404, detail="File not found on server")
+    
+    return FileResponse(
+        path=filepath,
+        filename=doc["original_name"],
+        media_type=doc.get("content_type", "application/octet-stream")
+    )
+
+
+@api_router.get("/candidates/{user_id}/documents")
+async def get_candidate_documents(
+    user_id: str,
+    current_user: User = Depends(get_current_recruiter)
+):
+    """Get profile documents for a candidate (recruiter access for CV search/applications)"""
+    
+    candidate = await db.users.find_one({"id": user_id, "role": "job_seeker"})
+    if not candidate:
+        raise HTTPException(status_code=404, detail="Candidate not found")
+    
+    documents = candidate.get("profile_documents", [])
+    
+    # Return documents with download URLs for recruiters
+    return {
+        "documents": [
+            {
+                "id": d["id"],
+                "original_name": d["original_name"],
+                "document_type": d["document_type"],
+                "file_url": d["file_url"],
+                "file_size": d.get("file_size", 0),
+                "uploaded_at": d.get("uploaded_at")
+            }
+            for d in documents
+        ]
+    }
+
+
+# ============================================
 # Payment Endpoints (Payfast)
 # ============================================
 

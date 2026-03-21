@@ -677,7 +677,7 @@ const CandidateCard = ({ candidate, onReveal, revealing }) => {
             <div className="mt-4 flex gap-3">
               {candidate.cv_url && (
                 <Button variant="outline" size="sm" asChild>
-                  <a href={candidate.cv_url} target="_blank" rel="noopener noreferrer">
+                  <a href={`${BACKEND_URL}${candidate.cv_url}`} target="_blank" rel="noopener noreferrer">
                     <FileText className="w-4 h-4 mr-1.5" />
                     View CV
                   </a>

@@ -291,7 +291,7 @@ const ApplicationManagement = ({ user }) => {
                     <Button
                       variant="outline"
                       size="sm"
-                      onClick={() => window.open(application.resume_url, '_blank')}
+                      onClick={() => window.open(`${BACKEND_URL}${application.resume_url}`, '_blank')}
                       className="flex items-center space-x-2"
                     >
                       <FileText className="w-4 h-4" />

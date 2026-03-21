@@ -1,7 +1,7 @@
 # JobRocket - Product Requirements Document
 
 > **Last Updated**: March 2026
-> **Version**: 2.8.0 (Cosmetic Branding Complete)
+> **Version**: 2.9.0 (Document Management Added)
 
 ---
 
@@ -315,9 +315,34 @@ Tasks performed:
 ### Phase 14: Branding & Cosmetic Updates (March 2026)
 - [x] **Custom Branding**
   - Website title changed from "Emergent | Fullstack App" to "Job Rocket"
-  - Custom rocket favicon added (`/favicon.ico`)
+  - Custom rocket favicon added (`/favicon.png`)
   - "Made with Emergent" badge removed from all pages
   - Meta description updated
+
+### Phase 15: Document Management System (March 2026)
+- [x] **Job Seeker Profile Documents**
+  - CV/Resume upload (1 max) - PDF, DOC, DOCX supported
+  - Additional documents upload (4 max) - certificates, portfolios, references
+  - 10MB file size limit per document for high-definition PDFs
+  - Document types: CV, Certificate, Portfolio, Reference Letter, Other
+  - View, download, and delete functionality
+  - Documents section placed between Basic Information and Skills on Overview tab
+  
+- [x] **Recruiter Access to Documents**
+  - Documents visible in CV Search candidate cards
+  - Documents accessible in job application flows
+  - Proper URL handling for document downloads
+
+- [x] **Backend API Endpoints**
+  - `POST /api/profile/documents` - Upload document with type
+  - `GET /api/profile/documents` - List user's documents
+  - `DELETE /api/profile/documents/{id}` - Delete document
+  - `GET /api/profile/documents/{id}/download` - Download document
+  - `GET /api/candidates/{user_id}/documents` - Recruiter access to candidate docs
+
+- [x] **Job Listing Improvements**
+  - Currency changed from $ to R (South African Rand)
+  - Job listing limit increased to 150,000 (background security limit)
 
 ---
 

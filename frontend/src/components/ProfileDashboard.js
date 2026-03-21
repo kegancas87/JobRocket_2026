@@ -110,6 +110,17 @@ const ProfileDashboard = ({ user, onUpdateUser }) => {
     portfolio_url: user.portfolio_url || ''
   });
 
+  // Document upload state
+  const documentRef = useRef(null);
+  const [uploadingDocument, setUploadingDocument] = useState(false);
+  const [profileDocuments, setProfileDocuments] = useState({
+    cv: null,
+    documents: [],
+    can_upload_cv: true,
+    can_upload_other: true
+  });
+  const [selectedDocType, setSelectedDocType] = useState('other');
+
   const toggleEmploymentType = (type) => {
     setNewJobAlert(prev => ({
       ...prev,
@@ -185,6 +196,85 @@ const ProfileDashboard = ({ user, onUpdateUser }) => {
   const handleMediaSubmit = async (e) => {
     e.preventDefault();
     await updateProfile(mediaForm);
+  };
+
+  // Document management functions
+  const fetchProfileDocuments = async () => {
+    try {
+      const response = await axios.get(`${API}/profile/documents`, getAuthHeaders());
+      setProfileDocuments(response.data);
+    } catch (error) {
+      console.error('Error fetching documents:', error);
+    }
+  };
+
+  const handleDocumentUpload = async (file, docType) => {
+    if (!file) return;
+    
+    // Validate file type
+    const allowedTypes = ['.pdf', '.doc', '.docx'];
+    const fileExt = file.name.toLowerCase().slice(file.name.lastIndexOf('.'));
+    if (!allowedTypes.includes(fileExt)) {
+      alert('Only PDF, DOC, and DOCX files are allowed');
+      return;
+    }
+    
+    // Validate file size (10MB max)
+    if (file.size > 10 * 1024 * 1024) {
+      alert('File must be less than 10MB');
+      return;
+    }
+    
+    setUploadingDocument(true);
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('document_type', docType);
+      
+      await axios.post(`${API}/profile/documents`, formData, getUploadHeaders());
+      await fetchProfileDocuments();
+      await fetchCurrentUser();
+    } catch (error) {
+      console.error('Error uploading document:', error);
+      alert(error.response?.data?.detail || 'Error uploading document');
+    } finally {
+      setUploadingDocument(false);
+      if (documentRef.current) {
+        documentRef.current.value = '';
+      }
+    }
+  };
+
+  const handleDeleteDocument = async (documentId) => {
+    if (!window.confirm('Are you sure you want to delete this document?')) return;
+    
+    try {
+      await axios.delete(`${API}/profile/documents/${documentId}`, getAuthHeaders());
+      await fetchProfileDocuments();
+      await fetchCurrentUser();
+    } catch (error) {
+      console.error('Error deleting document:', error);
+      alert(error.response?.data?.detail || 'Error deleting document');
+    }
+  };
+
+  const formatFileSize = (bytes) => {
+    if (bytes === 0) return '0 Bytes';
+    const k = 1024;
+    const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+  };
+
+  const getDocumentTypeLabel = (type) => {
+    const labels = {
+      cv: 'CV/Resume',
+      certificate: 'Certificate',
+      portfolio: 'Portfolio',
+      reference: 'Reference Letter',
+      other: 'Other Document'
+    };
+    return labels[type] || type;
   };
 
   const fetchCurrentUser = async () => {
@@ -550,6 +640,7 @@ const ProfileDashboard = ({ user, onUpdateUser }) => {
   useEffect(() => {
     fetchCurrentUser();
     fetchJobAlerts();
+    fetchProfileDocuments();
   }, []);
 
   return (
@@ -786,6 +877,185 @@ const ProfileDashboard = ({ user, onUpdateUser }) => {
                         )}
                       </Button>
                     </form>
+                  </CardContent>
+                </Card>
+
+                {/* Documents Section */}
+                <Card className="bg-white/80 backdrop-blur-sm border-0 shadow-xl">
+                  <CardHeader>
+                    <CardTitle className="flex items-center space-x-2">
+                      <FileText className="w-5 h-5 text-blue-600" />
+                      <span>Documents</span>
+                      {!profileDocuments.cv && (
+                        <Badge className="bg-yellow-100 text-yellow-800 text-xs">
+                          Upload CV for better visibility
+                        </Badge>
+                      )}
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="space-y-6">
+                      {/* CV Section */}
+                      <div className="border-b border-slate-200 pb-4">
+                        <h4 className="font-medium text-slate-800 mb-3 flex items-center">
+                          <FileText className="w-4 h-4 mr-2 text-blue-600" />
+                          CV / Resume
+                        </h4>
+                        
+                        {profileDocuments.cv ? (
+                          <div className="flex items-center justify-between p-3 bg-green-50 border border-green-200 rounded-lg">
+                            <div className="flex items-center space-x-3">
+                              <FileText className="w-5 h-5 text-green-600" />
+                              <div>
+                                <p className="font-medium text-slate-800 text-sm">{profileDocuments.cv.original_name}</p>
+                                <p className="text-xs text-slate-500">
+                                  {formatFileSize(profileDocuments.cv.file_size)} • Uploaded {new Date(profileDocuments.cv.uploaded_at).toLocaleDateString()}
+                                </p>
+                              </div>
+                            </div>
+                            <div className="flex items-center space-x-2">
+                              <a
+                                href={`${BACKEND_URL}${profileDocuments.cv.file_url}`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="px-3 py-1 text-sm bg-blue-100 text-blue-700 rounded hover:bg-blue-200 transition-colors"
+                              >
+                                View
+                              </a>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => handleDeleteDocument(profileDocuments.cv.id)}
+                                className="text-red-600 hover:text-red-800 hover:bg-red-50"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </Button>
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="border-2 border-dashed border-slate-300 rounded-lg p-4 text-center hover:border-blue-400 transition-colors">
+                            <input
+                              type="file"
+                              accept=".pdf,.doc,.docx"
+                              onChange={(e) => e.target.files?.[0] && handleDocumentUpload(e.target.files[0], 'cv')}
+                              className="hidden"
+                              id="cv-upload"
+                              disabled={uploadingDocument}
+                            />
+                            <label htmlFor="cv-upload" className="cursor-pointer">
+                              <Upload className="w-8 h-8 text-slate-400 mx-auto mb-2" />
+                              <p className="text-sm text-slate-600">
+                                {uploadingDocument ? 'Uploading...' : 'Click to upload your CV'}
+                              </p>
+                              <p className="text-xs text-slate-400 mt-1">PDF, DOC, DOCX • Max 10MB</p>
+                            </label>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Additional Documents Section */}
+                      <div>
+                        <h4 className="font-medium text-slate-800 mb-3 flex items-center justify-between">
+                          <span className="flex items-center">
+                            <FileText className="w-4 h-4 mr-2 text-blue-600" />
+                            Additional Documents
+                          </span>
+                          <span className="text-xs text-slate-500">
+                            {profileDocuments.documents.length}/4 documents
+                          </span>
+                        </h4>
+
+                        {/* Existing Documents */}
+                        {profileDocuments.documents.length > 0 && (
+                          <div className="space-y-2 mb-4">
+                            {profileDocuments.documents.map((doc) => (
+                              <div key={doc.id} className="flex items-center justify-between p-3 bg-slate-50 border border-slate-200 rounded-lg">
+                                <div className="flex items-center space-x-3">
+                                  <FileText className="w-5 h-5 text-slate-600" />
+                                  <div>
+                                    <p className="font-medium text-slate-800 text-sm">{doc.original_name}</p>
+                                    <p className="text-xs text-slate-500">
+                                      {getDocumentTypeLabel(doc.document_type)} • {formatFileSize(doc.file_size)}
+                                    </p>
+                                  </div>
+                                </div>
+                                <div className="flex items-center space-x-2">
+                                  <a
+                                    href={`${BACKEND_URL}${doc.file_url}`}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="px-3 py-1 text-sm bg-blue-100 text-blue-700 rounded hover:bg-blue-200 transition-colors"
+                                  >
+                                    View
+                                  </a>
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() => handleDeleteDocument(doc.id)}
+                                    className="text-red-600 hover:text-red-800 hover:bg-red-50"
+                                  >
+                                    <Trash2 className="w-4 h-4" />
+                                  </Button>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+
+                        {/* Upload New Document */}
+                        {profileDocuments.can_upload_other && (
+                          <div className="border-2 border-dashed border-slate-300 rounded-lg p-4 hover:border-blue-400 transition-colors">
+                            <div className="flex flex-col sm:flex-row items-center gap-3">
+                              <select
+                                value={selectedDocType}
+                                onChange={(e) => setSelectedDocType(e.target.value)}
+                                className="px-3 py-2 border border-slate-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                              >
+                                <option value="certificate">Certificate</option>
+                                <option value="portfolio">Portfolio</option>
+                                <option value="reference">Reference Letter</option>
+                                <option value="other">Other</option>
+                              </select>
+                              
+                              <input
+                                type="file"
+                                ref={documentRef}
+                                accept=".pdf,.doc,.docx"
+                                onChange={(e) => e.target.files?.[0] && handleDocumentUpload(e.target.files[0], selectedDocType)}
+                                className="hidden"
+                                id="doc-upload"
+                                disabled={uploadingDocument}
+                              />
+                              <label 
+                                htmlFor="doc-upload" 
+                                className="flex items-center space-x-2 px-4 py-2 bg-blue-600 text-white rounded-md cursor-pointer hover:bg-blue-700 transition-colors text-sm"
+                              >
+                                {uploadingDocument ? (
+                                  <>
+                                    <Loader2 className="w-4 h-4 animate-spin" />
+                                    <span>Uploading...</span>
+                                  </>
+                                ) : (
+                                  <>
+                                    <Upload className="w-4 h-4" />
+                                    <span>Upload Document</span>
+                                  </>
+                                )}
+                              </label>
+                            </div>
+                            <p className="text-xs text-slate-400 mt-2 text-center">
+                              PDF, DOC, DOCX • Max 10MB per file
+                            </p>
+                          </div>
+                        )}
+
+                        {!profileDocuments.can_upload_other && (
+                          <p className="text-sm text-amber-600 bg-amber-50 p-3 rounded-lg">
+                            Maximum 4 additional documents reached. Delete one to upload more.
+                          </p>
+                        )}
+                      </div>
+                    </div>
                   </CardContent>
                 </Card>
 
