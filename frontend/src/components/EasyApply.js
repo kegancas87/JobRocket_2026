@@ -113,7 +113,7 @@ const EasyApplyModal = ({ job, isOpen, onClose, onSuccess, user }) => {
         
         try {
           const uploadResponse = await axios.post(
-            `${API}/upload-cv`,
+            `${API}/uploads/cv`,
             formData,
             {
               headers: {
@@ -124,7 +124,7 @@ const EasyApplyModal = ({ job, isOpen, onClose, onSuccess, user }) => {
           );
           
           // Use the uploaded file URL instead of the local file
-          finalApplicationData.resume_url = uploadResponse.data.file_url;
+          finalApplicationData.resume_url = uploadResponse.data.url;
           // Remove the file object from the data
           delete finalApplicationData.resume_file;
         } catch (uploadError) {
