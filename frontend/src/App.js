@@ -575,6 +575,10 @@ const FilterOption = ({ label, count, selected, onChange }) => (
 const JobListingPage = ({ user, onLogout }) => {
   const [jobs, setJobs] = useState([]);
   const [loading, setLoading] = useState(true);
+  // Input fields - what user types
+  const [searchInput, setSearchInput] = useState("");
+  const [locationInput, setLocationInput] = useState("");
+  // Actual search values - only updated when button is clicked
   const [searchTerm, setSearchTerm] = useState("");
   const [location, setLocation] = useState("");
   const [visibleCount, setVisibleCount] = useState(30);
@@ -648,13 +652,19 @@ const JobListingPage = ({ user, onLogout }) => {
     fetchJobs();
   }, []);
 
-  useEffect(() => {
-    const timeoutId = setTimeout(() => {
-      fetchJobs();
-      setVisibleCount(30); // Reset pagination when search changes
-    }, 500);
-    return () => clearTimeout(timeoutId);
-  }, [searchTerm, location]);
+  // Handle search button click
+  const handleSearch = () => {
+    setSearchTerm(searchInput);
+    setLocation(locationInput);
+    setVisibleCount(30); // Reset pagination
+  };
+
+  // Handle Enter key in search inputs
+  const handleSearchKeyPress = (e) => {
+    if (e.key === 'Enter') {
+      handleSearch();
+    }
+  };
 
   const handleLoadMore = () => {
     setVisibleCount(prev => prev + 30);
@@ -859,8 +869,9 @@ const JobListingPage = ({ user, onLogout }) => {
               <Input
                 type="text"
                 placeholder="Job title, keywords"
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
+                value={searchInput}
+                onChange={(e) => setSearchInput(e.target.value)}
+                onKeyPress={handleSearchKeyPress}
                 className="pl-10 sm:pl-12 h-12 sm:h-16 text-base sm:text-lg font-medium bg-white/90 backdrop-blur-sm border-0 shadow-2xl rounded-2xl focus:ring-4 focus:ring-blue-500/30 focus:bg-white transition-all"
               />
             </div>
@@ -869,12 +880,16 @@ const JobListingPage = ({ user, onLogout }) => {
               <Input
                 type="text"
                 placeholder="City, province"
-                value={location}
-                onChange={(e) => setLocation(e.target.value)}
+                value={locationInput}
+                onChange={(e) => setLocationInput(e.target.value)}
+                onKeyPress={handleSearchKeyPress}
                 className="pl-10 sm:pl-12 h-12 sm:h-16 text-base sm:text-lg font-medium bg-white/90 backdrop-blur-sm border-0 shadow-2xl rounded-2xl focus:ring-4 focus:ring-blue-500/30 focus:bg-white transition-all"
               />
             </div>
-            <Button className="bg-gradient-to-r from-blue-600 to-slate-700 hover:from-blue-700 hover:to-slate-800 h-12 sm:h-16 px-6 sm:px-12 text-base sm:text-lg font-bold shadow-2xl rounded-2xl hover:shadow-3xl transform hover:scale-105 transition-all duration-300 whitespace-nowrap">
+            <Button 
+              onClick={handleSearch}
+              className="bg-gradient-to-r from-blue-600 to-slate-700 hover:from-blue-700 hover:to-slate-800 h-12 sm:h-16 px-6 sm:px-12 text-base sm:text-lg font-bold shadow-2xl rounded-2xl hover:shadow-3xl transform hover:scale-105 transition-all duration-300 whitespace-nowrap"
+            >
               <Rocket className="w-5 h-5 sm:w-6 sm:h-6 mr-2 sm:mr-3" />
               <span className="hidden sm:inline">Launch Search</span>
               <span className="sm:hidden">Search</span>
@@ -1096,6 +1111,8 @@ const JobListingPage = ({ user, onLogout }) => {
                 </div>
                 <Button 
                   onClick={() => {
+                    setSearchInput("");
+                    setLocationInput("");
                     setSearchTerm("");
                     setLocation("");
                   }}
