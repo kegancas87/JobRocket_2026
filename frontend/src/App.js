@@ -703,11 +703,19 @@ const JobListingPage = ({ user, onLogout }) => {
   };
 
   const filteredJobs = jobs.filter(job => {
-    // Search and location filters
-    const matchesSearch = job.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         job.company_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         job.description.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesLocation = !location || job.location.toLowerCase().includes(location.toLowerCase());
+    // Search and location filters - with null safety
+    const title = job.title?.toLowerCase() || '';
+    const companyName = job.company_name?.toLowerCase() || '';
+    const description = job.description?.toLowerCase() || '';
+    const jobLocation = job.location?.toLowerCase() || '';
+    const searchLower = searchTerm.toLowerCase();
+    const locationLower = location.toLowerCase();
+    
+    const matchesSearch = !searchTerm || 
+                         title.includes(searchLower) ||
+                         companyName.includes(searchLower) ||
+                         description.includes(searchLower);
+    const matchesLocation = !location || jobLocation.includes(locationLower);
     
     // Date Posted filters
     let matchesDatePosted = true;
