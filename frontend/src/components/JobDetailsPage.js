@@ -39,7 +39,6 @@ const JobDetailsPage = ({ user }) => {
   const [error, setError] = useState(null);
   const [applying, setApplying] = useState(false);
   const [applied, setApplied] = useState(false);
-  const [showApplicationForm, setShowApplicationForm] = useState(false);
   
   // Application form state
   const [applicationData, setApplicationData] = useState({
@@ -162,7 +161,6 @@ const JobDetailsPage = ({ user }) => {
       );
 
       setApplied(true);
-      setShowApplicationForm(false);
       alert('Application submitted successfully!');
     } catch (err) {
       console.error('Error submitting application:', err);
@@ -312,7 +310,7 @@ const JobDetailsPage = ({ user }) => {
                   )}
                 </div>
 
-                {/* Apply Button (Mobile) */}
+                {/* Apply Button (Mobile) - Scrolls to application form */}
                 <div className="lg:hidden">
                   {applied ? (
                     <Button disabled className="w-full bg-green-600">
@@ -321,10 +319,10 @@ const JobDetailsPage = ({ user }) => {
                     </Button>
                   ) : user ? (
                     <Button 
-                      onClick={() => setShowApplicationForm(!showApplicationForm)} 
+                      onClick={() => document.getElementById('application-form')?.scrollIntoView({ behavior: 'smooth' })} 
                       className="w-full bg-blue-600 hover:bg-blue-700"
                     >
-                      {showApplicationForm ? 'Hide Application Form' : 'Apply Now'}
+                      Apply Now
                     </Button>
                   ) : (
                     <Button 
@@ -366,9 +364,9 @@ const JobDetailsPage = ({ user }) => {
               </CardContent>
             </Card>
 
-            {/* Application Form (shown when Apply Now is clicked) */}
-            {showApplicationForm && user && !applied && (
-              <Card className="bg-white shadow-lg border-0">
+            {/* Application Form - Always visible for logged in users who haven't applied */}
+            {user && !applied && (
+              <Card id="application-form" className="bg-white shadow-lg border-0">
                 <CardHeader>
                   <CardTitle className="text-lg font-semibold text-slate-800">Submit Your Application</CardTitle>
                 </CardHeader>
@@ -455,19 +453,11 @@ const JobDetailsPage = ({ user }) => {
                     </div>
 
                     {/* Submit Button */}
-                    <div className="flex space-x-3">
-                      <Button
-                        type="button"
-                        variant="outline"
-                        onClick={() => setShowApplicationForm(false)}
-                        className="flex-1"
-                      >
-                        Cancel
-                      </Button>
+                    <div className="flex justify-end">
                       <Button
                         type="submit"
                         disabled={applying}
-                        className="flex-1 bg-blue-600 hover:bg-blue-700"
+                        className="bg-blue-600 hover:bg-blue-700 px-8"
                       >
                         {applying ? (
                           <>
@@ -480,6 +470,31 @@ const JobDetailsPage = ({ user }) => {
                       </Button>
                     </div>
                   </form>
+                </CardContent>
+              </Card>
+            )}
+
+            {/* Login prompt for non-logged in users */}
+            {!user && (
+              <Card id="application-form" className="bg-white shadow-lg border-0">
+                <CardHeader>
+                  <CardTitle className="text-lg font-semibold text-slate-800">Apply for this Position</CardTitle>
+                </CardHeader>
+                <CardContent className="text-center py-8">
+                  <User className="w-16 h-16 text-slate-300 mx-auto mb-4" />
+                  <p className="text-slate-600 mb-4">Please log in to submit your application</p>
+                  <Button 
+                    onClick={() => navigate('/login')} 
+                    className="bg-blue-600 hover:bg-blue-700"
+                  >
+                    Login to Apply
+                  </Button>
+                  <p className="text-sm text-slate-500 mt-3">
+                    Don't have an account?{' '}
+                    <Link to="/register" className="text-blue-600 hover:underline">
+                      Register here
+                    </Link>
+                  </p>
                 </CardContent>
               </Card>
             )}
@@ -506,10 +521,10 @@ const JobDetailsPage = ({ user }) => {
                 ) : user ? (
                   <>
                     <Button 
-                      onClick={() => setShowApplicationForm(!showApplicationForm)} 
+                      onClick={() => document.getElementById('application-form')?.scrollIntoView({ behavior: 'smooth' })} 
                       className="w-full bg-blue-600 hover:bg-blue-700 mb-3"
                     >
-                      {showApplicationForm ? 'Hide Form' : 'Apply Now'}
+                      Go to Application Form
                     </Button>
                     <p className="text-xs text-slate-500 text-center">
                       Your profile information will be shared with the employer

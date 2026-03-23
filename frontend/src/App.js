@@ -394,8 +394,6 @@ const CompanyProfilePage = ({ companyId }) => {
 };
 
 const JobCard = ({ job, user, onSave, onApply, onJobClick }) => {
-  const navigate = useNavigate();
-  
   const formatSalary = (salaryMin, salaryMax, currency = 'ZAR') => {
     if (!salaryMin && !salaryMax) return null;
     if (salaryMin && salaryMax) {
@@ -406,12 +404,14 @@ const JobCard = ({ job, user, onSave, onApply, onJobClick }) => {
   };
 
   const handleCardClick = () => {
-    navigate(`/jobs/${job.id}`);
+    // Open in new tab
+    window.open(`/jobs/${job.id}`, '_blank');
   };
 
   const handleJobTitleClick = (e) => {
     e.stopPropagation();
-    navigate(`/jobs/${job.id}`);
+    // Open in new tab
+    window.open(`/jobs/${job.id}`, '_blank');
   };
 
   return (
