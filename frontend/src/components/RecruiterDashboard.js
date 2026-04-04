@@ -73,6 +73,12 @@ const RecruiterDashboard = ({ user, onUpdateUser }) => {
   // Original form values for cancel functionality
   const [originalForm, setOriginalForm] = useState({...companyForm});
 
+  // Fetch full user data with account info on mount
+  useEffect(() => {
+    fetchCurrentUser();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   // Steps configuration
   const steps = [
     { 
@@ -98,24 +104,6 @@ const RecruiterDashboard = ({ user, onUpdateUser }) => {
       label: 'Structure', 
       icon: Users,
       isComplete: false
-    },
-    { 
-      id: 'packages', 
-      label: 'Packages', 
-      icon: CreditCard,
-      isComplete: false
-    },
-    { 
-      id: 'jobs', 
-      label: 'Jobs', 
-      icon: Briefcase,
-      isComplete: progress.first_job_posted
-    },
-    { 
-      id: 'applications', 
-      label: 'Applications', 
-      icon: FileText,
-      isComplete: false
     }
   ];
 
@@ -134,6 +122,24 @@ const RecruiterDashboard = ({ user, onUpdateUser }) => {
       const response = await axios.get(`${API}/auth/me`, getAuthHeaders());
       setProfile(response.data);
       setProgress(response.data.recruiter_progress || {});
+      
+      // Update form with latest data from server
+      const account = response.data.account || {};
+      const newFormData = {
+        company_name: account.name || '',
+        company_description: account.company_description || '',
+        company_website: account.company_website || '',
+        company_linkedin: account.company_linkedin || '',
+        company_size: account.company_size || '',
+        company_industry: account.company_industry || '',
+        company_location: account.company_location || '',
+        company_logo_url: account.company_logo_url || '',
+        company_cover_image_url: account.company_cover_image_url || ''
+      };
+      setCompanyForm(newFormData);
+      setOriginalForm(newFormData);
+      setIsEditing(false);
+      
       onUpdateUser(response.data);
     } catch (error) {
       console.error('Error fetching user data:', error);
@@ -673,11 +679,126 @@ const RecruiterDashboard = ({ user, onUpdateUser }) => {
         );
 
       case 'links':
+        // Check if links have any data saved
+        const hasLinksData = companyForm.company_website || companyForm.company_linkedin;
+        
+        // If there's data and not editing, show the view mode
+        if (hasLinksData && !isEditing) {
+          return (
+            <div className="space-y-8">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h2 className="text-2xl font-semibold text-slate-800 mb-2">Company Links</h2>
+                  <p className="text-slate-500">Your company's online presence</p>
+                </div>
+                <Button 
+                  onClick={() => {
+                    setOriginalForm({...companyForm});
+                    setIsEditing(true);
+                  }}
+                  variant="outline"
+                  className="flex items-center gap-2"
+                >
+                  <Edit2 className="w-4 h-4" />
+                  Edit Links
+                </Button>
+              </div>
+              
+              {/* Display saved links */}
+              <div className="space-y-4">
+                {companyForm.company_website && (
+                  <div className="p-4 bg-slate-50 rounded-lg">
+                    <label className="text-xs font-medium text-slate-500 uppercase tracking-wider flex items-center">
+                      <Globe className="w-3 h-3 mr-1" />
+                      Website
+                    </label>
+                    <a 
+                      href={companyForm.company_website} 
+                      target="_blank" 
+                      rel="noopener noreferrer"
+                      className="text-lg font-medium text-blue-600 hover:text-blue-700 hover:underline mt-1 block"
+                    >
+                      {companyForm.company_website}
+                    </a>
+                  </div>
+                )}
+                
+                {companyForm.company_linkedin && (
+                  <div className="p-4 bg-slate-50 rounded-lg">
+                    <label className="text-xs font-medium text-slate-500 uppercase tracking-wider flex items-center">
+                      <Linkedin className="w-3 h-3 mr-1" />
+                      LinkedIn
+                    </label>
+                    <a 
+                      href={companyForm.company_linkedin} 
+                      target="_blank" 
+                      rel="noopener noreferrer"
+                      className="text-lg font-medium text-blue-600 hover:text-blue-700 hover:underline mt-1 block"
+                    >
+                      {companyForm.company_linkedin}
+                    </a>
+                  </div>
+                )}
+                
+                {!companyForm.company_website && (
+                  <div className="p-4 bg-slate-50 rounded-lg">
+                    <label className="text-xs font-medium text-slate-500 uppercase tracking-wider flex items-center">
+                      <Globe className="w-3 h-3 mr-1" />
+                      Website
+                    </label>
+                    <p className="text-slate-400 mt-1">Not set</p>
+                  </div>
+                )}
+                
+                {!companyForm.company_linkedin && (
+                  <div className="p-4 bg-slate-50 rounded-lg">
+                    <label className="text-xs font-medium text-slate-500 uppercase tracking-wider flex items-center">
+                      <Linkedin className="w-3 h-3 mr-1" />
+                      LinkedIn
+                    </label>
+                    <p className="text-slate-400 mt-1">Not set</p>
+                  </div>
+                )}
+              </div>
+
+              {/* Quick Actions */}
+              <div className="flex items-center gap-4 pt-4 border-t border-slate-200">
+                <Button 
+                  variant="outline"
+                  onClick={() => setActiveStep(3)}
+                  className="flex items-center gap-2"
+                >
+                  Next: Structure
+                  <ChevronRight className="w-4 h-4" />
+                </Button>
+              </div>
+            </div>
+          );
+        }
+        
+        // Edit mode / Initial setup
         return (
           <div className="space-y-8">
-            <div>
-              <h2 className="text-2xl font-semibold text-slate-800 mb-2">Company Links</h2>
-              <p className="text-slate-500">Add your website and social profiles</p>
+            <div className="flex items-center justify-between">
+              <div>
+                <h2 className="text-2xl font-semibold text-slate-800 mb-2">
+                  {isEditing ? 'Edit Company Links' : 'Company Links'}
+                </h2>
+                <p className="text-slate-500">Add your website and social profiles</p>
+              </div>
+              {isEditing && (
+                <Button 
+                  variant="ghost"
+                  onClick={() => {
+                    setCompanyForm({...originalForm});
+                    setIsEditing(false);
+                  }}
+                  className="text-slate-600"
+                >
+                  <X className="w-4 h-4 mr-2" />
+                  Cancel
+                </Button>
+              )}
             </div>
             
             <form onSubmit={handleCompanySubmit} className="space-y-6">
@@ -687,9 +808,20 @@ const RecruiterDashboard = ({ user, onUpdateUser }) => {
                     <Globe className="w-4 h-4 mr-2 text-slate-400" />
                     Company Website
                   </Label>
-                  {!progress.company_website && (
-                    <span className="text-xs text-emerald-600 font-medium">+10 pts</span>
-                  )}
+                  <div className="flex items-center gap-2">
+                    {companyForm.company_website && (
+                      <button 
+                        type="button"
+                        onClick={() => setCompanyForm(prev => ({ ...prev, company_website: '' }))}
+                        className="text-xs text-red-500 hover:text-red-700"
+                      >
+                        Clear
+                      </button>
+                    )}
+                    {!progress.company_website && (
+                      <span className="text-xs text-emerald-600 font-medium">+10 pts</span>
+                    )}
+                  </div>
                 </div>
                 <Input
                   id="company_website"
@@ -707,9 +839,20 @@ const RecruiterDashboard = ({ user, onUpdateUser }) => {
                     <Linkedin className="w-4 h-4 mr-2 text-slate-400" />
                     LinkedIn Page
                   </Label>
-                  {!progress.company_linkedin && (
-                    <span className="text-xs text-emerald-600 font-medium">+5 pts</span>
-                  )}
+                  <div className="flex items-center gap-2">
+                    {companyForm.company_linkedin && (
+                      <button 
+                        type="button"
+                        onClick={() => setCompanyForm(prev => ({ ...prev, company_linkedin: '' }))}
+                        className="text-xs text-red-500 hover:text-red-700"
+                      >
+                        Clear
+                      </button>
+                    )}
+                    {!progress.company_linkedin && (
+                      <span className="text-xs text-emerald-600 font-medium">+5 pts</span>
+                    )}
+                  </div>
                 </div>
                 <Input
                   id="company_linkedin"
@@ -721,32 +864,49 @@ const RecruiterDashboard = ({ user, onUpdateUser }) => {
                 />
               </div>
 
-              <div className="flex items-center justify-end gap-4 pt-4">
-                <Button 
-                  type="button" 
-                  variant="outline"
-                  onClick={() => setActiveStep(prev => Math.min(prev + 1, steps.length - 1))}
-                  className="px-6"
-                >
-                  Skip for Now
-                </Button>
-                <Button 
-                  type="submit" 
-                  disabled={loading}
-                  className="bg-blue-600 hover:bg-blue-700 px-8"
-                >
-                  {loading ? (
-                    <>
-                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                      Saving...
-                    </>
-                  ) : (
-                    <>
-                      <Save className="w-4 h-4 mr-2" />
-                      Save Links
-                    </>
+              <div className="flex items-center justify-between gap-4 pt-4 border-t border-slate-200">
+                {!isEditing && (
+                  <Button 
+                    type="button" 
+                    variant="outline"
+                    onClick={() => setActiveStep(prev => Math.min(prev + 1, steps.length - 1))}
+                    className="px-6"
+                  >
+                    Skip for Now
+                  </Button>
+                )}
+                <div className="flex items-center gap-3 ml-auto">
+                  {isEditing && (
+                    <Button 
+                      type="button" 
+                      variant="outline"
+                      onClick={() => {
+                        setCompanyForm({...originalForm});
+                        setIsEditing(false);
+                      }}
+                      className="px-6"
+                    >
+                      Cancel
+                    </Button>
                   )}
-                </Button>
+                  <Button 
+                    type="submit" 
+                    disabled={loading}
+                    className="bg-blue-600 hover:bg-blue-700 px-8"
+                  >
+                    {loading ? (
+                      <>
+                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                        Saving...
+                      </>
+                    ) : (
+                      <>
+                        <Save className="w-4 h-4 mr-2" />
+                        {isEditing ? 'Save Changes' : 'Save Links'}
+                      </>
+                    )}
+                  </Button>
+                </div>
               </div>
             </form>
           </div>
