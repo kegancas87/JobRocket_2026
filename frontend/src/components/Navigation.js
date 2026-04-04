@@ -55,6 +55,7 @@ const Navigation = ({ user, onLogout }) => {
   const getDropdownItems = () => {
     if (user?.role === 'recruiter') {
       return [
+        { name: 'Profile', path: '/', icon: User },
         { name: 'Billing', path: '/billing', icon: CreditCard },
         { name: 'Reports', path: '/reports', icon: PieChart }
       ];
@@ -73,10 +74,9 @@ const Navigation = ({ user, onLogout }) => {
       const features = user?.account?.features || [];
       const hasBulkUpload = features.includes('JOB_BULK_UPLOAD');
       const items = [
-        { name: 'Dashboard', path: '/', icon: Home },
+        { name: 'My Listings', path: '/my-jobs', icon: Building2 },
         { name: 'Jobs', path: '/jobs', icon: Briefcase },
-        { name: 'Jobs Dashboard', path: '/jobs-dashboard', icon: BarChart3 },
-        { name: 'My Jobs', path: '/my-jobs', icon: Building2 },
+        { name: 'Dashboard', path: '/jobs-dashboard', icon: BarChart3 },
       ];
       if (hasBulkUpload) {
         items.push({ name: 'Bulk Upload', path: '/bulk-upload', icon: FileSpreadsheet });
