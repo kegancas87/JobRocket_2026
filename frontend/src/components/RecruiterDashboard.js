@@ -76,7 +76,7 @@ const RecruiterDashboard = ({ user, onUpdateUser }) => {
   // Fetch full user data with account info on mount
   useEffect(() => {
     fetchCurrentUser();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line
   }, []);
 
   // Steps configuration

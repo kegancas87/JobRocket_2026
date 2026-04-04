@@ -192,7 +192,7 @@ const CompanyStructure = ({ user, onUpdateUser }) => {
   };
 
   const handleDeleteBranch = async (branchId) => {
-    if (!confirm('Are you sure you want to delete this branch?')) return;
+    if (!window.confirm('Are you sure you want to delete this branch?')) return;
     
     setLoading(true);
     
