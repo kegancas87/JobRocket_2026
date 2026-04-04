@@ -3,7 +3,6 @@ import { Link } from 'react-router-dom';
 import { 
   Rocket,
   Mail,
-  Phone,
   MapPin,
   Facebook,
   Twitter,
@@ -101,11 +100,7 @@ const Footer = ({ user }) => {
             <div className="space-y-2">
               <div className="flex items-center space-x-2">
                 <Mail className="w-4 h-4 text-slate-400" />
-                <span className="text-sm text-slate-400">info@jobrocket.co.za</span>
-              </div>
-              <div className="flex items-center space-x-2">
-                <Phone className="w-4 h-4 text-slate-400" />
-                <span className="text-sm text-slate-400">+27 11 123 4567</span>
+                <span className="text-sm text-slate-400">support@jobrocket.co.za</span>
               </div>
               <div className="flex items-center space-x-2">
                 <MapPin className="w-4 h-4 text-slate-400" />
