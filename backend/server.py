@@ -2493,6 +2493,80 @@ async def upload_document(
 
 
 # ============================================
+# Company Branding Uploads (Logo & Cover)
+# ============================================
+
+@api_router.post("/uploads/company-logo")
+async def upload_company_logo(
+    file: UploadFile = File(...),
+    current_user: User = Depends(get_current_recruiter)
+):
+    """Upload a company logo image"""
+    if not file.content_type.startswith('image/'):
+        raise HTTPException(status_code=400, detail="File must be an image")
+    
+    content = await file.read()
+    # 5MB limit for logo
+    if len(content) > 5 * 1024 * 1024:
+        raise HTTPException(status_code=400, detail="Logo must be smaller than 5MB")
+    
+    logo_dir = Path(UPLOAD_PATH) / "company_logos"
+    logo_dir.mkdir(parents=True, exist_ok=True)
+    
+    ext = Path(file.filename).suffix or '.png'
+    filename = f"{current_user.account_id}_logo_{uuid.uuid4().hex[:8]}{ext}"
+    filepath = logo_dir / filename
+    
+    with open(filepath, "wb") as f:
+        f.write(content)
+    
+    file_url = f"/api/uploads/company_logos/{filename}"
+    
+    # Update account with new logo URL
+    await db.accounts.update_one(
+        {"id": current_user.account_id},
+        {"$set": {"company_logo_url": file_url, "updated_at": datetime.utcnow()}}
+    )
+    
+    return {"url": file_url, "filename": file.filename}
+
+
+@api_router.post("/uploads/company-cover")
+async def upload_company_cover(
+    file: UploadFile = File(...),
+    current_user: User = Depends(get_current_recruiter)
+):
+    """Upload a company cover image"""
+    if not file.content_type.startswith('image/'):
+        raise HTTPException(status_code=400, detail="File must be an image")
+    
+    content = await file.read()
+    # 10MB limit for cover
+    if len(content) > 10 * 1024 * 1024:
+        raise HTTPException(status_code=400, detail="Cover image must be smaller than 10MB")
+    
+    cover_dir = Path(UPLOAD_PATH) / "company_covers"
+    cover_dir.mkdir(parents=True, exist_ok=True)
+    
+    ext = Path(file.filename).suffix or '.png'
+    filename = f"{current_user.account_id}_cover_{uuid.uuid4().hex[:8]}{ext}"
+    filepath = cover_dir / filename
+    
+    with open(filepath, "wb") as f:
+        f.write(content)
+    
+    file_url = f"/api/uploads/company_covers/{filename}"
+    
+    # Update account with new cover URL
+    await db.accounts.update_one(
+        {"id": current_user.account_id},
+        {"$set": {"company_cover_image_url": file_url, "updated_at": datetime.utcnow()}}
+    )
+    
+    return {"url": file_url, "filename": file.filename}
+
+
+# ============================================
 # Profile Documents Management
 # ============================================
 
