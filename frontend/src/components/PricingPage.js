@@ -436,16 +436,16 @@ const PricingPage = ({ user }) => {
                   <div className="mt-4">
                     {appliedDiscount ? (
                       <div>
-                        <div className="flex items-baseline justify-center">
-                          <span className="text-2xl font-bold text-slate-400 line-through mr-2">
-                            {formatPrice(tier.price_monthly)}
-                          </span>
+                        <div className="flex flex-col items-center justify-center">
                           <span className="text-4xl font-bold text-green-600">
                             {formatPrice(Math.max(0, tier.price_monthly - (
                               appliedDiscount.discount_type === 'percentage'
                                 ? tier.price_monthly * (appliedDiscount.discount_value / 100)
                                 : appliedDiscount.discount_value
                             )))}
+                          </span>
+                          <span className="text-lg text-slate-400 line-through mt-1">
+                            {formatPrice(tier.price_monthly)}
                           </span>
                         </div>
                         <span className="text-slate-600">/month</span>
