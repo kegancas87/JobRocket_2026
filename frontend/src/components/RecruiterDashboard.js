@@ -25,7 +25,10 @@ import {
   CreditCard,
   Check,
   ChevronRight,
-  Loader2
+  Loader2,
+  Edit2,
+  X,
+  Trash2
 } from "lucide-react";
 import axios from 'axios';
 
@@ -53,19 +56,23 @@ const RecruiterDashboard = ({ user, onUpdateUser }) => {
   const [activeStep, setActiveStep] = useState(0);
   const [progress, setProgress] = useState(user.recruiter_progress || {});
   const [uploadingImage, setUploadingImage] = useState(null);
+  const [isEditing, setIsEditing] = useState(false);
   
-  // Form states
+  // Form states - get data from account (which stores company info)
   const [companyForm, setCompanyForm] = useState({
-    company_name: user.company_profile?.company_name || '',
-    company_description: user.company_profile?.company_description || '',
-    company_website: user.company_profile?.company_website || '',
-    company_linkedin: user.company_profile?.company_linkedin || '',
-    company_size: user.company_profile?.company_size || '',
-    company_industry: user.company_profile?.company_industry || '',
-    company_location: user.company_profile?.company_location || '',
-    company_logo_url: user.company_profile?.company_logo_url || '',
-    company_cover_image_url: user.company_profile?.company_cover_image_url || ''
+    company_name: user.account?.name || user.company_profile?.company_name || '',
+    company_description: user.account?.company_description || user.company_profile?.company_description || '',
+    company_website: user.account?.company_website || user.company_profile?.company_website || '',
+    company_linkedin: user.account?.company_linkedin || user.company_profile?.company_linkedin || '',
+    company_size: user.account?.company_size || user.company_profile?.company_size || '',
+    company_industry: user.account?.company_industry || user.company_profile?.company_industry || '',
+    company_location: user.account?.company_location || user.company_profile?.company_location || '',
+    company_logo_url: user.account?.company_logo_url || user.company_profile?.company_logo_url || '',
+    company_cover_image_url: user.account?.company_cover_image_url || user.company_profile?.company_cover_image_url || ''
   });
+
+  // Original form values for cancel functionality
+  const [originalForm, setOriginalForm] = useState({...companyForm});
 
   // Steps configuration
   const steps = [
@@ -183,13 +190,24 @@ const RecruiterDashboard = ({ user, onUpdateUser }) => {
     e.preventDefault();
     setLoading(true);
     try {
-      await axios.put(`${API}/recruiter/profile`, {
-        company_profile: companyForm
+      // Update the account with company profile data
+      await axios.put(`${API}/account`, {
+        name: companyForm.company_name,
+        company_description: companyForm.company_description,
+        company_website: companyForm.company_website,
+        company_linkedin: companyForm.company_linkedin,
+        company_size: companyForm.company_size,
+        company_industry: companyForm.company_industry,
+        company_location: companyForm.company_location,
+        company_logo_url: companyForm.company_logo_url,
+        company_cover_image_url: companyForm.company_cover_image_url
       }, getAuthHeaders());
       await fetchCurrentUser();
+      setIsEditing(false);
+      setOriginalForm({...companyForm});
     } catch (error) {
       console.error('Error updating company profile:', error);
-      alert('Failed to update company profile');
+      alert(error.response?.data?.detail || 'Failed to update company profile');
     } finally {
       setLoading(false);
     }
@@ -230,19 +248,122 @@ const RecruiterDashboard = ({ user, onUpdateUser }) => {
   const renderStepContent = () => {
     switch(steps[activeStep].id) {
       case 'company':
+        // Check if company info has any data saved
+        const hasCompanyData = companyForm.company_name || companyForm.company_description || companyForm.company_industry;
+        
+        // If there's data and not editing, show the view mode
+        if (hasCompanyData && !isEditing) {
+          return (
+            <div className="space-y-8">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h2 className="text-2xl font-semibold text-slate-800 mb-2">Company Info</h2>
+                  <p className="text-slate-500">Your company information</p>
+                </div>
+                <Button 
+                  onClick={() => {
+                    setOriginalForm({...companyForm});
+                    setIsEditing(true);
+                  }}
+                  variant="outline"
+                  className="flex items-center gap-2"
+                >
+                  <Edit2 className="w-4 h-4" />
+                  Edit Company Info
+                </Button>
+              </div>
+              
+              {/* Display saved company info */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="space-y-4">
+                  <div className="p-4 bg-slate-50 rounded-lg">
+                    <label className="text-xs font-medium text-slate-500 uppercase tracking-wider">Company Name</label>
+                    <p className="text-lg font-medium text-slate-800 mt-1">{companyForm.company_name || 'Not set'}</p>
+                  </div>
+                  
+                  <div className="p-4 bg-slate-50 rounded-lg">
+                    <label className="text-xs font-medium text-slate-500 uppercase tracking-wider">Industry</label>
+                    <p className="text-lg font-medium text-slate-800 mt-1">{companyForm.company_industry || 'Not set'}</p>
+                  </div>
+                  
+                  <div className="p-4 bg-slate-50 rounded-lg">
+                    <label className="text-xs font-medium text-slate-500 uppercase tracking-wider">Location</label>
+                    <p className="text-lg font-medium text-slate-800 mt-1">{companyForm.company_location || 'Not set'}</p>
+                  </div>
+                </div>
+                
+                <div className="space-y-4">
+                  <div className="p-4 bg-slate-50 rounded-lg">
+                    <label className="text-xs font-medium text-slate-500 uppercase tracking-wider">Company Size</label>
+                    <p className="text-lg font-medium text-slate-800 mt-1">{companyForm.company_size || 'Not set'}</p>
+                  </div>
+                  
+                  <div className="p-4 bg-slate-50 rounded-lg h-full">
+                    <label className="text-xs font-medium text-slate-500 uppercase tracking-wider">Description</label>
+                    <p className="text-slate-700 mt-1 whitespace-pre-wrap">
+                      {companyForm.company_description || 'No description added yet'}
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Quick Actions */}
+              <div className="flex items-center gap-4 pt-4 border-t border-slate-200">
+                <Button 
+                  variant="outline"
+                  onClick={() => setActiveStep(1)}
+                  className="flex items-center gap-2"
+                >
+                  Next: Branding
+                  <ChevronRight className="w-4 h-4" />
+                </Button>
+              </div>
+            </div>
+          );
+        }
+        
+        // Edit mode / Initial setup
         return (
           <div className="space-y-8">
-            <div>
-              <h2 className="text-2xl font-semibold text-slate-800 mb-2">Company Info</h2>
-              <p className="text-slate-500">Tell candidates about your company</p>
+            <div className="flex items-center justify-between">
+              <div>
+                <h2 className="text-2xl font-semibold text-slate-800 mb-2">
+                  {isEditing ? 'Edit Company Info' : 'Company Info'}
+                </h2>
+                <p className="text-slate-500">Tell candidates about your company</p>
+              </div>
+              {isEditing && (
+                <Button 
+                  variant="ghost"
+                  onClick={() => {
+                    setCompanyForm({...originalForm});
+                    setIsEditing(false);
+                  }}
+                  className="text-slate-600"
+                >
+                  <X className="w-4 h-4 mr-2" />
+                  Cancel
+                </Button>
+              )}
             </div>
             
             <form onSubmit={handleCompanySubmit} className="space-y-6">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div className="space-y-2">
-                  <Label htmlFor="company_name" className="text-sm font-medium text-slate-700">
-                    Company Name
-                  </Label>
+                  <div className="flex items-center justify-between">
+                    <Label htmlFor="company_name" className="text-sm font-medium text-slate-700">
+                      Company Name
+                    </Label>
+                    {companyForm.company_name && (
+                      <button 
+                        type="button"
+                        onClick={() => setCompanyForm(prev => ({ ...prev, company_name: '' }))}
+                        className="text-xs text-red-500 hover:text-red-700"
+                      >
+                        Clear
+                      </button>
+                    )}
+                  </div>
                   <Input
                     id="company_name"
                     value={companyForm.company_name}
@@ -257,9 +378,20 @@ const RecruiterDashboard = ({ user, onUpdateUser }) => {
                     <Label htmlFor="company_industry" className="text-sm font-medium text-slate-700">
                       Industry
                     </Label>
-                    {!progress.company_industry && (
-                      <span className="text-xs text-emerald-600 font-medium">earn 20 pts</span>
-                    )}
+                    <div className="flex items-center gap-2">
+                      {companyForm.company_industry && (
+                        <button 
+                          type="button"
+                          onClick={() => setCompanyForm(prev => ({ ...prev, company_industry: '' }))}
+                          className="text-xs text-red-500 hover:text-red-700"
+                        >
+                          Clear
+                        </button>
+                      )}
+                      {!progress.company_industry && (
+                        <span className="text-xs text-emerald-600 font-medium">earn 20 pts</span>
+                      )}
+                    </div>
                   </div>
                   <select 
                     id="company_industry"
@@ -275,9 +407,20 @@ const RecruiterDashboard = ({ user, onUpdateUser }) => {
                 </div>
                 
                 <div className="space-y-2">
-                  <Label htmlFor="company_location" className="text-sm font-medium text-slate-700">
-                    Location
-                  </Label>
+                  <div className="flex items-center justify-between">
+                    <Label htmlFor="company_location" className="text-sm font-medium text-slate-700">
+                      Location
+                    </Label>
+                    {companyForm.company_location && (
+                      <button 
+                        type="button"
+                        onClick={() => setCompanyForm(prev => ({ ...prev, company_location: '' }))}
+                        className="text-xs text-red-500 hover:text-red-700"
+                      >
+                        Clear
+                      </button>
+                    )}
+                  </div>
                   <Input
                     id="company_location"
                     value={companyForm.company_location}
@@ -292,9 +435,20 @@ const RecruiterDashboard = ({ user, onUpdateUser }) => {
                     <Label htmlFor="company_size" className="text-sm font-medium text-slate-700">
                       Company Size
                     </Label>
-                    {!progress.company_size && (
-                      <span className="text-xs text-emerald-600 font-medium">earn 10 pts</span>
-                    )}
+                    <div className="flex items-center gap-2">
+                      {companyForm.company_size && (
+                        <button 
+                          type="button"
+                          onClick={() => setCompanyForm(prev => ({ ...prev, company_size: '' }))}
+                          className="text-xs text-red-500 hover:text-red-700"
+                        >
+                          Clear
+                        </button>
+                      )}
+                      {!progress.company_size && (
+                        <span className="text-xs text-emerald-600 font-medium">earn 10 pts</span>
+                      )}
+                    </div>
                   </div>
                   <select 
                     id="company_size"
@@ -315,51 +469,79 @@ const RecruiterDashboard = ({ user, onUpdateUser }) => {
                   <Label htmlFor="company_description" className="text-sm font-medium text-slate-700">
                     Company Description <span className="text-slate-400 font-normal">(100+ chars)</span>
                   </Label>
-                  {!progress.company_description && (
-                    <span className="text-xs text-emerald-600 font-medium">earn 30 pts on completion</span>
-                  )}
+                  <div className="flex items-center gap-2">
+                    {companyForm.company_description && (
+                      <button 
+                        type="button"
+                        onClick={() => setCompanyForm(prev => ({ ...prev, company_description: '' }))}
+                        className="text-xs text-red-500 hover:text-red-700"
+                      >
+                        Clear
+                      </button>
+                    )}
+                    {!progress.company_description && (
+                      <span className="text-xs text-emerald-600 font-medium">earn 30 pts on completion</span>
+                    )}
+                  </div>
                 </div>
                 <Textarea
                   id="company_description"
                   value={companyForm.company_description}
                   onChange={(e) => setCompanyForm(prev => ({ ...prev, company_description: e.target.value }))}
-                  placeholder="Tell company Description (complete for 30 pts)"
+                  placeholder="Tell candidates about your company, culture, mission, and what makes you unique..."
                   rows={6}
                   className="resize-none bg-white border-slate-200 focus:border-blue-500 focus:ring-blue-500/20"
                 />
                 <div className="flex justify-between text-sm">
-                  <span className="text-slate-400">
+                  <span className={`${companyForm.company_description.length >= 100 ? 'text-emerald-600' : 'text-slate-400'}`}>
                     {companyForm.company_description.length}/100 characters minimum
                   </span>
                 </div>
               </div>
 
-              <div className="flex items-center justify-end gap-4 pt-4">
-                <Button 
-                  type="button" 
-                  variant="outline"
-                  onClick={() => setActiveStep(prev => Math.min(prev + 1, steps.length - 1))}
-                  className="px-6"
-                >
-                  Skip for Now
-                </Button>
-                <Button 
-                  type="submit" 
-                  disabled={loading}
-                  className="bg-blue-600 hover:bg-blue-700 px-8 h-11"
-                >
-                  {loading ? (
-                    <>
-                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                      Saving...
-                    </>
-                  ) : (
-                    <>
-                      <Save className="w-4 h-4 mr-2" />
-                      Save Company Info
-                    </>
+              <div className="flex items-center justify-between gap-4 pt-4 border-t border-slate-200">
+                {!isEditing && (
+                  <Button 
+                    type="button" 
+                    variant="outline"
+                    onClick={() => setActiveStep(prev => Math.min(prev + 1, steps.length - 1))}
+                    className="px-6"
+                  >
+                    Skip for Now
+                  </Button>
+                )}
+                <div className="flex items-center gap-3 ml-auto">
+                  {isEditing && (
+                    <Button 
+                      type="button" 
+                      variant="outline"
+                      onClick={() => {
+                        setCompanyForm({...originalForm});
+                        setIsEditing(false);
+                      }}
+                      className="px-6"
+                    >
+                      Cancel
+                    </Button>
                   )}
-                </Button>
+                  <Button 
+                    type="submit" 
+                    disabled={loading}
+                    className="bg-blue-600 hover:bg-blue-700 px-8 h-11"
+                  >
+                    {loading ? (
+                      <>
+                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                        Saving...
+                      </>
+                    ) : (
+                      <>
+                        <Save className="w-4 h-4 mr-2" />
+                        {isEditing ? 'Save Changes' : 'Save Company Info'}
+                      </>
+                    )}
+                  </Button>
+                </div>
               </div>
             </form>
           </div>
