@@ -20,7 +20,10 @@ import {
   BarChart3,
   LogOut,
   Check,
-  X
+  X,
+  Download,
+  FileSpreadsheet,
+  Loader2
 } from "lucide-react";
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
@@ -31,6 +34,7 @@ const AdminDashboard = ({ user, onLogout, onNavigateToJobs }) => {
   const [discountCodes, setDiscountCodes] = useState([]);
   const [usageStats, setUsageStats] = useState({});
   const [loading, setLoading] = useState(false);
+  const [exportLoading, setExportLoading] = useState(false);
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [editingCode, setEditingCode] = useState(null);
   const [formData, setFormData] = useState({
@@ -93,6 +97,38 @@ const AdminDashboard = ({ user, onLogout, onNavigateToJobs }) => {
       console.error('Error loading usage stats:', error);
     }
     setLoading(false);
+  };
+
+  const handleExportJobs = async () => {
+    setExportLoading(true);
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch(`${API}/admin/jobs/export`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+      
+      if (!response.ok) {
+        throw new Error('Export failed');
+      }
+      
+      // Get the blob and create download link
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `jobrocket_jobs_export_${new Date().toISOString().slice(0,10)}.csv`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+    } catch (error) {
+      console.error('Error exporting jobs:', error);
+      alert('Failed to export jobs. Please try again.');
+    }
+    setExportLoading(false);
   };
 
   const resetForm = () => {
@@ -262,6 +298,14 @@ const AdminDashboard = ({ user, onLogout, onNavigateToJobs }) => {
           >
             <BarChart3 className="w-4 h-4 mr-2" />
             Statistics
+          </Button>
+          <Button
+            variant={activeTab === 'export-jobs' ? 'default' : 'outline'}
+            onClick={() => setActiveTab('export-jobs')}
+            className={activeTab === 'export-jobs' ? 'bg-blue-600 text-white' : 'border-slate-600 text-slate-300'}
+          >
+            <FileSpreadsheet className="w-4 h-4 mr-2" />
+            Export Jobs
           </Button>
         </div>
 
@@ -631,6 +675,72 @@ const AdminDashboard = ({ user, onLogout, onNavigateToJobs }) => {
                 </CardContent>
               </Card>
             )}
+          </div>
+        )}
+
+        {/* Export Jobs Tab */}
+        {activeTab === 'export-jobs' && (
+          <div className="space-y-6">
+            <Card className="bg-slate-800/50 backdrop-blur border-slate-700">
+              <CardHeader>
+                <CardTitle className="text-white flex items-center">
+                  <FileSpreadsheet className="w-5 h-5 mr-2" />
+                  Bulk Job Export
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                <div className="bg-slate-700/30 rounded-lg p-6 border border-slate-600">
+                  <h3 className="text-lg font-semibold text-white mb-4">Export All Job Listings</h3>
+                  <p className="text-slate-400 mb-4">
+                    Download a CSV file containing all job listings on the platform. The export includes the following columns:
+                  </p>
+                  
+                  <div className="bg-slate-800 rounded-lg p-4 mb-6">
+                    <h4 className="text-sm font-medium text-slate-300 mb-3">CSV Columns:</h4>
+                    <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+                      {[
+                        'Job Title',
+                        'Location',
+                        'Salary',
+                        'Description',
+                        'Role Type',
+                        'Work Type',
+                        'Industry',
+                        'Link to Job Listing',
+                        'Job Listing ID'
+                      ].map((col, idx) => (
+                        <div key={idx} className="flex items-center text-sm">
+                          <Check className="w-4 h-4 text-green-400 mr-2" />
+                          <span className="text-slate-300">{col}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  <Button
+                    onClick={handleExportJobs}
+                    disabled={exportLoading}
+                    className="bg-green-600 hover:bg-green-700 text-white"
+                  >
+                    {exportLoading ? (
+                      <>
+                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                        Generating Export...
+                      </>
+                    ) : (
+                      <>
+                        <Download className="w-4 h-4 mr-2" />
+                        Download Jobs CSV
+                      </>
+                    )}
+                  </Button>
+                </div>
+
+                <div className="text-sm text-slate-500">
+                  <p>Note: The export may take a moment if there are many job listings. The file will automatically download once ready.</p>
+                </div>
+              </CardContent>
+            </Card>
           </div>
         )}
       </div>

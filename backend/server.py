@@ -4163,6 +4163,97 @@ async def validate_discount_code(
     }
 
 
+# ============================================
+# Admin Bulk Job Export
+# ============================================
+
+@api_router.get("/admin/jobs/export")
+async def admin_export_jobs(
+    current_user: User = Depends(verify_admin_user)
+):
+    """Export all jobs as CSV for admin"""
+    import csv
+    import io
+    from fastapi.responses import StreamingResponse
+    
+    # Fetch all jobs
+    cursor = db.jobs.find({}, {"_id": 0})
+    jobs = await cursor.to_list(length=150000)
+    
+    # Create CSV in memory
+    output = io.StringIO()
+    writer = csv.writer(output)
+    
+    # Write header
+    headers = [
+        "Job Title",
+        "Location", 
+        "Salary",
+        "Description",
+        "Role Type",
+        "Work Type",
+        "Industry",
+        "Link to Job Listing",
+        "Job Listing ID"
+    ]
+    writer.writerow(headers)
+    
+    # Write job data
+    base_url = os.environ.get("BASE_URL", "https://jobrocket.co.za")
+    
+    for job in jobs:
+        job_id = job.get("id", "")
+        
+        # Format salary
+        salary_min = job.get("salary_min", "")
+        salary_max = job.get("salary_max", "")
+        if salary_min and salary_max:
+            salary = f"R{salary_min} - R{salary_max}"
+        elif salary_min:
+            salary = f"R{salary_min}+"
+        elif salary_max:
+            salary = f"Up to R{salary_max}"
+        else:
+            salary = job.get("salary_range", "Not specified")
+        
+        # Clean description (remove HTML and limit length)
+        description = job.get("description", "")
+        if description:
+            # Remove HTML tags
+            import re
+            description = re.sub(r'<[^>]+>', '', description)
+            # Limit length and remove newlines
+            description = description.replace('\n', ' ').replace('\r', ' ')[:500]
+        
+        row = [
+            job.get("title", ""),
+            job.get("location", ""),
+            salary,
+            description,
+            job.get("role_type", job.get("job_type", "")),
+            job.get("work_type", job.get("employment_type", "")),
+            job.get("industry", job.get("category", "")),
+            f"{base_url}/jobs/{job_id}",
+            job_id
+        ]
+        writer.writerow(row)
+    
+    # Prepare response
+    output.seek(0)
+    
+    # Generate filename with date
+    filename = f"jobrocket_jobs_export_{datetime.utcnow().strftime('%Y%m%d_%H%M%S')}.csv"
+    
+    return StreamingResponse(
+        iter([output.getvalue()]),
+        media_type="text/csv",
+        headers={
+            "Content-Disposition": f"attachment; filename={filename}",
+            "Content-Type": "text/csv; charset=utf-8"
+        }
+    )
+
+
 @api_router.post("/cv-search/match")
 async def match_candidates(
     job_id: str,
