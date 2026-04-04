@@ -179,8 +179,10 @@ JobRocket is a B2B SaaS recruitment platform targeting recruiters, businesses, a
 ## Backlog / Roadmap
 
 ### P1 - Next
-1. **Recruiter Reporting Feature** - CV search usage stats reporting
-2. **Job Application Notifications** - Email recruiters when job seekers apply
+1. **Fix and Re-enable Onboarding Flow** - Currently disabled per user request
+2. **Enhance CV Search Candidate Cards** - Add job title, location, company, salary, phone
+3. **Implement "Change Password" Feature** - User self-service security
+4. **More Email Notifications** - Shortlisted, Interview Scheduled, Offer Made
 
 ### P2 - Later
 1. AI match scoring & auto-ranked candidates
@@ -366,6 +368,25 @@ Tasks performed:
   - Frontend duration check (max 60 seconds)
   - Backend duration validation using ffprobe
   - 50MB file size limit
+
+### Phase 17: Guest Job Browsing (April 2026)
+- [x] **Guest Job Listings Page** (`/browse-jobs`)
+  - Standalone page for unauthenticated visitors to preview job listings
+  - Same layout as authenticated job listings: hero search, filters sidebar, job cards
+  - Simplified guest navbar: Job Rocket logo + Login/Register buttons
+  - Guest info banner: "You are browsing as a guest"
+  - All interactive actions (view details, apply, save) blocked with login prompt modal
+  - Modal prompts user to "Create Account" or "Sign In"
+  - Logged-in users automatically redirected from `/browse-jobs` to `/jobs`
+  
+- [x] **Login Page Update**
+  - "View as Guest" button added below "Create Account" on login page
+  - Globe icon, subtle gradient styling, links to `/browse-jobs`
+  
+- [x] **Routing**
+  - `/browse-jobs` — Guest-only route (unauthenticated)
+  - `/register` — Dedicated registration route (unauthenticated)
+  - Authenticated `/browse-jobs` → redirects to `/jobs`
 
 ---
 
