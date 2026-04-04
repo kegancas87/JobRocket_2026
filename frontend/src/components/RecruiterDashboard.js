@@ -14,7 +14,6 @@ import {
   Globe, 
   Linkedin, 
   Users, 
-  Camera,
   Upload,
   Save,
   Briefcase,
@@ -871,24 +870,6 @@ const RecruiterDashboard = ({ user, onUpdateUser }) => {
                         <Building2 className="w-10 h-10 text-slate-400" />
                       )}
                     </div>
-                    <button
-                      onClick={() => document.getElementById('logo-upload-sidebar').click()}
-                      className="absolute -bottom-1 -right-1 w-7 h-7 bg-blue-600 hover:bg-blue-700 rounded-full flex items-center justify-center text-white shadow-lg transition-colors"
-                      disabled={uploadingImage === 'logo'}
-                    >
-                      {uploadingImage === 'logo' ? (
-                        <Loader2 className="w-3 h-3 animate-spin" />
-                      ) : (
-                        <Camera className="w-3 h-3" />
-                      )}
-                    </button>
-                    <input
-                      id="logo-upload-sidebar"
-                      type="file"
-                      accept="image/*"
-                      onChange={(e) => e.target.files[0] && handleImageUpload(e.target.files[0], 'logo')}
-                      className="hidden"
-                    />
                   </div>
                   <h3 className="font-semibold text-slate-800">
                     {companyForm.company_name || 'Your Company'}
