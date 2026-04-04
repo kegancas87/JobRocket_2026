@@ -1,182 +1,154 @@
 <analysis>**original_problem_statement:**
-The user's initial goal was to build a comprehensive Recruiter Job Dashboard to serve as an operational hub. After initial clarification, the scope was refined to include:
-- A Jobs Dashboard screen for recruiters to view and manage their listed jobs (active/expired), see application counts, and track pipeline movement (shortlisted, interviews, offers).
-- The ability to re-activate expired jobs and add notes.
-- An applicant pipeline view when clicking into a job.
-- Suggested additions like a quick stats bar, expiring soon badges, and search functionality.
+The user's ongoing goal is to build a comprehensive multi-tenant Job Rocket SaaS platform. In this session, the user strictly requested to focus on completing the Recruiter Dashboard features, fixing a critical PayFast integration error (Bad Signature 400), fully implementing an Admin Discount Codes system, and adding a Bulk Job Export feature (CSV) with date and limit filters for the Administrator. 
 
-Later, the user requested:
-- Implementation of three specific MVP reports: Time-to-Fill, Pipeline Conversion, and Recruiter Workload.
-- Implementation of email notifications for job applications (to recruiter and job seeker) and rejections (to job seeker).
-- A UI change to move Billing into a dropdown menu under the user's name and add a Reports section.
-- A bug fix for a crash on the Teams tab under Structure.
-- Functionality to edit and remove users from the Teams tab.
-- A fix for the Google OAuth login.
-- A production-readiness check and configuration for deployment to a VPS, including hiding secrets and setting production URLs.
-- Disabling the flawed onboarding flow, redirecting users straight to the dashboard after login/registration.
-- A comprehensive list of all application error codes.
+**PRODUCT REQUIREMENTS:**
+- Recruiter Dashboard: Sync Links form state correctly and remove Packages, Jobs, Applications from the profile stepper.
+- Billing & Payments: Ensure PayFast integration uses correct signature generation without URL encoding, and switch to LIVE production credentials.
+- Admin Features: Implement full CRUD and validation for Discount Codes. Allow applying these codes on the pricing page and passing the discounted total to PayFast.
+- Admin Export: Implement a Bulk Job Export to CSV featuring specific headers (Job Title, Location, Salary, Description, Role Type, Work Type, Industry, Link, ID, Posted Date), filterable by a date range and job limit (latest first).
+- UI/UX: Update Pricing Page to show the new discounted price in green above the crossed-out original price. Update Footer to replace the contact number with .
 
-**User's preferred language**: English
+**User's preferred language**: English (INSTRUCT next agent to respond in English only)
 
-**what currently exists?**
-The application is a multi-tenant SaaS job board. In this session, the agent built a new **Jobs Dashboard** and a **Reports** page with three MVP reports (Time-to-Fill, Pipeline Conversion, Workload). Email notifications for the application lifecycle (applied, received, rejected) were implemented. The main navigation was updated to include a user dropdown menu for Billing and Reports. A critical bug on the Company Structure page was fixed, and edit/remove functionality for team members was added. The application was configured for production deployment (CORS, ENV variables for secrets). The user-facing onboarding flow has been disabled, redirecting users straight to their respective dashboards. A comprehensive error code document was created.
+**what currently exists?** 
+A full-stack SaaS job board (React + FastAPI + MongoDB). The app features Recruiter, Job Seeker, and Admin dashboards. Recently, the Recruiter Dashboard received a 2-column vertical stepper UI. The billing flow is integrated with PayFast (Live mode). The Admin dashboard has robust tools including User Management, Discount Codes management, and Bulk Job Export capabilities. The platform uses a gamified Job Seeker profile with file/video uploads.
 
 **Last working item**:
--   **Last item agent was working**: The agent was tasked with providing a comprehensive list of all error codes used in the application, as the user encountered a 500 error not present in the initial list.
--   **Status**: COMPLETED
--   **Agent Testing Done**: N/A
--   **Which testing method agent to use?**: NA
--   **User Testing Done**: Y
+    - **Last item agent was working**: Enhancing the Bulk Job Export feature by adding a date range filter (From Date / To Date) and a job limit filter (latest N jobs) in both the frontend  and the backend export endpoint.
+    - **Status**: USER VERIFICATION PENDING
+    - **Agent Testing Done**: Y
+    - **Which testing method agent to use?**: backend manual testing by curl and frontend screenshot tool.
+    - **User Testing Done**: N
 
 **All Pending/In progress Issue list**:
--   **Issue 1: Google OAuth fails with  (P0)**
-    -   **Attempted fixes**: This is a recurring issue. The agent has updated the backend and frontend  files with the user-provided credentials. The user was instructed on which production URLs (, ) to add to their Google Cloud Console for Authorized JavaScript Origins and Authorized Redirect URIs.
-    -   **Next debug checklist**: Confirm with the user that they have updated the Google Cloud Console settings. Once confirmed, attempt to test the Google login flow.
-    -   **Why fix this issue and what will be achieved with the fix?**: This is a critical P0 authentication feature, blocking a key login method for the production environment.
-    -   **Status**: BLOCKED
-    -   **Is recurring issue?**: Y
-    -   **Should Test frontend/backend/both after fix?**: Frontend
-    -   **Blocked on other issue**: User action required in the Google Cloud Console.
+  - **Issue 1**: Google OAuth fails with  (P0)
+     - **Attempted fixes**:  and  added in previous forks to prevent React re-renders from breaking the initialization.
+     - **Next debug checklist**: Await user verification on their production server.
+     - **Why fix this issue and what will be achieved with the fix?**: Critical for Google SSO login on production.
+     - **Status**: USER VERIFICATION PENDING
+     - **Is recurring issue?**: Y
+     - **Should Test frontend/backend/both after fix?**: Frontend
+     - **Blocked on other issue**: User action required (deployment and testing on production).
 
--   **Issue 2: Legal page links in the footer may be broken (P2)**
-    -   **Attempted fixes**: A fix was applied in a previous session. The issue might be due to user-side browser caching. This was not re-verified in the current session.
-    -   **Next debug checklist**:
-        1.  Navigate to the footer.
-        2.  Click the Terms of Service and Privacy Policy links.
-        3.  Use  to capture proof of successful or failed navigation.
-        4.  If successful, instruct the user to perform a hard refresh. If failed, investigate the  attributes in  again.
-    -   **Why fix this issue and what will be achieved with the fix?**: Ensures users can access standard legal documents, which is important for compliance.
-    -   **Status**: USER VERIFICATION PENDING
-    -   **Is recurring issue?**: Y
-    -   **Should Test frontend/backend/both after fix?**: Frontend
-    -   **Blocked on other issue**: None.
+  - **Issue 2**: User reports production issues not reproducible in preview (P0)
+     - **Attempted fixes**: Agent fixed bugs in preview environment. User says they aren't live.
+     - **Next debug checklist**: Guide user to pull latest code and rebuild production server. 
+     - **Why fix this issue and what will be achieved with the fix?**: Core functionality is broken on their live site.
+     - **Status**: BLOCKED
+     - **Is recurring issue?**: Y
+     - **Should Test frontend/backend/both after fix?**: N/A (User must test on production)
+     - **Blocked on other issue**: User action required (deployment).
 
 **In progress Task List**:
--   None.
+  None. All requested tasks from this session were successfully completed and await user confirmation.
 
 **Upcoming and Future Tasks**
--   **Upcoming Tasks**:
-    -   **P0: Fix and Re-enable Onboarding Flow**: The user requested to disable the flawed onboarding flow but wants it fixed later. The current implementation skips it entirely.
-    -   **P1: Enhance CV Search Candidate Cards**: This was the last pending task from the previous fork and was skipped. It involves adding more candidate details (job title, location, company, salary, phone number) to the CV search results.
-    -   **P1: Implement More Email Notifications**: Implement notifications for Application Shortlisted, Interview Scheduled, and Offer Made as suggested by the agent.
-    -   **P2: Add Filters to Reports**: Enhance the new reports with filters for specific jobs or recruiters.
-
--   **Future Tasks**:
-    -   **P1: Recruiter Reporting Feature**: Add a report on CV search usage.
-    -   **P2: Refactor **: This file is still extremely large (~4000 lines) and is a major source of technical debt. Inline page components should be extracted into the  directory.
-    -   **P2: AI Match Score for CV Search**: Implement an AI scoring feature for candidate ranking.
-    -   **P2: Talent Pool Alerts**: Allow recruiters to save searches and get alerts for new matching candidates.
-    -   **P2: Paid Features for Job Seekers**: Introduce monetization for the job seeker user type.
-    -   **P2: Stripe Integration**: Add Stripe as an alternative payment gateway.
-    -   **P3: Quick Stats for Admin Dashboard**: Add a Quick Stats feature.
-    -   **P3: In-App Notifications**: Implement a real-time, in-app notification system.
+    Upcoming Tasks:
+    - P0: Fix and Re-enable Onboarding Flow (Currently disabled per user request).
+    - P1: Enhance CV Search Candidate Cards (Add job title, location, company, salary, phone).
+    - P1: Implement Change Password Feature (User self-service security).
+    - P1: More Email Notifications (Shortlisted, Interview Scheduled, Offer Made).
+    
+    Future Tasks:
+    - P2: Refactor  and  (Both files are massive and need modularization).
+    - P2: AI Match Score for CV Search.
+    - P2: Recruiter Reporting Feature.
+    - P2: Stripe Integration.
+    - P3: In-App Notifications.
 
 **Completed work in this session**
--   **Jobs Dashboard Feature (DONE)**: Created a new page () with a stats bar, job cards showing activity, filters, and a modal for viewing applicants in a pipeline view.
--   **MVP Reporting Feature (DONE)**: Created a new Reports page with three complete reports: Time-to-Fill, Pipeline Conversion, and Recruiter Workload, including data fetching, UI, and CSV export functionality.
--   **Email Notification System (DONE)**: Implemented email sending for: New Application (to Recruiter), Application Confirmation (to Job Seeker), and Application Rejected (to Job Seeker).
--   **UI Navigation Update (DONE)**: Refactored the main navigation to move Billing and add Reports into a responsive user dropdown menu for recruiters.
--   **Team Management Bug Fix & Enhancement (DONE)**: Fixed a critical crash on the  page and implemented functionality for the settings button on team member cards to allow editing roles/permissions and removing users.
--   **Production Readiness (DONE)**: Configured the application for production by setting production URLs, securing CORS policies, and moving all secrets (PayFast, JWT, Google OAuth) to environment variables. A deployment guide was generated.
--   **Onboarding Flow Disabled (DONE)**: Modified  to bypass the onboarding flow, sending users directly to their dashboard after login/registration.
--   **Error Code Documentation (DONE)**: Investigated and documented all API error codes (4xx and 5xx) in a new file .
+- Recruiter Dashboard Sync Fix (DONE): Added  in  to sync company links state.
+- Recruiter Dashboard UX (DONE): Removed Packages, Jobs, and Applications from the profile stepper.
+- PayFast Signature Fix (DONE): Removed URL-encoding from signature generation in  and switched  to LIVE mode.
+- Admin Discount Codes (DONE): Built backend endpoints for creation/validation. Integrated into  and passed discounted values to PayFast.
+- Pricing Page UX (DONE): Displayed new discounted prices in green above original crossed-out prices.
+- Footer Update (DONE): Removed phone number, changed email to .
+- Admin Bulk Job Export (DONE): Implemented CSV streaming download endpoint and frontend UI with Date Range and Job Limit filters.
 
 **Earlier issues found/mentioned but not fixed**
--   See **Issue 2** in  regarding the legal page links. It was carried over but not addressed in this session.
+   - Issue 1: Legal page links in the footer may be broken
+     - Debug checklist: Click Terms of Service and Privacy Policy in footer to verify routing.
+     - Why to solve this issue and what will be achieved with this?: Standard legal compliance.
+     - Should Test frontend/backend/both after fix: Frontend
+     - Is recurring issue? Y
 
 **Known issue recurrence from previous fork**
--   **Issue recurrence in previous fork**: Google OAuth  error.
--   **Recurrence count**: 2+
--   **Status**: BLOCKED
+  - Issue recurrence in previous fork: Google OAuth  error.
+  - Recurrence count: 3+
+  - Status: USER VERIFICATION PENDING
 
 **Code Architecture**
 
 
 **Key Technical Concepts**
--   **API-First Reporting**: Building dedicated, filterable API endpoints to power frontend report components.
--   **Production Readiness**: The process of securing an application for deployment, including managing environment variables for secrets, configuring CORS for a specific domain, and removing debug information.
--   **Feature Flagging (Simple)**: Disabling the onboarding flow by changing a conditional check to a hardcoded , effectively turning the feature off without removing the code.
--   **Graceful Error Handling (UI)**: Fixing a UI crash by adding null checks ( optional chaining) to prevent rendering errors when API data is incomplete or missing.
+- React UI/UX: View/Edit mode toggles, controlled forms, dynamic pricing layouts.
+- External Payments: PayFast integration requiring strict signature generation (MD5 without URL-encoding) and form submissions.
+- Data Streaming:  in FastAPI to generate and serve CSV files dynamically for Admin Export.
 
 **key DB schema**
--   **jobs**:  (type: ) was used, derived from .  (type: ) was added to the  collection to calculate Time-to-Fill.
--   **applications**:  field (enum: ) is critical for pipeline reports.  field added.
+  - : Core auth data, roles.
+  - : Company details (, ).
+  - : Managed by admin, validated during payment flow.
 
 **changes in tech stack**
--   None.
+  - None
 
-**All files of reference**
--   : Core logic for all new endpoints (Reports, Jobs Dashboard, Team Management) and email triggers.
--   : Central point for routing, the onboarding disable logic, and the fix for the team management bug.
--   : New feature component for recruiters to manage jobs.
--   : New feature component displaying the three MVP reports.
--   : Contains the updated responsive navigation with the user dropdown menu.
--   : New documentation file created for the user.
+**All files of reference** 
+1.  (Updated PayFast signature logic, added Discount Code CRUD, added Bulk Export CSV logic)
+2.  (Added bulk export UI, fixed discount code tab state)
+3.  (Removed redundant links, fixed state sync)
+4.  (Added discount code input and dynamic pricing UI)
+5.  (Updated support email)
+6.  (Updated PayFast variables to Live Mode)
 
-**Areas that need refactoring**:
--   ** remains a critical piece of technical debt (~4000 lines).** Extracting inline components is a high-priority task to improve maintainability.
--   **** is also large and could benefit from extracting modals into separate components.
+**Areas that need refactoring**: 
+-  is over 5,600 lines long and urgently needs to be broken out into API routers ().
+-  and  are monolithic and need component extraction.
 
 **key api endpoints**
--   **Jobs Dashboard**:
-    -   : Gets stats for the quick-view bar.
-    -   : Fetches jobs with application counts for the main list.
-    -   : Adds a note to a job.
-    -   : Gets applicants for the pipeline view modal.
--   **Reports**:
-    -   : Powers the Time-to-Fill report.
-    -   : Powers the Pipeline Conversion report.
-    -   : Powers the Recruiter Workload report.
--   **Team Management**:
-    -   : Updates a team member's role or permissions.
-    -   : Removes a team member.
+- : Initiates PayFast checkout (now accepts and processes ).
+- : Fetches available discount codes.
+- : Checks if a code is valid and returns calculated amounts.
+- : Generates the Bulk Job CSV (accepts , ,  query params).
 
-**Critical Info for New Agent**
--   **Onboarding is Disabled**: The onboarding flow is intentionally disabled via a hardcoded  in . Do not fix this by re-enabling it. The user wants the flow itself to be fixed as a future task.
--   **Production Config**: The app has been configured for production at . All secrets are now in  files. Do not hardcode credentials.
--   **Google OAuth is Blocked on User**: Do not attempt to work on the Google OAuth issue until the user confirms they have updated their Google Cloud Console with the production URLs provided.
--   **Skipped Task**: The task from the previous fork (enhancing CV Search cards) was skipped in favor of the user's new requests. This is still a pending requirement.
+**Critical Info for New Agent** 
+- **USER BEHAVIOR WARNING**: The user became highly frustrated when the agent tried to investigate Google OAuth or global links without being asked. **Do exactly what the user asks and do not try to fix or investigate unrelated systems (even if you spot bugs) unless explicitly instructed.**
+- **PayFast is LIVE**: The application is currently using production PayFast credentials (). Be extremely careful not to overwrite or expose these credentials in logs.
+- **Production Server Differences**: If the user states a feature is missing or broken but it works in preview, politely remind them that they need to  and restart their live server. Do not endlessly debug working code.
 
-**documents and test reports created in this job**
--   
--    (updated with new features)
--    (for the Jobs Dashboard feature)
+**documents and test reports created in this job** 
+- None newly generated, used existing .
 
-**Last 10 User Messages and any pending HUMAN messages**
-1.  **User**: Praised the agent for the excellent work on the reports feature. (Status: Acknowledged)
-2.  **User**: Reported a runtime error on the Teams tab under Structure. (Status: Completed, bug fixed)
-3.  **User**: Requested that the settings button on the fixed Teams page be made functional to edit/remove users. (Status: Completed)
-4.  **User**: Requested to fix Google OAuth and provided production credentials. (Status: Blocked, agent provided instructions for user)
-5.  **User**: Clarified that production URLs should not contain emergent. (Status: Acknowledged, agent provided correct URLs)
-6.  **User**: Stated they are moving to a production VPS and asked for a production-readiness check. (Status: Completed)
-7.  **User**: Provided details for production configuration (domain, CORS, PayFast keys, DB location). (Status: Completed, agent configured the app)
-8.  **User**: Reported a major problem with the onboarding flow on production and asked to disable it completely for now. (Status: Completed)
-9.  **User**: Asked which files were changed to disable onboarding for their developer. (Status: Completed, agent provided summary)
-10. **User**: Asked for a list of all error codes. (Status: Completed)
+**Last 10 User Messages and any pending HUMAN messages** 
+1. User: Asked for focus strictly on Recruiter features.
+2. User: Scolded agent for modifying global application links. Instructed to strictly remove Packages, Jobs, Applications from Recruiter Dashboard only. (Completed)
+3. User: Reported PayFast Bad Signature (400) and provided Live credentials. (Completed)
+4. User: Noticed discount code in Admin dashboard isn't working. Asked for an investigation and plan. (Completed)
+5. User: Asked if discount codes will reflect in the billing flow/PayFast. (Completed)
+6. User: Approved full implementation of Discount Codes. (Completed)
+7. User: Requested UI update on Pricing Page to show discounted price in green above crossed-out original price. (Completed)
+8. User: Verified if discounted price pulls through to PayFast. (Completed)
+9. User: Asked to remove phone number and change email to support@jobrocket.co.za in the Footer. (Completed)
+10. User: Requested Bulk Job Export feature with specific headers. Followed by adding date & limit filters to it. (Completed - Verification Pending)
 
 **Project Health Check:**
--   **Broken**: Google OAuth Login/Registration ( error, blocked on user action in Google Cloud Console).
--   **Mocked**: None. Payfast integration is now configured with production credentials in the  file but has not been tested in a live production environment.
+- Broken: Nothing currently identified in preview.
+- Mocked: None.
 
-**3rd Party Integrations**
--   **Payfast**: Configured with production credentials for recurring subscription payments.
--   **Google OAuth 2.0**: Configured with production credentials but is non-functional and blocked on the user.
--   **SMTP**: Direct integration configured for sending emails.
--   **fpdf**: For server-side PDF generation.
--   **apscheduler**: For running scheduled backend tasks.
+**3rd Party Integrations** 
+- Google OAuth 2.0 (Auth) — requires User API Key / Client ID.
+- Payfast (Payments) — requires User API Key (Currently LIVE).
 
 **Testing status**
--   **Testing agent used after significant changes**: YES. The agent was used to validate the new Jobs Dashboard feature.
--   **Troubleshoot agent used after agent stuck in loop**: NO
--   **Test files created**: []
--   **Known regressions**: None.
+  - Testing agent used after significant changes: NO (Screenshot tool heavily relied upon).
+  - Troubleshoot agent used after agent stuck in loop: NO
+  - Test files created: []
+  - Known regressions: None
 
 **Credentials to test flow:**
--   **Recruiter (Pro Tier)**:  (password: )
--   **Recruiter (Starter Tier)**:  (password: )
--   **Job Seeker**:  (password: )
--   **Admin**:  (password: )
+- Recruiter:  (password: )
+- Job Seeker:  (password: )
+- Admin:  (password: )
 
 **What agent forgot to execute**
--   **CV Search Card Enhancement**: The agent did not implement the user's request from the *previous* fork to enhance the CV Search candidate cards (adding job title, location, company, salary, and phone number). The user's new request for the Jobs Dashboard took priority, and this was never circled back to.
--   **Legal Links Verification**: The agent did not follow up on the USER VERIFICATION PENDING status of the legal page links from the previous handoff. It remains unresolved.</analysis>
+- The agent did not test the legal page footer links (Carry-over Issue from previous handoff).</analysis>

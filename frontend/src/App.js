@@ -28,6 +28,7 @@ import PrivacyPolicyPage from "./components/PrivacyPolicyPage";
 import TermsOfServicePage from "./components/TermsOfServicePage";
 import CVSearchPage from "./components/CVSearchPage";
 import JobDetailsPage from "./components/JobDetailsPage";
+import GuestJobListings from "./components/GuestJobListings";
 import { ApplyButton } from "./components/EasyApply";
 import JobDetailsModal from "./components/JobDetailsModal";
 import Navigation from "./components/Navigation";
@@ -1277,6 +1278,15 @@ function App() {
             <Route path="/payment/cancel" element={
               <PaymentCancelPage user={null} />
             } />
+            <Route path="/browse-jobs" element={
+              <GuestJobListings />
+            } />
+            <Route path="/register" element={
+              <RegisterPage 
+                onRegister={handleRegister}
+                onSwitchToLogin={() => setAuthPage('login')}
+              />
+            } />
             {/* Public Static Pages - Unauthenticated */}
             <Route path="/about" element={<AboutUsPage />} />
             <Route path="/contact" element={<ContactPage />} />
@@ -1568,6 +1578,9 @@ function App() {
                   <Navigate to="/" replace />
                 )
               } />
+              
+              {/* Redirect logged-in users away from guest view */}
+              <Route path="/browse-jobs" element={<Navigate to="/jobs" replace />} />
               
               {/* Public Static Pages */}
               <Route path="/about" element={<AboutUsPage />} />
