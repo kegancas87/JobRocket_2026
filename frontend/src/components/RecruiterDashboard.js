@@ -4,14 +4,11 @@ import { Input } from "./ui/input";
 import { Textarea } from "./ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle } from "./ui/card";
 import { Badge } from "./ui/badge";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "./ui/tabs";
 import { Label } from "./ui/label";
-import TrophyProgress from './TrophyProgress';
 import CompanyStructure from './CompanyStructure';
 import JobPosting from './JobPosting';
 import ApplicationManagement from './ApplicationManagement';
 import PackageManagement from './PackageManagement';
-import ProfileCompletionTracker from './ProfileCompletionTracker';
 import { 
   Building2, 
   Globe, 
@@ -21,18 +18,14 @@ import {
   Upload,
   Save,
   Briefcase,
-  Plus,
-  Star,
   MapPin,
-  Calendar,
-  Target,
-  Zap,
   Image,
   Link,
-  Award,
   FileText,
   CreditCard,
-  DollarSign
+  Check,
+  ChevronRight,
+  Loader2
 } from "lucide-react";
 import axios from 'axios';
 
@@ -43,21 +36,21 @@ const API = `${BACKEND_URL}/api`;
 const getImageUrl = (imageUrl) => {
   if (!imageUrl) return '';
   if (imageUrl.startsWith('http://') || imageUrl.startsWith('https://')) {
-    return imageUrl; // Already a full URL
+    return imageUrl;
   }
   if (imageUrl.startsWith('/uploads/')) {
-    return `${BACKEND_URL}/api${imageUrl}`; // Convert old URLs to new API path
+    return `${BACKEND_URL}/api${imageUrl}`;
   }
   if (imageUrl.startsWith('/api/uploads/')) {
-    return `${BACKEND_URL}${imageUrl}`; // New API URLs
+    return `${BACKEND_URL}${imageUrl}`;
   }
-  return imageUrl; // Return as-is for other cases
+  return imageUrl;
 };
 
 const RecruiterDashboard = ({ user, onUpdateUser }) => {
   const [profile, setProfile] = useState(user);
   const [loading, setLoading] = useState(false);
-  const [activeTab, setActiveTab] = useState('overview');
+  const [activeStep, setActiveStep] = useState(0);
   const [progress, setProgress] = useState(user.recruiter_progress || {});
   const [uploadingImage, setUploadingImage] = useState(null);
   
@@ -73,6 +66,52 @@ const RecruiterDashboard = ({ user, onUpdateUser }) => {
     company_logo_url: user.company_profile?.company_logo_url || '',
     company_cover_image_url: user.company_profile?.company_cover_image_url || ''
   });
+
+  // Steps configuration
+  const steps = [
+    { 
+      id: 'company', 
+      label: 'Company Info', 
+      icon: Building2,
+      isComplete: progress.company_description && progress.company_size
+    },
+    { 
+      id: 'branding', 
+      label: 'Branding', 
+      icon: Image,
+      isComplete: progress.company_logo
+    },
+    { 
+      id: 'links', 
+      label: 'Links', 
+      icon: Link,
+      isComplete: progress.company_website
+    },
+    { 
+      id: 'structure', 
+      label: 'Structure', 
+      icon: Users,
+      isComplete: false
+    },
+    { 
+      id: 'packages', 
+      label: 'Packages', 
+      icon: CreditCard,
+      isComplete: false
+    },
+    { 
+      id: 'jobs', 
+      label: 'Jobs', 
+      icon: Briefcase,
+      isComplete: progress.first_job_posted
+    },
+    { 
+      id: 'applications', 
+      label: 'Applications', 
+      icon: FileText,
+      isComplete: false
+    }
+  ];
 
   const getAuthHeaders = () => {
     const token = localStorage.getItem('token');
@@ -97,103 +136,72 @@ const RecruiterDashboard = ({ user, onUpdateUser }) => {
 
   const handleImageUpload = async (file, imageType) => {
     if (!file) return;
-
-    // Validate file type
-    const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'];
-    if (!allowedTypes.includes(file.type)) {
-      alert('Please upload a JPEG, PNG, or WebP image file.');
+    
+    const validTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
+    if (!validTypes.includes(file.type)) {
+      alert('Please upload a valid image file (JPG, PNG, GIF, or WebP)');
       return;
     }
 
-    // Validate file size (10MB max)
-    if (file.size > 10 * 1024 * 1024) {
-      alert('File size must be less than 10MB.');
+    const maxSize = 5 * 1024 * 1024;
+    if (file.size > maxSize) {
+      alert('Image must be smaller than 5MB');
       return;
     }
 
+    setUploadingImage(imageType);
     try {
-      setUploadingImage(imageType);
-      
       const formData = new FormData();
       formData.append('file', file);
-      formData.append('image_type', imageType);
-
-      const response = await axios.post(`${API}/upload-image`, formData, {
+      
+      const token = localStorage.getItem('token');
+      const endpoint = imageType === 'logo' ? '/uploads/company-logo' : '/uploads/company-cover';
+      
+      const response = await axios.post(`${API}${endpoint}`, formData, {
         headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`,
+          'Authorization': `Bearer ${token}`,
           'Content-Type': 'multipart/form-data'
         }
       });
-
-      // Update the appropriate field based on image type
-      const fieldMap = {
-        'logo': 'company_logo_url',
-        'cover': 'company_cover_image_url'
-      };
-
-      const fieldName = fieldMap[imageType];
-      if (fieldName) {
-        setCompanyForm(prev => ({
-          ...prev,
-          [fieldName]: response.data.file_url
-        }));
-
-        // Auto-save the uploaded image
-        await updateCompanyProfile({ [fieldName]: response.data.file_url });
-      }
-
+      
+      const fieldName = imageType === 'logo' ? 'company_logo_url' : 'company_cover_image_url';
+      setCompanyForm(prev => ({
+        ...prev,
+        [fieldName]: response.data.url
+      }));
+      
+      await fetchCurrentUser();
     } catch (error) {
-      console.error('Error uploading image:', error);
-      alert(error.response?.data?.detail || 'Failed to upload image');
+      console.error(`Error uploading ${imageType}:`, error);
+      alert(`Failed to upload ${imageType}. Please try again.`);
     } finally {
       setUploadingImage(null);
     }
   };
 
-  const updateCompanyProfile = async (updates) => {
+  const handleCompanySubmit = async (e) => {
+    e.preventDefault();
+    setLoading(true);
     try {
-      setLoading(true);
-      await axios.put(`${API}/profile/company`, updates, getAuthHeaders());
+      await axios.put(`${API}/recruiter/profile`, {
+        company_profile: companyForm
+      }, getAuthHeaders());
       await fetchCurrentUser();
     } catch (error) {
       console.error('Error updating company profile:', error);
+      alert('Failed to update company profile');
     } finally {
       setLoading(false);
     }
   };
 
-  const handleCompanySubmit = async (e) => {
-    e.preventDefault();
-    await updateCompanyProfile(companyForm);
+  const onProfileComplete = async () => {
+    await fetchCurrentUser();
   };
-
-  const onProfileComplete = () => {
-    // Trigger completion celebration for recruiter
-    console.log('Company profile completed! 🚀');
-  };
-
-  const handleNavigateToSection = (sectionId) => {
-    setActiveTab(sectionId);
-    
-    // Scroll to top of the page for better UX
-    window.scrollTo({ top: 0, behavior: 'smooth' });
-    
-    // If it's the jobs section and no jobs exist, focus on creating first job
-    if (sectionId === 'jobs' && !progress.first_job_posted) {
-      // Small delay to let the tab switch, then we could potentially show a tooltip or guide
-      setTimeout(() => {
-        console.log('Guide user to create their first job');
-      }, 300);
-    }
-  };
-
-  useEffect(() => {
-    fetchCurrentUser();
-  }, []);
 
   const companySizeOptions = [
     "1-10 employees",
-    "11-50 employees", 
+    "11-50 employees",
     "51-200 employees",
     "201-500 employees",
     "501-1000 employees",
@@ -214,523 +222,580 @@ const RecruiterDashboard = ({ user, onUpdateUser }) => {
     "Other"
   ];
 
-  return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-slate-100 relative">
-      {/* Background tech grid pattern */}
-      <div className="absolute inset-0 opacity-5 tech-grid"></div>
-      
-      <div className="max-w-7xl mx-auto px-6 lg:px-8 py-8 relative z-10">
-        {/* Header */}
-        <div className="mb-8">
-          <div className="flex items-center justify-between">
+  // Calculate overall progress percentage
+  const completedSteps = steps.filter(s => s.isComplete).length;
+  const progressPercentage = Math.round((progress.total_points || 0));
+
+  // Render step content
+  const renderStepContent = () => {
+    switch(steps[activeStep].id) {
+      case 'company':
+        return (
+          <div className="space-y-8">
             <div>
-              <h1 className="text-4xl font-bold text-slate-800 mb-2">
-                Welcome back, {profile.first_name}! 👔
-              </h1>
-              <p className="text-slate-600 text-lg">
-                Complete your company profile to start attracting top talent
-              </p>
+              <h2 className="text-2xl font-semibold text-slate-800 mb-2">Company Info</h2>
+              <p className="text-slate-500">Tell candidates about your company</p>
             </div>
-            <div className="hidden lg:block">
-              <TrophyProgress 
-                progress={progress} 
-                onComplete={onProfileComplete}
-                showDetails={false}
-                userRole="recruiter"
-              />
-            </div>
+            
+            <form onSubmit={handleCompanySubmit} className="space-y-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="space-y-2">
+                  <Label htmlFor="company_name" className="text-sm font-medium text-slate-700">
+                    Company Name
+                  </Label>
+                  <Input
+                    id="company_name"
+                    value={companyForm.company_name}
+                    onChange={(e) => setCompanyForm(prev => ({ ...prev, company_name: e.target.value }))}
+                    placeholder="Your Company Name"
+                    className="h-12 bg-white border-slate-200 focus:border-blue-500 focus:ring-blue-500/20"
+                  />
+                </div>
+                
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <Label htmlFor="company_industry" className="text-sm font-medium text-slate-700">
+                      Industry
+                    </Label>
+                    {!progress.company_industry && (
+                      <span className="text-xs text-emerald-600 font-medium">earn 20 pts</span>
+                    )}
+                  </div>
+                  <select 
+                    id="company_industry"
+                    value={companyForm.company_industry}
+                    onChange={(e) => setCompanyForm(prev => ({ ...prev, company_industry: e.target.value }))}
+                    className="h-12 w-full px-4 border border-slate-200 rounded-lg focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 bg-white text-slate-700"
+                  >
+                    <option value="">Select Industry</option>
+                    {industryOptions.map((industry) => (
+                      <option key={industry} value={industry}>{industry}</option>
+                    ))}
+                  </select>
+                </div>
+                
+                <div className="space-y-2">
+                  <Label htmlFor="company_location" className="text-sm font-medium text-slate-700">
+                    Location
+                  </Label>
+                  <Input
+                    id="company_location"
+                    value={companyForm.company_location}
+                    onChange={(e) => setCompanyForm(prev => ({ ...prev, company_location: e.target.value }))}
+                    placeholder="City, Province"
+                    className="h-12 bg-white border-slate-200 focus:border-blue-500 focus:ring-blue-500/20"
+                  />
+                </div>
+                
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <Label htmlFor="company_size" className="text-sm font-medium text-slate-700">
+                      Company Size
+                    </Label>
+                    {!progress.company_size && (
+                      <span className="text-xs text-emerald-600 font-medium">earn 10 pts</span>
+                    )}
+                  </div>
+                  <select 
+                    id="company_size"
+                    value={companyForm.company_size}
+                    onChange={(e) => setCompanyForm(prev => ({ ...prev, company_size: e.target.value }))}
+                    className="h-12 w-full px-4 border border-slate-200 rounded-lg focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 bg-white text-slate-700"
+                  >
+                    <option value="">Select company size</option>
+                    {companySizeOptions.map((size) => (
+                      <option key={size} value={size}>{size}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <Label htmlFor="company_description" className="text-sm font-medium text-slate-700">
+                    Company Description <span className="text-slate-400 font-normal">(100+ chars)</span>
+                  </Label>
+                  {!progress.company_description && (
+                    <span className="text-xs text-emerald-600 font-medium">earn 30 pts on completion</span>
+                  )}
+                </div>
+                <Textarea
+                  id="company_description"
+                  value={companyForm.company_description}
+                  onChange={(e) => setCompanyForm(prev => ({ ...prev, company_description: e.target.value }))}
+                  placeholder="Tell company Description (complete for 30 pts)"
+                  rows={6}
+                  className="resize-none bg-white border-slate-200 focus:border-blue-500 focus:ring-blue-500/20"
+                />
+                <div className="flex justify-between text-sm">
+                  <span className="text-slate-400">
+                    {companyForm.company_description.length}/100 characters minimum
+                  </span>
+                </div>
+              </div>
+
+              <div className="flex items-center justify-end gap-4 pt-4">
+                <Button 
+                  type="button" 
+                  variant="outline"
+                  onClick={() => setActiveStep(prev => Math.min(prev + 1, steps.length - 1))}
+                  className="px-6"
+                >
+                  Skip for Now
+                </Button>
+                <Button 
+                  type="submit" 
+                  disabled={loading}
+                  className="bg-blue-600 hover:bg-blue-700 px-8 h-11"
+                >
+                  {loading ? (
+                    <>
+                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                      Saving...
+                    </>
+                  ) : (
+                    <>
+                      <Save className="w-4 h-4 mr-2" />
+                      Save Company Info
+                    </>
+                  )}
+                </Button>
+              </div>
+            </form>
           </div>
-        </div>
+        );
 
-        {/* Mobile Trophy Progress */}
-        <div className="lg:hidden mb-8">
-          <TrophyProgress 
-            progress={progress} 
-            onComplete={onProfileComplete}
-            showDetails={false}
-            userRole="recruiter"
-          />
-        </div>
-
-        {/* Main Content */}
-        <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
-          {/* Sidebar - Company Overview & Completion Tracker */}
-          <div className="lg:col-span-1 space-y-6">
-            {/* Company Overview Card */}
-            <Card className="bg-white/80 backdrop-blur-sm border-0 shadow-xl">
-              <CardContent className="p-6">
-                <div className="text-center mb-6">
-                  <div className="relative inline-block mb-4">
-                    <div className="w-24 h-24 bg-gradient-to-br from-blue-100 to-slate-200 rounded-2xl flex items-center justify-center overflow-hidden">
+      case 'branding':
+        return (
+          <div className="space-y-8">
+            <div>
+              <h2 className="text-2xl font-semibold text-slate-800 mb-2">Company Branding</h2>
+              <p className="text-slate-500">Upload your logo and cover image to stand out</p>
+            </div>
+            
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+              {/* Logo Upload */}
+              <Card className="border border-slate-200 shadow-sm">
+                <CardHeader className="pb-4">
+                  <CardTitle className="text-base font-medium flex items-center justify-between">
+                    <span>Company Logo</span>
+                    {!progress.company_logo && (
+                      <span className="text-xs text-emerald-600 font-medium">+15 pts</span>
+                    )}
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="flex flex-col items-center">
+                    <div className="w-32 h-32 bg-slate-100 rounded-xl flex items-center justify-center overflow-hidden mb-4 border-2 border-dashed border-slate-300">
                       {companyForm.company_logo_url ? (
                         <img 
                           src={getImageUrl(companyForm.company_logo_url)} 
-                          alt="Company Logo" 
+                          alt="Logo" 
                           className="w-full h-full object-cover"
-                          onError={(e) => {
-                            e.target.style.display = 'none';
-                          }}
                         />
                       ) : (
                         <Building2 className="w-12 h-12 text-slate-400" />
                       )}
                     </div>
+                    <input
+                      id="logo-upload"
+                      type="file"
+                      accept="image/*"
+                      onChange={(e) => e.target.files[0] && handleImageUpload(e.target.files[0], 'logo')}
+                      className="hidden"
+                    />
                     <Button
-                      size="sm"
-                      className="absolute -bottom-2 -right-2 w-8 h-8 rounded-full p-0"
-                      onClick={() => document.getElementById('logo-upload-overview').click()}
+                      variant="outline"
+                      onClick={() => document.getElementById('logo-upload').click()}
+                      disabled={uploadingImage === 'logo'}
+                      className="w-full"
+                    >
+                      {uploadingImage === 'logo' ? (
+                        <>
+                          <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                          Uploading...
+                        </>
+                      ) : (
+                        <>
+                          <Upload className="w-4 h-4 mr-2" />
+                          {companyForm.company_logo_url ? 'Change Logo' : 'Upload Logo'}
+                        </>
+                      )}
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Cover Image Upload */}
+              <Card className="border border-slate-200 shadow-sm">
+                <CardHeader className="pb-4">
+                  <CardTitle className="text-base font-medium flex items-center justify-between">
+                    <span>Cover Image</span>
+                    {!progress.company_cover && (
+                      <span className="text-xs text-emerald-600 font-medium">+10 pts</span>
+                    )}
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="flex flex-col items-center">
+                    <div className="w-full h-32 bg-slate-100 rounded-xl flex items-center justify-center overflow-hidden mb-4 border-2 border-dashed border-slate-300">
+                      {companyForm.company_cover_image_url ? (
+                        <img 
+                          src={getImageUrl(companyForm.company_cover_image_url)} 
+                          alt="Cover" 
+                          className="w-full h-full object-cover"
+                        />
+                      ) : (
+                        <Image className="w-12 h-12 text-slate-400" />
+                      )}
+                    </div>
+                    <input
+                      id="cover-upload"
+                      type="file"
+                      accept="image/*"
+                      onChange={(e) => e.target.files[0] && handleImageUpload(e.target.files[0], 'cover')}
+                      className="hidden"
+                    />
+                    <Button
+                      variant="outline"
+                      onClick={() => document.getElementById('cover-upload').click()}
+                      disabled={uploadingImage === 'cover'}
+                      className="w-full"
+                    >
+                      {uploadingImage === 'cover' ? (
+                        <>
+                          <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                          Uploading...
+                        </>
+                      ) : (
+                        <>
+                          <Upload className="w-4 h-4 mr-2" />
+                          {companyForm.company_cover_image_url ? 'Change Cover' : 'Upload Cover'}
+                        </>
+                      )}
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+
+            <div className="flex justify-end pt-4">
+              <Button 
+                onClick={() => setActiveStep(prev => Math.min(prev + 1, steps.length - 1))}
+                className="bg-blue-600 hover:bg-blue-700 px-8"
+              >
+                Continue
+                <ChevronRight className="w-4 h-4 ml-2" />
+              </Button>
+            </div>
+          </div>
+        );
+
+      case 'links':
+        return (
+          <div className="space-y-8">
+            <div>
+              <h2 className="text-2xl font-semibold text-slate-800 mb-2">Company Links</h2>
+              <p className="text-slate-500">Add your website and social profiles</p>
+            </div>
+            
+            <form onSubmit={handleCompanySubmit} className="space-y-6">
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <Label htmlFor="company_website" className="text-sm font-medium text-slate-700 flex items-center">
+                    <Globe className="w-4 h-4 mr-2 text-slate-400" />
+                    Company Website
+                  </Label>
+                  {!progress.company_website && (
+                    <span className="text-xs text-emerald-600 font-medium">+10 pts</span>
+                  )}
+                </div>
+                <Input
+                  id="company_website"
+                  type="url"
+                  value={companyForm.company_website}
+                  onChange={(e) => setCompanyForm(prev => ({ ...prev, company_website: e.target.value }))}
+                  placeholder="https://www.yourcompany.com"
+                  className="h-12 bg-white border-slate-200"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <Label htmlFor="company_linkedin" className="text-sm font-medium text-slate-700 flex items-center">
+                    <Linkedin className="w-4 h-4 mr-2 text-slate-400" />
+                    LinkedIn Page
+                  </Label>
+                  {!progress.company_linkedin && (
+                    <span className="text-xs text-emerald-600 font-medium">+5 pts</span>
+                  )}
+                </div>
+                <Input
+                  id="company_linkedin"
+                  type="url"
+                  value={companyForm.company_linkedin}
+                  onChange={(e) => setCompanyForm(prev => ({ ...prev, company_linkedin: e.target.value }))}
+                  placeholder="https://linkedin.com/company/yourcompany"
+                  className="h-12 bg-white border-slate-200"
+                />
+              </div>
+
+              <div className="flex items-center justify-end gap-4 pt-4">
+                <Button 
+                  type="button" 
+                  variant="outline"
+                  onClick={() => setActiveStep(prev => Math.min(prev + 1, steps.length - 1))}
+                  className="px-6"
+                >
+                  Skip for Now
+                </Button>
+                <Button 
+                  type="submit" 
+                  disabled={loading}
+                  className="bg-blue-600 hover:bg-blue-700 px-8"
+                >
+                  {loading ? (
+                    <>
+                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                      Saving...
+                    </>
+                  ) : (
+                    <>
+                      <Save className="w-4 h-4 mr-2" />
+                      Save Links
+                    </>
+                  )}
+                </Button>
+              </div>
+            </form>
+          </div>
+        );
+
+      case 'structure':
+        return (
+          <div className="space-y-8">
+            <div>
+              <h2 className="text-2xl font-semibold text-slate-800 mb-2">Company Structure</h2>
+              <p className="text-slate-500">Manage your team and hierarchy</p>
+            </div>
+            <CompanyStructure user={profile} onUpdate={fetchCurrentUser} />
+          </div>
+        );
+
+      case 'packages':
+        return (
+          <div className="space-y-8">
+            <div>
+              <h2 className="text-2xl font-semibold text-slate-800 mb-2">Packages & Credits</h2>
+              <p className="text-slate-500">Manage your subscription and credits</p>
+            </div>
+            <PackageManagement 
+              user={profile}
+              onUpdate={fetchCurrentUser}
+              showFullManagement={true}
+            />
+          </div>
+        );
+
+      case 'jobs':
+        return (
+          <div className="space-y-8">
+            <div>
+              <h2 className="text-2xl font-semibold text-slate-800 mb-2">Job Listings</h2>
+              <p className="text-slate-500">Create and manage your job postings</p>
+            </div>
+            <JobPosting 
+              user={profile}
+              onUpdate={fetchCurrentUser}
+            />
+          </div>
+        );
+
+      case 'applications':
+        return (
+          <div className="space-y-8">
+            <div>
+              <h2 className="text-2xl font-semibold text-slate-800 mb-2">Applications</h2>
+              <p className="text-slate-500">Review and manage candidate applications</p>
+            </div>
+            <ApplicationManagement 
+              user={profile}
+              onUpdate={fetchCurrentUser}
+            />
+          </div>
+        );
+
+      default:
+        return null;
+    }
+  };
+
+  return (
+    <div className="min-h-screen bg-slate-50">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {/* Compact Header with Progress Bar */}
+        <div className="mb-8">
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <h1 className="text-2xl font-semibold text-slate-800">
+                Set Up Your Company Profile to Attract Talent
+              </h1>
+            </div>
+            <div className="hidden sm:flex items-center gap-3">
+              <span className="text-sm text-slate-500">Profile Score</span>
+              <div className="flex items-center gap-2">
+                <div className="w-32 h-2 bg-slate-200 rounded-full overflow-hidden">
+                  <div 
+                    className="h-full bg-gradient-to-r from-blue-500 to-emerald-500 rounded-full transition-all duration-500"
+                    style={{ width: `${progressPercentage}%` }}
+                  />
+                </div>
+                <span className="text-sm font-semibold text-slate-700">{progressPercentage}/100</span>
+              </div>
+            </div>
+          </div>
+          
+          {/* Mobile Progress */}
+          <div className="sm:hidden mb-4">
+            <div className="flex items-center gap-2">
+              <div className="flex-1 h-2 bg-slate-200 rounded-full overflow-hidden">
+                <div 
+                  className="h-full bg-gradient-to-r from-blue-500 to-emerald-500 rounded-full transition-all duration-500"
+                  style={{ width: `${progressPercentage}%` }}
+                />
+              </div>
+              <span className="text-sm font-semibold text-slate-700">{progressPercentage}/100</span>
+            </div>
+          </div>
+        </div>
+
+        {/* Two Column Layout */}
+        <div className="flex flex-col lg:flex-row gap-8">
+          {/* Left Sidebar - Navigation & Context */}
+          <div className="lg:w-72 flex-shrink-0">
+            {/* Company Card */}
+            <Card className="bg-white border-0 shadow-sm mb-6">
+              <CardContent className="p-6">
+                <div className="text-center mb-4">
+                  <div className="relative inline-block mb-3">
+                    <div className="w-20 h-20 bg-slate-100 rounded-2xl flex items-center justify-center overflow-hidden">
+                      {companyForm.company_logo_url ? (
+                        <img 
+                          src={getImageUrl(companyForm.company_logo_url)} 
+                          alt="Logo" 
+                          className="w-full h-full object-cover"
+                        />
+                      ) : (
+                        <Building2 className="w-10 h-10 text-slate-400" />
+                      )}
+                    </div>
+                    <button
+                      onClick={() => document.getElementById('logo-upload-sidebar').click()}
+                      className="absolute -bottom-1 -right-1 w-7 h-7 bg-blue-600 hover:bg-blue-700 rounded-full flex items-center justify-center text-white shadow-lg transition-colors"
                       disabled={uploadingImage === 'logo'}
                     >
                       {uploadingImage === 'logo' ? (
-                        <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                        <Loader2 className="w-3 h-3 animate-spin" />
                       ) : (
-                        <Camera className="w-4 h-4" />
+                        <Camera className="w-3 h-3" />
                       )}
-                    </Button>
+                    </button>
                     <input
-                      id="logo-upload-overview"
+                      id="logo-upload-sidebar"
                       type="file"
                       accept="image/*"
                       onChange={(e) => e.target.files[0] && handleImageUpload(e.target.files[0], 'logo')}
                       className="hidden"
                     />
                   </div>
-                  <h3 className="font-bold text-slate-800 text-lg">
+                  <h3 className="font-semibold text-slate-800">
                     {companyForm.company_name || 'Your Company'}
                   </h3>
-                  <p className="text-slate-600 text-sm">Recruiter Dashboard</p>
-                  {companyForm.company_location && (
-                    <div className="flex items-center justify-center space-x-1 text-slate-500 text-sm mt-2">
-                      <MapPin className="w-4 h-4" />
-                      <span>{companyForm.company_location}</span>
-                    </div>
-                  )}
+                  <p className="text-sm text-slate-500">Recruiter Dashboard</p>
                 </div>
 
-                {/* Quick Stats */}
-                <div className="space-y-4">
-                  <div className="flex justify-between items-center">
-                    <span className="text-slate-600 text-sm">Profile Score</span>
-                    <Badge className="bg-blue-100 text-blue-800">
-                      {progress.total_points || 0}/100
-                    </Badge>
+                <div className="space-y-3 text-sm">
+                  <div className="flex justify-between items-center py-2 border-b border-slate-100">
+                    <span className="text-slate-500">Profile Score</span>
+                    <span className="font-semibold text-slate-700">{progressPercentage}/100</span>
                   </div>
-                  <div className="flex justify-between items-center">
-                    <span className="text-slate-600 text-sm">Company Size</span>
-                    <Badge variant="outline">
-                      {companyForm.company_size || 'Not set'}
-                    </Badge>
+                  <div className="flex justify-between items-center py-2 border-b border-slate-100">
+                    <span className="text-slate-500">Company Size</span>
+                    <span className="text-slate-700">{companyForm.company_size || 'Not set'}</span>
                   </div>
-                  <div className="flex justify-between items-center">
-                    <span className="text-slate-600 text-sm">Jobs Posted</span>
-                    <Badge variant="outline">
-                      {progress.first_job_posted ? '1+' : '0'} jobs
-                    </Badge>
+                  <div className="flex justify-between items-center py-2">
+                    <span className="text-slate-500">Jobs Posted</span>
+                    <span className="text-slate-700">{progress.first_job_posted ? '1+' : '0'} jobs</span>
                   </div>
                 </div>
               </CardContent>
             </Card>
 
-            {/* Profile Completion Tracker */}
-            <ProfileCompletionTracker 
-              progress={progress}
-              profile={profile}
-              companyForm={companyForm}
-              onNavigateToSection={handleNavigateToSection}
-            />
+            {/* Vertical Stepper */}
+            <Card className="bg-white border-0 shadow-sm">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-medium text-slate-500 uppercase tracking-wider">
+                  Profile Completion
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="pt-0">
+                <nav className="space-y-1">
+                  {steps.map((step, index) => {
+                    const Icon = step.icon;
+                    const isActive = index === activeStep;
+                    const isPast = index < activeStep;
+                    
+                    return (
+                      <button
+                        key={step.id}
+                        onClick={() => setActiveStep(index)}
+                        className={`w-full flex items-center gap-3 px-3 py-3 rounded-lg text-left transition-all ${
+                          isActive 
+                            ? 'bg-blue-50 text-blue-700' 
+                            : 'hover:bg-slate-50 text-slate-600'
+                        }`}
+                      >
+                        <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ${
+                          step.isComplete
+                            ? 'bg-emerald-100 text-emerald-600'
+                            : isActive
+                              ? 'bg-blue-100 text-blue-600'
+                              : 'bg-slate-100 text-slate-400'
+                        }`}>
+                          {step.isComplete ? (
+                            <Check className="w-4 h-4" />
+                          ) : (
+                            <span className="text-xs font-semibold">{index + 1}</span>
+                          )}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className={`text-sm font-medium truncate ${
+                            isActive ? 'text-blue-700' : 'text-slate-700'
+                          }`}>
+                            {step.label}
+                          </p>
+                          <p className="text-xs text-slate-400">
+                            {step.isComplete ? 'Complete' : isActive ? 'In Progress' : 'Next'}
+                          </p>
+                        </div>
+                        {step.isComplete && (
+                          <Check className="w-4 h-4 text-emerald-500 flex-shrink-0" />
+                        )}
+                      </button>
+                    );
+                  })}
+                </nav>
+              </CardContent>
+            </Card>
           </div>
 
-          {/* Main Company Profile Tabs */}
-          <div className="lg:col-span-3">
-            <Tabs value={activeTab} onValueChange={setActiveTab}>
-              <TabsList className="grid w-full grid-cols-7 bg-white/80 backdrop-blur-sm">
-                <TabsTrigger value="overview" className="flex items-center space-x-1">
-                  <Building2 className="w-4 h-4" />
-                  <span className="hidden sm:inline">Company</span>
-                </TabsTrigger>
-                <TabsTrigger value="branding" className="flex items-center space-x-1">
-                  <Image className="w-4 h-4" />
-                  <span className="hidden sm:inline">Branding</span>
-                </TabsTrigger>
-                <TabsTrigger value="links" className="flex items-center space-x-1">
-                  <Link className="w-4 h-4" />
-                  <span className="hidden sm:inline">Links</span>
-                </TabsTrigger>
-                <TabsTrigger value="structure" className="flex items-center space-x-1">
-                  <Users className="w-4 h-4" />
-                  <span className="hidden sm:inline">Structure</span>
-                </TabsTrigger>
-                <TabsTrigger value="packages" className="flex items-center space-x-1">
-                  <CreditCard className="w-4 h-4" />
-                  <span className="hidden sm:inline">Packages</span>
-                </TabsTrigger>
-                <TabsTrigger value="jobs" className="flex items-center space-x-1">
-                  <Briefcase className="w-4 h-4" />
-                  <span className="hidden sm:inline">Jobs</span>
-                </TabsTrigger>
-                <TabsTrigger value="applications" className="flex items-center space-x-1">
-                  <FileText className="w-4 h-4" />
-                  <span className="hidden sm:inline">Applications</span>
-                </TabsTrigger>
-              </TabsList>
-
-              {/* Company Overview Tab */}
-              <TabsContent value="overview" className="space-y-6 mt-6">
-                {/* Company Overview */}
-                <Card className="bg-white/80 backdrop-blur-sm border-0 shadow-xl">
-                  <CardHeader>
-                    <CardTitle className="flex items-center space-x-2">
-                      <Building2 className="w-5 h-5 text-blue-600" />
-                      <span>Company Information</span>
-                      {!progress.company_description && (
-                        <Badge className="bg-yellow-100 text-yellow-800 text-xs">
-                          +20 points (100+ chars)
-                        </Badge>
-                      )}
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <form onSubmit={handleCompanySubmit} className="space-y-6">
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                        <div className="space-y-2">
-                          <Label htmlFor="company_name">Company Name</Label>
-                          <Input
-                            id="company_name"
-                            value={companyForm.company_name}
-                            onChange={(e) => setCompanyForm(prev => ({ ...prev, company_name: e.target.value }))}
-                            placeholder="Your Company Name"
-                            className="h-12"
-                          />
-                        </div>
-                        <div className="space-y-2">
-                          <Label htmlFor="company_location">Location</Label>
-                          <Input
-                            id="company_location"
-                            value={companyForm.company_location}
-                            onChange={(e) => setCompanyForm(prev => ({ ...prev, company_location: e.target.value }))}
-                            placeholder="City, Province"
-                            className="h-12"
-                          />
-                        </div>
-                        <div className="space-y-2">
-                          <Label htmlFor="company_industry">Industry</Label>
-                          <select 
-                            id="company_industry"
-                            value={companyForm.company_industry}
-                            onChange={(e) => setCompanyForm(prev => ({ ...prev, company_industry: e.target.value }))}
-                            className="h-12 w-full px-3 border border-slate-300 rounded-md focus:border-blue-500 focus:ring-blue-500 bg-white"
-                          >
-                            <option value="">Select industry</option>
-                            {industryOptions.map((industry) => (
-                              <option key={industry} value={industry}>
-                                {industry}
-                              </option>
-                            ))}
-                          </select>
-                        </div>
-                        <div className="space-y-2">
-                          <Label htmlFor="company_size">Company Size</Label>
-                          {!progress.company_size && (
-                            <Badge className="bg-yellow-100 text-yellow-800 text-xs ml-2">
-                              +10 points
-                            </Badge>
-                          )}
-                          <select 
-                            id="company_size"
-                            value={companyForm.company_size}
-                            onChange={(e) => setCompanyForm(prev => ({ ...prev, company_size: e.target.value }))}
-                            className="h-12 w-full px-3 border border-slate-300 rounded-md focus:border-blue-500 focus:ring-blue-500 bg-white"
-                          >
-                            <option value="">Select company size</option>
-                            {companySizeOptions.map((size) => (
-                              <option key={size} value={size}>
-                                {size}
-                              </option>
-                            ))}
-                          </select>
-                        </div>
-                      </div>
-
-                      <div className="space-y-2">
-                        <Label htmlFor="company_description">Company Description (100+ characters for points)</Label>
-                        <Textarea
-                          id="company_description"
-                          value={companyForm.company_description}
-                          onChange={(e) => setCompanyForm(prev => ({ ...prev, company_description: e.target.value }))}
-                          placeholder="Tell candidates about your company culture, mission, and what makes you unique..."
-                          rows={5}
-                          className="resize-none"
-                        />
-                        <div className="text-sm text-slate-500">
-                          {companyForm.company_description.length}/100 characters minimum
-                        </div>
-                      </div>
-
-                      <Button 
-                        type="submit" 
-                        disabled={loading}
-                        className="bg-gradient-to-r from-blue-600 to-slate-700 hover:from-blue-700 hover:to-slate-800"
-                      >
-                        {loading ? (
-                          <div className="flex items-center space-x-2">
-                            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-                            <span>Saving...</span>
-                          </div>
-                        ) : (
-                          <div className="flex items-center space-x-2">
-                            <Save className="w-4 h-4" />
-                            <span>Save Company Info</span>
-                          </div>
-                        )}
-                      </Button>
-                    </form>
-                  </CardContent>
-                </Card>
-              </TabsContent>
-
-              {/* Branding Tab */}
-              <TabsContent value="branding" className="space-y-6 mt-6">
-                <Card className="bg-white/80 backdrop-blur-sm border-0 shadow-xl">
-                  <CardHeader>
-                    <CardTitle className="flex items-center space-x-2">
-                      <Image className="w-5 h-5 text-blue-600" />
-                      <span>Company Branding</span>
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent className="space-y-6">
-                    {/* Company Logo */}
-                    <div className="space-y-4">
-                      <div className="flex items-center space-x-2">
-                        <Label htmlFor="company_logo">Company Logo</Label>
-                        {!progress.company_logo && (
-                          <Badge className="bg-yellow-100 text-yellow-800 text-xs">
-                            +15 points
-                          </Badge>
-                        )}
-                      </div>
-                      <div className="flex items-center space-x-4">
-                        <div className="w-20 h-20 bg-gradient-to-br from-slate-100 to-slate-200 rounded-xl flex items-center justify-center">
-                          {companyForm.company_logo_url ? (
-                            <img 
-                              src={getImageUrl(companyForm.company_logo_url)} 
-                              alt="Company Logo" 
-                              className="w-full h-full object-cover rounded-xl"
-                              onError={(e) => {
-                                e.target.style.display = 'none';
-                              }}
-                            />
-                          ) : (
-                            <Building2 className="w-10 h-10 text-slate-400" />
-                          )}
-                        </div>
-                        <div className="flex-1 space-y-3">
-                          <div className="flex space-x-2">
-                            <Input
-                              id="company_logo"
-                              value={companyForm.company_logo_url}
-                              onChange={(e) => setCompanyForm(prev => ({ ...prev, company_logo_url: e.target.value }))}
-                              placeholder="Enter logo URL or upload file"
-                              className="h-12"
-                            />
-                            <Button 
-                              type="button" 
-                              variant="outline"
-                              onClick={() => document.getElementById('logo-upload-branding').click()}
-                              disabled={uploadingImage === 'logo'}
-                            >
-                              {uploadingImage === 'logo' ? (
-                                <div className="w-4 h-4 border-2 border-blue-600 border-t-transparent rounded-full animate-spin" />
-                              ) : (
-                                <Upload className="w-4 h-4" />
-                              )}
-                            </Button>
-                          </div>
-                          <Button 
-                            type="button" 
-                            variant="outline" 
-                            onClick={() => updateCompanyProfile({ company_logo_url: companyForm.company_logo_url })}
-                            className="w-full"
-                          >
-                            <Save className="w-4 h-4 mr-2" />
-                            Update Logo URL
-                          </Button>
-                          <input
-                            id="logo-upload-branding"
-                            type="file"
-                            accept="image/*"
-                            onChange={(e) => e.target.files[0] && handleImageUpload(e.target.files[0], 'logo')}
-                            className="hidden"
-                          />
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Cover Image */}
-                    <div className="space-y-4">
-                      <div className="flex items-center space-x-2">
-                        <Label htmlFor="company_cover">Cover Image</Label>
-                        {!progress.cover_image && (
-                          <Badge className="bg-yellow-100 text-yellow-800 text-xs">
-                            +10 points
-                          </Badge>
-                        )}
-                      </div>
-                      <div className="space-y-4">
-                        <div className="w-full h-32 bg-gradient-to-r from-slate-100 to-slate-200 rounded-xl overflow-hidden">
-                          {companyForm.company_cover_image_url ? (
-                            <img 
-                              src={getImageUrl(companyForm.company_cover_image_url)} 
-                              alt="Company Cover" 
-                              className="w-full h-full object-cover"
-                              onError={(e) => {
-                                e.target.style.display = 'none';
-                              }}
-                            />
-                          ) : (
-                            <div className="w-full h-full flex items-center justify-center">
-                              <Image className="w-12 h-12 text-slate-400" />
-                            </div>
-                          )}
-                        </div>
-                        <div className="flex space-x-2">
-                          <Input
-                            id="company_cover"
-                            value={companyForm.company_cover_image_url}
-                            onChange={(e) => setCompanyForm(prev => ({ ...prev, company_cover_image_url: e.target.value }))}
-                            placeholder="Enter cover image URL or upload file"
-                            className="h-12"
-                          />
-                          <Button 
-                            type="button" 
-                            variant="outline"
-                            onClick={() => document.getElementById('cover-upload-branding').click()}
-                            disabled={uploadingImage === 'cover'}
-                          >
-                            {uploadingImage === 'cover' ? (
-                              <div className="w-4 h-4 border-2 border-blue-600 border-t-transparent rounded-full animate-spin" />
-                            ) : (
-                              <Upload className="w-4 h-4" />
-                            )}
-                          </Button>
-                        </div>
-                        <Button
-                          type="button" 
-                          variant="outline"
-                          onClick={() => updateCompanyProfile({ company_cover_image_url: companyForm.company_cover_image_url })}
-                          className="w-full"
-                        >
-                          <Save className="w-4 h-4 mr-2" />
-                          Update Cover Image URL
-                        </Button>
-                        <input
-                          id="cover-upload-branding"
-                          type="file"
-                          accept="image/*"
-                          onChange={(e) => e.target.files[0] && handleImageUpload(e.target.files[0], 'cover')}
-                          className="hidden"
-                        />
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              </TabsContent>
-
-              {/* Links Tab */}
-              <TabsContent value="links" className="space-y-6 mt-6">
-                <Card className="bg-white/80 backdrop-blur-sm border-0 shadow-xl">
-                  <CardHeader>
-                    <CardTitle className="flex items-center space-x-2">
-                      <Link className="w-5 h-5 text-blue-600" />
-                      <span>Company Links</span>
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent className="space-y-6">
-                    <div className="space-y-4">
-                      <div className="flex items-center space-x-2">
-                        <Label htmlFor="company_website">Website URL</Label>
-                        {!progress.website_link && (
-                          <Badge className="bg-yellow-100 text-yellow-800 text-xs">
-                            +15 points
-                          </Badge>
-                        )}
-                      </div>
-                      <div className="relative">
-                        <Globe className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400 w-5 h-5" />
-                        <Input
-                          id="company_website"
-                          value={companyForm.company_website}
-                          onChange={(e) => setCompanyForm(prev => ({ ...prev, company_website: e.target.value }))}
-                          placeholder="https://yourcompany.com"
-                          className="pl-10 h-12"
-                        />
-                      </div>
-                    </div>
-
-                    <div className="space-y-4">
-                      <div className="flex items-center space-x-2">
-                        <Label htmlFor="company_linkedin">LinkedIn URL</Label>
-                        {!progress.linkedin_link && (
-                          <Badge className="bg-yellow-100 text-yellow-800 text-xs">
-                            +10 points
-                          </Badge>
-                        )}
-                      </div>
-                      <div className="relative">
-                        <Linkedin className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400 w-5 h-5" />
-                        <Input
-                          id="company_linkedin"
-                          value={companyForm.company_linkedin}
-                          onChange={(e) => setCompanyForm(prev => ({ ...prev, company_linkedin: e.target.value }))}
-                          placeholder="https://linkedin.com/company/yourcompany"
-                          className="pl-10 h-12"
-                        />
-                      </div>
-                    </div>
-
-                    <Button 
-                      onClick={() => updateCompanyProfile({
-                        company_website: companyForm.company_website,
-                        company_linkedin: companyForm.company_linkedin
-                      })}
-                      className="bg-gradient-to-r from-blue-600 to-slate-700 hover:from-blue-700 hover:to-slate-800"
-                    >
-                      <Save className="w-4 h-4 mr-2" />
-                      Save Links
-                    </Button>
-                  </CardContent>
-                </Card>
-              </TabsContent>
-
-              {/* Company Structure Tab */}
-              <TabsContent value="structure" className="space-y-6 mt-6">
-                <CompanyStructure 
-                  user={profile} 
-                  onUpdateUser={fetchCurrentUser}
-                />
-              </TabsContent>
-
-              {/* Packages Tab */}
-              <TabsContent value="packages" className="space-y-6 mt-6">
-                <PackageManagement 
-                  user={profile}
-                />
-              </TabsContent>
-
-              {/* Jobs Tab */}
-              <TabsContent value="jobs" className="space-y-6 mt-6">
-                <JobPosting 
-                  user={profile} 
-                  onUpdateUser={fetchCurrentUser}
-                />
-              </TabsContent>
-
-              {/* Applications Tab */}
-              <TabsContent value="applications" className="space-y-6 mt-6">
-                <ApplicationManagement 
-                  user={profile}
-                />
-              </TabsContent>
-            </Tabs>
+          {/* Right Column - Main Content Area */}
+          <div className="flex-1 min-w-0">
+            <Card className="bg-white border-0 shadow-sm">
+              <CardContent className="p-8">
+                {renderStepContent()}
+              </CardContent>
+            </Card>
           </div>
         </div>
       </div>
