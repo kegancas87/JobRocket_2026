@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Button } from "./ui/button";
+import { Input } from "./ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "./ui/card";
 import { Badge } from "./ui/badge";
 import { 
@@ -24,7 +25,9 @@ import {
   FileText,
   Bot,
   Palette,
-  Code
+  Code,
+  Tag,
+  Loader2
 } from "lucide-react";
 import axios from 'axios';
 
@@ -37,6 +40,12 @@ const PricingPage = ({ user }) => {
   const [purchasing, setPurchasing] = useState(null);
   const [billingCycle, setBillingCycle] = useState('monthly');
   const [currentTier, setCurrentTier] = useState(null);
+  
+  // Discount code state
+  const [discountCode, setDiscountCode] = useState('');
+  const [discountLoading, setDiscountLoading] = useState(false);
+  const [appliedDiscount, setAppliedDiscount] = useState(null);
+  const [discountError, setDiscountError] = useState('');
 
   const getAuthHeaders = () => {
     const token = localStorage.getItem('token');
@@ -85,6 +94,40 @@ const PricingPage = ({ user }) => {
     }
   };
 
+  const validateDiscountCode = async (tierId, amount) => {
+    if (!discountCode.trim()) {
+      setDiscountError('Please enter a discount code');
+      return null;
+    }
+    
+    setDiscountLoading(true);
+    setDiscountError('');
+    
+    try {
+      const response = await axios.post(`${API}/payments/validate-discount`, {
+        code: discountCode,
+        tier_id: tierId,
+        amount: amount
+      }, getAuthHeaders());
+      
+      setAppliedDiscount(response.data);
+      return response.data;
+    } catch (error) {
+      const errorMsg = error.response?.data?.detail || 'Invalid discount code';
+      setDiscountError(errorMsg);
+      setAppliedDiscount(null);
+      return null;
+    } finally {
+      setDiscountLoading(false);
+    }
+  };
+
+  const clearDiscount = () => {
+    setDiscountCode('');
+    setAppliedDiscount(null);
+    setDiscountError('');
+  };
+
   const handleSubscribe = async (tierId) => {
     if (!user) {
       alert('Please login to subscribe');
@@ -101,7 +144,8 @@ const PricingPage = ({ user }) => {
       
       const response = await axios.post(`${API}/payments/subscription`, {
         tier_id: tierId,
-        billing_cycle: billingCycle
+        billing_cycle: billingCycle,
+        discount_code: appliedDiscount?.code || null
       }, getAuthHeaders());
 
       // Build Payfast form and submit
@@ -279,6 +323,79 @@ const PricingPage = ({ user }) => {
           )}
         </div>
 
+        {/* Discount Code Section */}
+        {user && user.role === 'recruiter' && (
+          <div className="max-w-md mx-auto mb-10">
+            <Card className="bg-white/90 backdrop-blur-sm border border-slate-200 shadow-lg">
+              <CardContent className="p-6">
+                <div className="flex items-center space-x-2 mb-4">
+                  <Tag className="w-5 h-5 text-purple-600" />
+                  <h3 className="font-semibold text-slate-800">Have a Discount Code?</h3>
+                </div>
+                
+                {!appliedDiscount ? (
+                  <div className="space-y-3">
+                    <div className="flex space-x-2">
+                      <Input
+                        type="text"
+                        placeholder="Enter discount code"
+                        value={discountCode}
+                        onChange={(e) => {
+                          setDiscountCode(e.target.value.toUpperCase());
+                          setDiscountError('');
+                        }}
+                        className="flex-1 uppercase"
+                      />
+                      <Button
+                        onClick={() => {
+                          const tier = tiers.find(t => t.id === 'growth');
+                          if (tier) validateDiscountCode('growth', tier.price_monthly);
+                        }}
+                        disabled={discountLoading || !discountCode.trim()}
+                        variant="outline"
+                        className="border-purple-300 text-purple-600 hover:bg-purple-50"
+                      >
+                        {discountLoading ? (
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                        ) : (
+                          'Apply'
+                        )}
+                      </Button>
+                    </div>
+                    {discountError && (
+                      <p className="text-sm text-red-600">{discountError}</p>
+                    )}
+                  </div>
+                ) : (
+                  <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="font-semibold text-green-800">
+                          Code "{appliedDiscount.code}" Applied!
+                        </p>
+                        <p className="text-sm text-green-600">
+                          {appliedDiscount.discount_type === 'percentage' 
+                            ? `${appliedDiscount.discount_value}% off` 
+                            : `R${appliedDiscount.discount_value} off`}
+                          {' '}- Save R{appliedDiscount.discount_amount?.toFixed(2)}
+                        </p>
+                      </div>
+                      <Button
+                        onClick={clearDiscount}
+                        variant="ghost"
+                        size="sm"
+                        className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                      >
+                        <X className="w-4 h-4" />
+                      </Button>
+                    </div>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </div>
+        )}
+
         {/* Pricing Cards */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-16">
           {tiers.map((tier) => {
@@ -317,12 +434,35 @@ const PricingPage = ({ user }) => {
                   
                   {/* Price */}
                   <div className="mt-4">
-                    <div className="flex items-baseline justify-center">
-                      <span className="text-4xl font-bold text-slate-900">
-                        {formatPrice(tier.price_monthly)}
-                      </span>
-                      <span className="text-slate-600 ml-2">/month</span>
-                    </div>
+                    {appliedDiscount ? (
+                      <div>
+                        <div className="flex items-baseline justify-center">
+                          <span className="text-2xl font-bold text-slate-400 line-through mr-2">
+                            {formatPrice(tier.price_monthly)}
+                          </span>
+                          <span className="text-4xl font-bold text-green-600">
+                            {formatPrice(Math.max(0, tier.price_monthly - (
+                              appliedDiscount.discount_type === 'percentage'
+                                ? tier.price_monthly * (appliedDiscount.discount_value / 100)
+                                : appliedDiscount.discount_value
+                            )))}
+                          </span>
+                        </div>
+                        <span className="text-slate-600">/month</span>
+                        <Badge className="ml-2 bg-green-100 text-green-700 text-xs">
+                          {appliedDiscount.discount_type === 'percentage' 
+                            ? `${appliedDiscount.discount_value}% OFF` 
+                            : `R${appliedDiscount.discount_value} OFF`}
+                        </Badge>
+                      </div>
+                    ) : (
+                      <div className="flex items-baseline justify-center">
+                        <span className="text-4xl font-bold text-slate-900">
+                          {formatPrice(tier.price_monthly)}
+                        </span>
+                        <span className="text-slate-600 ml-2">/month</span>
+                      </div>
+                    )}
                     {tier.id === 'enterprise' && (
                       <p className="text-sm text-slate-500 mt-1">Starting price</p>
                     )}

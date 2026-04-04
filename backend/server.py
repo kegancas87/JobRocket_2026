@@ -2811,7 +2811,73 @@ async def initiate_subscription_payment(
     """Initiate subscription payment via Payfast"""
     
     tier = get_tier_config(payment_data.tier_id)
-    amount = tier["price_monthly"]
+    original_amount = tier["price_monthly"]
+    final_amount = original_amount
+    discount_amount = 0
+    discount_code_data = None
+    
+    # Apply discount code if provided
+    if payment_data.discount_code:
+        code_str = payment_data.discount_code.upper()
+        code = await db.discount_codes.find_one({"code": code_str})
+        
+        if code and code.get("status") == "active":
+            now = datetime.utcnow()
+            valid_from = code.get("valid_from")
+            valid_until = code.get("valid_until")
+            usage_limit = code.get("usage_limit")
+            usage_count = code.get("usage_count", 0)
+            user_limit = code.get("user_limit")
+            minimum_amount = code.get("minimum_amount")
+            applicable_tiers = code.get("applicable_tiers")
+            
+            # Validate the code
+            is_valid = True
+            if valid_from and now < valid_from:
+                is_valid = False
+            if valid_until and now > valid_until:
+                is_valid = False
+            if usage_limit and usage_count >= usage_limit:
+                is_valid = False
+            if minimum_amount and original_amount < minimum_amount:
+                is_valid = False
+            if applicable_tiers and payment_data.tier_id.value not in applicable_tiers:
+                is_valid = False
+            
+            # Check user limit
+            if user_limit and is_valid:
+                user_usage = await db.payments.count_documents({
+                    "user_id": current_user.id,
+                    "discount_code": code_str,
+                    "status": {"$in": ["completed", "pending"]}
+                })
+                if user_usage >= user_limit:
+                    is_valid = False
+            
+            if is_valid:
+                discount_type = code.get("discount_type")
+                discount_value = code.get("discount_value", 0)
+                maximum_discount = code.get("maximum_discount")
+                
+                if discount_type == "percentage":
+                    discount_amount = original_amount * (discount_value / 100)
+                else:
+                    discount_amount = discount_value
+                
+                if maximum_discount and discount_amount > maximum_discount:
+                    discount_amount = maximum_discount
+                
+                if discount_amount > original_amount:
+                    discount_amount = original_amount
+                
+                final_amount = original_amount - discount_amount
+                discount_code_data = code_str
+                
+                # Increment usage count
+                await db.discount_codes.update_one(
+                    {"code": code_str},
+                    {"$inc": {"usage_count": 1}}
+                )
     
     # Create payment record
     payment_id = str(uuid.uuid4())
@@ -2821,8 +2887,10 @@ async def initiate_subscription_payment(
         "user_id": current_user.id,
         "payment_type": "subscription",
         "tier_id": payment_data.tier_id,
-        "amount": amount,
-        "final_amount": amount,
+        "amount": original_amount,
+        "discount_code": discount_code_data,
+        "discount_amount": round(discount_amount, 2),
+        "final_amount": round(final_amount, 2),
         "currency": "ZAR",
         "provider": PaymentProvider.PAYFAST,
         "status": PaymentStatus.PENDING,
@@ -2831,7 +2899,7 @@ async def initiate_subscription_payment(
     
     await db.payments.insert_one(payment_dict)
     
-    # Generate Payfast data
+    # Generate Payfast data with the final (discounted) amount
     payfast_data = {
         "merchant_id": PAYFAST_MERCHANT_ID,
         "merchant_key": PAYFAST_MERCHANT_KEY,
@@ -2842,9 +2910,9 @@ async def initiate_subscription_payment(
         "name_last": current_user.last_name,
         "email_address": current_user.email,
         "m_payment_id": payment_id,
-        "amount": f"{amount:.2f}",
+        "amount": f"{final_amount:.2f}",
         "item_name": f"JobRocket {tier['name']} Subscription",
-        "item_description": f"Monthly subscription to {tier['name']} plan",
+        "item_description": f"Monthly subscription to {tier['name']} plan" + (f" (Discount: R{discount_amount:.2f})" if discount_amount > 0 else ""),
     }
     
     payfast_data["signature"] = generate_payfast_signature(payfast_data, PAYFAST_PASSPHRASE)
@@ -2855,6 +2923,9 @@ async def initiate_subscription_payment(
         "payment_id": payment_id,
         "payfast_url": payfast_url,
         "payfast_data": payfast_data,
+        "original_amount": original_amount,
+        "discount_amount": round(discount_amount, 2),
+        "final_amount": round(final_amount, 2),
     }
 
 
@@ -3859,6 +3930,237 @@ async def admin_list_accounts(
     cursor = db.accounts.find({}, {"_id": 0, "id": 1, "name": 1, "tier_id": 1, "owner_id": 1})
     accounts = await cursor.to_list(length=500)
     return {"accounts": accounts}
+
+
+# ============================================
+# Admin Discount Code Endpoints
+# ============================================
+
+@api_router.get("/admin/discount-codes")
+async def admin_list_discount_codes(
+    current_user: User = Depends(verify_admin_user)
+):
+    """List all discount codes"""
+    cursor = db.discount_codes.find({}, {"_id": 0})
+    codes = await cursor.to_list(length=500)
+    return codes
+
+
+@api_router.get("/admin/discount-codes/stats/usage")
+async def admin_discount_code_stats(
+    current_user: User = Depends(verify_admin_user)
+):
+    """Get discount code usage statistics"""
+    # Get all codes
+    cursor = db.discount_codes.find({}, {"_id": 0})
+    codes = await cursor.to_list(length=500)
+    
+    total_codes = len(codes)
+    active_codes = len([c for c in codes if c.get("status") == "active"])
+    total_usage = sum(c.get("usage_count", 0) for c in codes)
+    
+    # Calculate total discount given
+    total_discount_given = 0
+    cursor = db.payments.find({"discount_code": {"$exists": True, "$ne": None}}, {"_id": 0, "discount_amount": 1})
+    payments = await cursor.to_list(length=10000)
+    total_discount_given = sum(p.get("discount_amount", 0) for p in payments)
+    
+    return {
+        "total_codes": total_codes,
+        "active_codes": active_codes,
+        "total_usage": total_usage,
+        "total_discount_given": total_discount_given
+    }
+
+
+@api_router.post("/admin/discount-codes")
+async def admin_create_discount_code(
+    code_data: DiscountCodeCreate,
+    current_user: User = Depends(verify_admin_user)
+):
+    """Create a new discount code"""
+    # Check if code already exists
+    existing = await db.discount_codes.find_one({"code": code_data.code.upper()})
+    if existing:
+        raise HTTPException(status_code=400, detail="Discount code already exists")
+    
+    now = datetime.utcnow()
+    code_dict = {
+        "id": str(uuid.uuid4()),
+        "code": code_data.code.upper(),
+        "name": code_data.name,
+        "description": code_data.description,
+        "discount_type": code_data.discount_type.value if hasattr(code_data.discount_type, 'value') else code_data.discount_type,
+        "discount_value": code_data.discount_value,
+        "minimum_amount": code_data.minimum_amount,
+        "maximum_discount": code_data.maximum_discount,
+        "usage_limit": code_data.usage_limit,
+        "usage_count": 0,
+        "user_limit": code_data.user_limit,
+        "valid_from": code_data.valid_from or now,
+        "valid_until": code_data.valid_until,
+        "applicable_tiers": [t.value if hasattr(t, 'value') else t for t in code_data.applicable_tiers] if code_data.applicable_tiers else None,
+        "status": "active",
+        "created_by": current_user.id,
+        "created_at": now,
+        "updated_at": now
+    }
+    
+    await db.discount_codes.insert_one(code_dict)
+    code_dict.pop("_id", None)
+    
+    return code_dict
+
+
+@api_router.put("/admin/discount-codes/{code_id}")
+async def admin_update_discount_code(
+    code_id: str,
+    request: Request,
+    current_user: User = Depends(verify_admin_user)
+):
+    """Update a discount code"""
+    code = await db.discount_codes.find_one({"id": code_id})
+    if not code:
+        raise HTTPException(status_code=404, detail="Discount code not found")
+    
+    body = await request.json()
+    update_fields = {"updated_at": datetime.utcnow()}
+    
+    allowed_fields = [
+        "name", "description", "discount_type", "discount_value",
+        "minimum_amount", "maximum_discount", "usage_limit", "user_limit",
+        "valid_from", "valid_until", "applicable_tiers", "status"
+    ]
+    
+    for field in allowed_fields:
+        if field in body:
+            if field == "discount_type" and body[field]:
+                update_fields[field] = body[field] if isinstance(body[field], str) else body[field].value
+            elif field == "applicable_tiers" and body[field]:
+                update_fields[field] = [t if isinstance(t, str) else t.value for t in body[field]]
+            elif field in ["valid_from", "valid_until"] and body[field]:
+                if isinstance(body[field], str):
+                    update_fields[field] = datetime.fromisoformat(body[field].replace('Z', '+00:00'))
+                else:
+                    update_fields[field] = body[field]
+            else:
+                update_fields[field] = body[field]
+    
+    await db.discount_codes.update_one({"id": code_id}, {"$set": update_fields})
+    
+    updated = await db.discount_codes.find_one({"id": code_id}, {"_id": 0})
+    return updated
+
+
+@api_router.delete("/admin/discount-codes/{code_id}")
+async def admin_delete_discount_code(
+    code_id: str,
+    current_user: User = Depends(verify_admin_user)
+):
+    """Delete a discount code"""
+    code = await db.discount_codes.find_one({"id": code_id})
+    if not code:
+        raise HTTPException(status_code=404, detail="Discount code not found")
+    
+    await db.discount_codes.delete_one({"id": code_id})
+    return {"message": "Discount code deleted successfully"}
+
+
+# ============================================
+# Public Discount Code Validation
+# ============================================
+
+@api_router.post("/payments/validate-discount")
+async def validate_discount_code(
+    request: Request,
+    current_user: User = Depends(get_current_recruiter)
+):
+    """Validate a discount code and return discount details"""
+    body = await request.json()
+    code_str = body.get("code", "").upper()
+    tier_id = body.get("tier_id")
+    amount = body.get("amount", 0)
+    
+    if not code_str:
+        raise HTTPException(status_code=400, detail="Discount code is required")
+    
+    # Find the discount code
+    code = await db.discount_codes.find_one({"code": code_str})
+    if not code:
+        raise HTTPException(status_code=404, detail="Invalid discount code")
+    
+    # Check if code is active
+    if code.get("status") != "active":
+        raise HTTPException(status_code=400, detail="This discount code is no longer active")
+    
+    # Check validity dates
+    now = datetime.utcnow()
+    valid_from = code.get("valid_from")
+    valid_until = code.get("valid_until")
+    
+    if valid_from and now < valid_from:
+        raise HTTPException(status_code=400, detail="This discount code is not yet valid")
+    
+    if valid_until and now > valid_until:
+        raise HTTPException(status_code=400, detail="This discount code has expired")
+    
+    # Check usage limit
+    usage_limit = code.get("usage_limit")
+    usage_count = code.get("usage_count", 0)
+    if usage_limit and usage_count >= usage_limit:
+        raise HTTPException(status_code=400, detail="This discount code has reached its usage limit")
+    
+    # Check user limit (how many times this user has used this code)
+    user_limit = code.get("user_limit")
+    if user_limit:
+        user_usage = await db.payments.count_documents({
+            "user_id": current_user.id,
+            "discount_code": code_str,
+            "status": {"$in": ["completed", "pending"]}
+        })
+        if user_usage >= user_limit:
+            raise HTTPException(status_code=400, detail="You have already used this discount code")
+    
+    # Check minimum amount
+    minimum_amount = code.get("minimum_amount")
+    if minimum_amount and amount < minimum_amount:
+        raise HTTPException(status_code=400, detail=f"Minimum order amount of R{minimum_amount:.2f} required")
+    
+    # Check applicable tiers
+    applicable_tiers = code.get("applicable_tiers")
+    if applicable_tiers and tier_id and tier_id not in applicable_tiers:
+        raise HTTPException(status_code=400, detail="This discount code is not valid for the selected plan")
+    
+    # Calculate discount
+    discount_type = code.get("discount_type")
+    discount_value = code.get("discount_value", 0)
+    maximum_discount = code.get("maximum_discount")
+    
+    if discount_type == "percentage":
+        discount_amount = amount * (discount_value / 100)
+    else:  # fixed_amount
+        discount_amount = discount_value
+    
+    # Apply maximum discount cap
+    if maximum_discount and discount_amount > maximum_discount:
+        discount_amount = maximum_discount
+    
+    # Don't let discount exceed the amount
+    if discount_amount > amount:
+        discount_amount = amount
+    
+    final_amount = amount - discount_amount
+    
+    return {
+        "valid": True,
+        "code": code_str,
+        "discount_type": discount_type,
+        "discount_value": discount_value,
+        "discount_amount": round(discount_amount, 2),
+        "original_amount": amount,
+        "final_amount": round(final_amount, 2),
+        "message": f"Discount of R{discount_amount:.2f} applied!"
+    }
 
 
 @api_router.post("/cv-search/match")
