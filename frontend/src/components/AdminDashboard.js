@@ -23,7 +23,9 @@ import {
   X,
   Download,
   FileSpreadsheet,
-  Loader2
+  Loader2,
+  CalendarDays,
+  Hash
 } from "lucide-react";
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
@@ -37,6 +39,11 @@ const AdminDashboard = ({ user, onLogout, onNavigateToJobs }) => {
   const [exportLoading, setExportLoading] = useState(false);
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [editingCode, setEditingCode] = useState(null);
+  
+  // Export filter state
+  const [exportStartDate, setExportStartDate] = useState('');
+  const [exportEndDate, setExportEndDate] = useState('');
+  const [exportLimit, setExportLimit] = useState('');
   const [formData, setFormData] = useState({
     code: '',
     name: '',
@@ -103,7 +110,23 @@ const AdminDashboard = ({ user, onLogout, onNavigateToJobs }) => {
     setExportLoading(true);
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch(`${API}/admin/jobs/export`, {
+      
+      // Build query params
+      const params = new URLSearchParams();
+      if (exportStartDate) {
+        params.append('start_date', new Date(exportStartDate).toISOString());
+      }
+      if (exportEndDate) {
+        params.append('end_date', new Date(exportEndDate).toISOString());
+      }
+      if (exportLimit && parseInt(exportLimit) > 0) {
+        params.append('limit', exportLimit);
+      }
+      
+      const queryString = params.toString();
+      const url = `${API}/admin/jobs/export${queryString ? '?' + queryString : ''}`;
+      
+      const response = await fetch(url, {
         method: 'GET',
         headers: {
           'Authorization': `Bearer ${token}`
@@ -116,13 +139,13 @@ const AdminDashboard = ({ user, onLogout, onNavigateToJobs }) => {
       
       // Get the blob and create download link
       const blob = await response.blob();
-      const url = window.URL.createObjectURL(blob);
+      const downloadUrl = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
-      a.href = url;
+      a.href = downloadUrl;
       a.download = `jobrocket_jobs_export_${new Date().toISOString().slice(0,10)}.csv`;
       document.body.appendChild(a);
       a.click();
-      window.URL.revokeObjectURL(url);
+      window.URL.revokeObjectURL(downloadUrl);
       document.body.removeChild(a);
     } catch (error) {
       console.error('Error exporting jobs:', error);
@@ -690,14 +713,79 @@ const AdminDashboard = ({ user, onLogout, onNavigateToJobs }) => {
               </CardHeader>
               <CardContent className="space-y-6">
                 <div className="bg-slate-700/30 rounded-lg p-6 border border-slate-600">
-                  <h3 className="text-lg font-semibold text-white mb-4">Export All Job Listings</h3>
-                  <p className="text-slate-400 mb-4">
-                    Download a CSV file containing all job listings on the platform. The export includes the following columns:
+                  <h3 className="text-lg font-semibold text-white mb-4">Export Job Listings</h3>
+                  <p className="text-slate-400 mb-6">
+                    Download a CSV file containing job listings. Use the filters below to customize your export.
                   </p>
                   
+                  {/* Export Filters */}
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+                    {/* Date Range - Start */}
+                    <div>
+                      <label className="block text-sm font-medium text-slate-300 mb-2">
+                        <CalendarDays className="w-4 h-4 inline mr-1" />
+                        From Date
+                      </label>
+                      <Input
+                        type="date"
+                        value={exportStartDate}
+                        onChange={(e) => setExportStartDate(e.target.value)}
+                        className="bg-slate-700 border-slate-600 text-white"
+                      />
+                    </div>
+                    
+                    {/* Date Range - End */}
+                    <div>
+                      <label className="block text-sm font-medium text-slate-300 mb-2">
+                        <CalendarDays className="w-4 h-4 inline mr-1" />
+                        To Date
+                      </label>
+                      <Input
+                        type="date"
+                        value={exportEndDate}
+                        onChange={(e) => setExportEndDate(e.target.value)}
+                        className="bg-slate-700 border-slate-600 text-white"
+                      />
+                    </div>
+                    
+                    {/* Limit */}
+                    <div>
+                      <label className="block text-sm font-medium text-slate-300 mb-2">
+                        <Hash className="w-4 h-4 inline mr-1" />
+                        Number of Jobs (Latest First)
+                      </label>
+                      <Input
+                        type="number"
+                        value={exportLimit}
+                        onChange={(e) => setExportLimit(e.target.value)}
+                        placeholder="e.g., 1000 (leave empty for all)"
+                        min="1"
+                        className="bg-slate-700 border-slate-600 text-white placeholder-slate-500"
+                      />
+                    </div>
+                  </div>
+                  
+                  {/* Filter Summary */}
+                  <div className="bg-slate-800 rounded-lg p-4 mb-6">
+                    <h4 className="text-sm font-medium text-slate-300 mb-2">Export Summary:</h4>
+                    <p className="text-slate-400 text-sm">
+                      {exportStartDate || exportEndDate || exportLimit ? (
+                        <>
+                          Exporting {exportLimit ? `up to ${exportLimit}` : 'all'} jobs
+                          {exportStartDate && ` from ${exportStartDate}`}
+                          {exportEndDate && ` to ${exportEndDate}`}
+                          {exportLimit && ', sorted by latest first'}
+                        </>
+                      ) : (
+                        'Exporting all jobs (no filters applied)'
+                      )}
+                    </p>
+                  </div>
+                  
+                  {/* CSV Columns Info */}
                   <div className="bg-slate-800 rounded-lg p-4 mb-6">
                     <h4 className="text-sm font-medium text-slate-300 mb-3">CSV Columns:</h4>
-                    <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
                       {[
                         'Job Title',
                         'Location',
@@ -707,7 +795,8 @@ const AdminDashboard = ({ user, onLogout, onNavigateToJobs }) => {
                         'Work Type',
                         'Industry',
                         'Link to Job Listing',
-                        'Job Listing ID'
+                        'Job Listing ID',
+                        'Posted Date'
                       ].map((col, idx) => (
                         <div key={idx} className="flex items-center text-sm">
                           <Check className="w-4 h-4 text-green-400 mr-2" />
@@ -717,23 +806,40 @@ const AdminDashboard = ({ user, onLogout, onNavigateToJobs }) => {
                     </div>
                   </div>
 
-                  <Button
-                    onClick={handleExportJobs}
-                    disabled={exportLoading}
-                    className="bg-green-600 hover:bg-green-700 text-white"
-                  >
-                    {exportLoading ? (
-                      <>
-                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                        Generating Export...
-                      </>
-                    ) : (
-                      <>
-                        <Download className="w-4 h-4 mr-2" />
-                        Download Jobs CSV
-                      </>
+                  <div className="flex space-x-3">
+                    <Button
+                      onClick={handleExportJobs}
+                      disabled={exportLoading}
+                      className="bg-green-600 hover:bg-green-700 text-white"
+                    >
+                      {exportLoading ? (
+                        <>
+                          <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                          Generating Export...
+                        </>
+                      ) : (
+                        <>
+                          <Download className="w-4 h-4 mr-2" />
+                          Download Jobs CSV
+                        </>
+                      )}
+                    </Button>
+                    
+                    {(exportStartDate || exportEndDate || exportLimit) && (
+                      <Button
+                        onClick={() => {
+                          setExportStartDate('');
+                          setExportEndDate('');
+                          setExportLimit('');
+                        }}
+                        variant="outline"
+                        className="border-slate-600 text-slate-300 hover:bg-slate-700"
+                      >
+                        <X className="w-4 h-4 mr-2" />
+                        Clear Filters
+                      </Button>
                     )}
-                  </Button>
+                  </div>
                 </div>
 
                 <div className="text-sm text-slate-500">

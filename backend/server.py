@@ -4169,16 +4169,45 @@ async def validate_discount_code(
 
 @api_router.get("/admin/jobs/export")
 async def admin_export_jobs(
+    start_date: Optional[str] = None,
+    end_date: Optional[str] = None,
+    limit: Optional[int] = None,
     current_user: User = Depends(verify_admin_user)
 ):
-    """Export all jobs as CSV for admin"""
+    """Export jobs as CSV for admin with optional date filtering and limit"""
     import csv
     import io
     from fastapi.responses import StreamingResponse
     
-    # Fetch all jobs
-    cursor = db.jobs.find({}, {"_id": 0})
-    jobs = await cursor.to_list(length=150000)
+    # Build query filter
+    query = {}
+    
+    # Add date filters if provided
+    if start_date or end_date:
+        date_filter = {}
+        if start_date:
+            try:
+                start_dt = datetime.fromisoformat(start_date.replace('Z', '+00:00'))
+                date_filter["$gte"] = start_dt
+            except:
+                pass
+        if end_date:
+            try:
+                end_dt = datetime.fromisoformat(end_date.replace('Z', '+00:00'))
+                # Add one day to include the end date fully
+                end_dt = end_dt.replace(hour=23, minute=59, second=59)
+                date_filter["$lte"] = end_dt
+            except:
+                pass
+        if date_filter:
+            query["created_at"] = date_filter
+    
+    # Set limit (default to 150000 if not specified)
+    fetch_limit = limit if limit and limit > 0 else 150000
+    
+    # Fetch jobs sorted by created_at descending (latest first)
+    cursor = db.jobs.find(query, {"_id": 0}).sort("created_at", -1).limit(fetch_limit)
+    jobs = await cursor.to_list(length=fetch_limit)
     
     # Create CSV in memory
     output = io.StringIO()
@@ -4194,7 +4223,8 @@ async def admin_export_jobs(
         "Work Type",
         "Industry",
         "Link to Job Listing",
-        "Job Listing ID"
+        "Job Listing ID",
+        "Posted Date"
     ]
     writer.writerow(headers)
     
@@ -4225,6 +4255,16 @@ async def admin_export_jobs(
             # Limit length and remove newlines
             description = description.replace('\n', ' ').replace('\r', ' ')[:500]
         
+        # Format posted date
+        created_at = job.get("created_at", "")
+        if created_at:
+            if isinstance(created_at, datetime):
+                posted_date = created_at.strftime("%Y-%m-%d %H:%M")
+            else:
+                posted_date = str(created_at)[:19]
+        else:
+            posted_date = ""
+        
         row = [
             job.get("title", ""),
             job.get("location", ""),
@@ -4234,7 +4274,8 @@ async def admin_export_jobs(
             job.get("work_type", job.get("employment_type", "")),
             job.get("industry", job.get("category", "")),
             f"{base_url}/jobs/{job_id}",
-            job_id
+            job_id,
+            posted_date
         ]
         writer.writerow(row)
     
