@@ -390,6 +390,22 @@ Tasks performed:
 
 ---
 
+### Phase 18: Free Tier & Package Purchase Flow (April 2026)
+- [x] **Free Tier for New Recruiters**
+  - Added `FREE` tier to TierId enum and TIER_CONFIG (0 cost, 0 features, 0 job posts)
+  - New recruiter registrations default to FREE tier instead of Starter
+  - FREE tier excluded from public pricing page (`get_all_tiers`)
+  - Admin dashboard updated to show/filter by Free tier
+
+- [x] **Billing Page — No Package State**
+  - BillingPage shows "No Active Package" card with "View Plans & Pricing" CTA when user is on FREE tier
+  - Fixed 402 error for free-tier users accessing /api/billing (new `get_recruiter_for_billing` dependency)
+  
+- [x] **Package Purchase Banners**
+  - Gradient "Activate your account" banner on Recruiter Dashboard for FREE tier users
+  - Same banner on My Listings (/my-jobs) page for FREE tier users
+  - Banners hidden for recruiters with active packages
+
 ## Notes
 
 - Payfast is in SANDBOX mode
