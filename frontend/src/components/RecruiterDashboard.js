@@ -281,30 +281,30 @@ const RecruiterDashboard = ({ user, onUpdateUser }) => {
               {/* Display saved company info */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div className="space-y-4">
-                  <div className="p-4 bg-slate-50 rounded-lg">
-                    <label className="text-xs font-medium text-slate-500 uppercase tracking-wider">Company Name</label>
+                  <div className="p-4 bg-slate-50 rounded-lg border border-slate-200">
+                    <label className="text-xs font-semibold text-slate-600 uppercase tracking-wider">Company Name</label>
                     <p className="text-lg font-medium text-slate-800 mt-1">{companyForm.company_name || 'Not set'}</p>
                   </div>
                   
-                  <div className="p-4 bg-slate-50 rounded-lg">
-                    <label className="text-xs font-medium text-slate-500 uppercase tracking-wider">Industry</label>
+                  <div className="p-4 bg-slate-50 rounded-lg border border-slate-200">
+                    <label className="text-xs font-semibold text-slate-600 uppercase tracking-wider">Industry</label>
                     <p className="text-lg font-medium text-slate-800 mt-1">{companyForm.company_industry || 'Not set'}</p>
                   </div>
                   
-                  <div className="p-4 bg-slate-50 rounded-lg">
-                    <label className="text-xs font-medium text-slate-500 uppercase tracking-wider">Location</label>
+                  <div className="p-4 bg-slate-50 rounded-lg border border-slate-200">
+                    <label className="text-xs font-semibold text-slate-600 uppercase tracking-wider">Location</label>
                     <p className="text-lg font-medium text-slate-800 mt-1">{companyForm.company_location || 'Not set'}</p>
                   </div>
                 </div>
                 
                 <div className="space-y-4">
-                  <div className="p-4 bg-slate-50 rounded-lg">
-                    <label className="text-xs font-medium text-slate-500 uppercase tracking-wider">Company Size</label>
+                  <div className="p-4 bg-slate-50 rounded-lg border border-slate-200">
+                    <label className="text-xs font-semibold text-slate-600 uppercase tracking-wider">Company Size</label>
                     <p className="text-lg font-medium text-slate-800 mt-1">{companyForm.company_size || 'Not set'}</p>
                   </div>
                   
-                  <div className="p-4 bg-slate-50 rounded-lg h-full">
-                    <label className="text-xs font-medium text-slate-500 uppercase tracking-wider">Description</label>
+                  <div className="p-4 bg-slate-50 rounded-lg border border-slate-200 h-full">
+                    <label className="text-xs font-semibold text-slate-600 uppercase tracking-wider">Description</label>
                     <p className="text-slate-700 mt-1 whitespace-pre-wrap">
                       {companyForm.company_description || 'No description added yet'}
                     </p>
@@ -356,7 +356,7 @@ const RecruiterDashboard = ({ user, onUpdateUser }) => {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div className="space-y-2">
                   <div className="flex items-center justify-between">
-                    <Label htmlFor="company_name" className="text-sm font-medium text-slate-700">
+                    <Label htmlFor="company_name" className="text-sm font-semibold text-slate-800">
                       Company Name
                     </Label>
                     {companyForm.company_name && (
@@ -374,13 +374,13 @@ const RecruiterDashboard = ({ user, onUpdateUser }) => {
                     value={companyForm.company_name}
                     onChange={(e) => setCompanyForm(prev => ({ ...prev, company_name: e.target.value }))}
                     placeholder="Your Company Name"
-                    className="h-12 bg-white border-slate-200 focus:border-blue-500 focus:ring-blue-500/20"
+                    className="h-12 bg-white border-slate-300 focus:border-blue-500 focus:ring-blue-500/20 shadow-sm"
                   />
                 </div>
                 
                 <div className="space-y-2">
                   <div className="flex items-center justify-between">
-                    <Label htmlFor="company_industry" className="text-sm font-medium text-slate-700">
+                    <Label htmlFor="company_industry" className="text-sm font-semibold text-slate-800">
                       Industry
                     </Label>
                     <div className="flex items-center gap-2">
@@ -402,7 +402,7 @@ const RecruiterDashboard = ({ user, onUpdateUser }) => {
                     id="company_industry"
                     value={companyForm.company_industry}
                     onChange={(e) => setCompanyForm(prev => ({ ...prev, company_industry: e.target.value }))}
-                    className="h-12 w-full px-4 border border-slate-200 rounded-lg focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 bg-white text-slate-700"
+                    className="h-12 w-full px-4 border border-slate-300 rounded-lg focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 bg-white text-slate-800 shadow-sm"
                   >
                     <option value="">Select Industry</option>
                     {industryOptions.map((industry) => (
@@ -413,7 +413,7 @@ const RecruiterDashboard = ({ user, onUpdateUser }) => {
                 
                 <div className="space-y-2">
                   <div className="flex items-center justify-between">
-                    <Label htmlFor="company_location" className="text-sm font-medium text-slate-700">
+                    <Label htmlFor="company_location" className="text-sm font-semibold text-slate-800">
                       Location
                     </Label>
                     {companyForm.company_location && (
@@ -431,13 +431,13 @@ const RecruiterDashboard = ({ user, onUpdateUser }) => {
                     value={companyForm.company_location}
                     onChange={(e) => setCompanyForm(prev => ({ ...prev, company_location: e.target.value }))}
                     placeholder="City, Province"
-                    className="h-12 bg-white border-slate-200 focus:border-blue-500 focus:ring-blue-500/20"
+                    className="h-12 bg-white border-slate-300 focus:border-blue-500 focus:ring-blue-500/20 shadow-sm"
                   />
                 </div>
                 
                 <div className="space-y-2">
                   <div className="flex items-center justify-between">
-                    <Label htmlFor="company_size" className="text-sm font-medium text-slate-700">
+                    <Label htmlFor="company_size" className="text-sm font-semibold text-slate-800">
                       Company Size
                     </Label>
                     <div className="flex items-center gap-2">
@@ -459,7 +459,7 @@ const RecruiterDashboard = ({ user, onUpdateUser }) => {
                     id="company_size"
                     value={companyForm.company_size}
                     onChange={(e) => setCompanyForm(prev => ({ ...prev, company_size: e.target.value }))}
-                    className="h-12 w-full px-4 border border-slate-200 rounded-lg focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 bg-white text-slate-700"
+                    className="h-12 w-full px-4 border border-slate-300 rounded-lg focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 bg-white text-slate-800 shadow-sm"
                   >
                     <option value="">Select company size</option>
                     {companySizeOptions.map((size) => (
@@ -471,8 +471,8 @@ const RecruiterDashboard = ({ user, onUpdateUser }) => {
 
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
-                  <Label htmlFor="company_description" className="text-sm font-medium text-slate-700">
-                    Company Description <span className="text-slate-400 font-normal">(100+ chars)</span>
+                  <Label htmlFor="company_description" className="text-sm font-semibold text-slate-800">
+                    Company Description <span className="text-slate-500 font-normal">(100+ chars)</span>
                   </Label>
                   <div className="flex items-center gap-2">
                     {companyForm.company_description && (
@@ -495,7 +495,7 @@ const RecruiterDashboard = ({ user, onUpdateUser }) => {
                   onChange={(e) => setCompanyForm(prev => ({ ...prev, company_description: e.target.value }))}
                   placeholder="Tell candidates about your company, culture, mission, and what makes you unique..."
                   rows={6}
-                  className="resize-none bg-white border-slate-200 focus:border-blue-500 focus:ring-blue-500/20"
+                  className="resize-none bg-white border-slate-300 focus:border-blue-500 focus:ring-blue-500/20 shadow-sm"
                 />
                 <div className="flex justify-between text-sm">
                   <span className={`${companyForm.company_description.length >= 100 ? 'text-emerald-600' : 'text-slate-400'}`}>
@@ -707,8 +707,8 @@ const RecruiterDashboard = ({ user, onUpdateUser }) => {
               {/* Display saved links */}
               <div className="space-y-4">
                 {companyForm.company_website && (
-                  <div className="p-4 bg-slate-50 rounded-lg">
-                    <label className="text-xs font-medium text-slate-500 uppercase tracking-wider flex items-center">
+                  <div className="p-4 bg-slate-50 rounded-lg border border-slate-200">
+                    <label className="text-xs font-semibold text-slate-600 uppercase tracking-wider flex items-center">
                       <Globe className="w-3 h-3 mr-1" />
                       Website
                     </label>
@@ -724,8 +724,8 @@ const RecruiterDashboard = ({ user, onUpdateUser }) => {
                 )}
                 
                 {companyForm.company_linkedin && (
-                  <div className="p-4 bg-slate-50 rounded-lg">
-                    <label className="text-xs font-medium text-slate-500 uppercase tracking-wider flex items-center">
+                  <div className="p-4 bg-slate-50 rounded-lg border border-slate-200">
+                    <label className="text-xs font-semibold text-slate-600 uppercase tracking-wider flex items-center">
                       <Linkedin className="w-3 h-3 mr-1" />
                       LinkedIn
                     </label>
@@ -741,8 +741,8 @@ const RecruiterDashboard = ({ user, onUpdateUser }) => {
                 )}
                 
                 {!companyForm.company_website && (
-                  <div className="p-4 bg-slate-50 rounded-lg">
-                    <label className="text-xs font-medium text-slate-500 uppercase tracking-wider flex items-center">
+                  <div className="p-4 bg-slate-50 rounded-lg border border-slate-200">
+                    <label className="text-xs font-semibold text-slate-600 uppercase tracking-wider flex items-center">
                       <Globe className="w-3 h-3 mr-1" />
                       Website
                     </label>
@@ -751,8 +751,8 @@ const RecruiterDashboard = ({ user, onUpdateUser }) => {
                 )}
                 
                 {!companyForm.company_linkedin && (
-                  <div className="p-4 bg-slate-50 rounded-lg">
-                    <label className="text-xs font-medium text-slate-500 uppercase tracking-wider flex items-center">
+                  <div className="p-4 bg-slate-50 rounded-lg border border-slate-200">
+                    <label className="text-xs font-semibold text-slate-600 uppercase tracking-wider flex items-center">
                       <Linkedin className="w-3 h-3 mr-1" />
                       LinkedIn
                     </label>
@@ -804,8 +804,8 @@ const RecruiterDashboard = ({ user, onUpdateUser }) => {
             <form onSubmit={handleCompanySubmit} className="space-y-6">
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
-                  <Label htmlFor="company_website" className="text-sm font-medium text-slate-700 flex items-center">
-                    <Globe className="w-4 h-4 mr-2 text-slate-400" />
+                  <Label htmlFor="company_website" className="text-sm font-semibold text-slate-800 flex items-center">
+                    <Globe className="w-4 h-4 mr-2 text-slate-500" />
                     Company Website
                   </Label>
                   <div className="flex items-center gap-2">
@@ -829,7 +829,7 @@ const RecruiterDashboard = ({ user, onUpdateUser }) => {
                   value={companyForm.company_website}
                   onChange={(e) => setCompanyForm(prev => ({ ...prev, company_website: e.target.value }))}
                   placeholder="https://www.yourcompany.com"
-                  className="h-12 bg-white border-slate-200"
+                  className="h-12 bg-white border-slate-300 shadow-sm"
                 />
               </div>
 
@@ -860,7 +860,7 @@ const RecruiterDashboard = ({ user, onUpdateUser }) => {
                   value={companyForm.company_linkedin}
                   onChange={(e) => setCompanyForm(prev => ({ ...prev, company_linkedin: e.target.value }))}
                   placeholder="https://linkedin.com/company/yourcompany"
-                  className="h-12 bg-white border-slate-200"
+                  className="h-12 bg-white border-slate-300 shadow-sm"
                 />
               </div>
 
@@ -976,12 +976,7 @@ const RecruiterDashboard = ({ user, onUpdateUser }) => {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Compact Header with Progress Bar */}
         <div className="mb-8">
-          <div className="flex items-center justify-between mb-4">
-            <div>
-              <h1 className="text-2xl font-semibold text-slate-800">
-                Set Up Your Company Profile to Attract Talent
-              </h1>
-            </div>
+          <div className="flex items-center justify-end mb-4">
             <div className="hidden sm:flex items-center gap-3">
               <span className="text-sm text-slate-500">Profile Score</span>
               <div className="flex items-center gap-2">
@@ -1127,3 +1122,4 @@ const RecruiterDashboard = ({ user, onUpdateUser }) => {
 };
 
 export default RecruiterDashboard;
+;
