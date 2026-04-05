@@ -549,7 +549,6 @@ Note: This link will expire in 7 days.`);
                     >
                       <option value="recruiter">Recruiter</option>
                       <option value="manager">Manager</option>
-                      <option value="admin">Admin</option>
                       <option value="viewer">Viewer</option>
                     </select>
                   </div>
