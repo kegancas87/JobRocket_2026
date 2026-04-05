@@ -509,6 +509,38 @@ async def get_me(current_user: User = Depends(get_current_user)):
                 "features": [f.value if hasattr(f, 'value') else f for f in features],
                 "active_addons": [a.value if hasattr(a, 'value') else a for a in active_addons],
             }
+            
+            # Calculate recruiter profile progress from account data
+            rp = {}
+            total = 0
+            if account.get("company_industry"):
+                rp["company_industry"] = True
+                total += 20
+            if account.get("company_size"):
+                rp["company_size"] = True
+                total += 10
+            desc = account.get("company_description") or ""
+            if len(desc) >= 100:
+                rp["company_description"] = True
+                total += 30
+            if account.get("company_logo_url"):
+                rp["company_logo"] = True
+                total += 15
+            if account.get("company_cover_image_url"):
+                rp["company_cover"] = True
+                total += 10
+            if account.get("company_website"):
+                rp["company_website"] = True
+                total += 10
+            if account.get("company_linkedin"):
+                rp["company_linkedin"] = True
+                total += 5
+            # Check if recruiter has posted any jobs
+            jobs_count = await db.jobs.count_documents({"account_id": current_user.account_id})
+            if jobs_count > 0:
+                rp["first_job_posted"] = True
+            rp["total_points"] = total
+            user_dict["recruiter_progress"] = rp
     
     return user_dict
 
