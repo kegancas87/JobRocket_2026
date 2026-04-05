@@ -21,7 +21,9 @@ import {
   Calendar,
   DollarSign,
   ArrowUpRight,
-  FileText
+  FileText,
+  ShoppingCart,
+  Briefcase
 } from "lucide-react";
 import axios from 'axios';
 
@@ -386,6 +388,65 @@ const BillingPage = ({ user }) => {
         <div className="text-center">
           <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-blue-600 mx-auto mb-4"></div>
           <p className="text-slate-600">Loading billing information...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // No package state — show "Choose a Plan" prompt
+  if (!billing || billing.tier_id === 'free') {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-slate-100">
+        <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+          <div className="mb-8">
+            <h1 className="text-3xl font-bold text-slate-800 flex items-center">
+              <CreditCard className="w-8 h-8 mr-3 text-blue-600" />
+              Accounts & Billing
+            </h1>
+            <p className="text-slate-600 mt-1">Manage your subscription, add-ons, and billing history</p>
+          </div>
+
+          <Card className="bg-white shadow-xl border-0 overflow-hidden" data-testid="no-package-card">
+            <div className="bg-gradient-to-r from-blue-600 to-slate-700 px-8 py-6">
+              <h2 className="text-2xl font-bold text-white">Get Started with Job Rocket</h2>
+              <p className="text-blue-100 mt-1">Choose a plan to unlock all recruiter features</p>
+            </div>
+            <CardContent className="p-8">
+              <div className="text-center mb-8">
+                <div className="w-20 h-20 bg-blue-50 rounded-2xl flex items-center justify-center mx-auto mb-4">
+                  <ShoppingCart className="w-10 h-10 text-blue-600" />
+                </div>
+                <h3 className="text-xl font-semibold text-slate-800 mb-2">No Active Package</h3>
+                <p className="text-slate-600 max-w-md mx-auto">
+                  You haven't selected a subscription plan yet. Purchase a package to start posting jobs, searching candidates, and growing your team.
+                </p>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8">
+                <div className="flex items-center gap-3 p-4 bg-slate-50 rounded-xl">
+                  <Briefcase className="w-5 h-5 text-blue-600 flex-shrink-0" />
+                  <span className="text-sm font-medium text-slate-700">Post job listings</span>
+                </div>
+                <div className="flex items-center gap-3 p-4 bg-slate-50 rounded-xl">
+                  <Users className="w-5 h-5 text-blue-600 flex-shrink-0" />
+                  <span className="text-sm font-medium text-slate-700">Search candidates</span>
+                </div>
+                <div className="flex items-center gap-3 p-4 bg-slate-50 rounded-xl">
+                  <Zap className="w-5 h-5 text-blue-600 flex-shrink-0" />
+                  <span className="text-sm font-medium text-slate-700">Manage applications</span>
+                </div>
+              </div>
+
+              <Button
+                className="w-full bg-gradient-to-r from-blue-600 to-slate-700 hover:from-blue-700 hover:to-slate-800 h-12 text-lg font-semibold shadow-lg"
+                onClick={() => window.location.href = '/pricing'}
+                data-testid="choose-plan-btn"
+              >
+                <Rocket className="w-5 h-5 mr-2" />
+                View Plans & Pricing
+              </Button>
+            </CardContent>
+          </Card>
         </div>
       </div>
     );

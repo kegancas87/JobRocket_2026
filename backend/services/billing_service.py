@@ -70,7 +70,7 @@ class BillingService:
         if not account:
             return {}
         
-        tier_config = get_tier_config(TierId(account.get("tier_id", "starter")))
+        tier_config = get_tier_config(TierId(account.get("tier_id", "free")))
         
         # Calculate current monthly charges
         base_subscription = tier_config["price_monthly"]

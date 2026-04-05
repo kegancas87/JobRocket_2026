@@ -25,7 +25,7 @@ class AccountService:
         self,
         user_id: str,
         company_name: str,
-        tier_id: TierId = TierId.STARTER
+        tier_id: TierId = TierId.FREE
     ) -> Account:
         """
         Create a new account when a recruiter signs up.

@@ -27,7 +27,8 @@ import {
   Loader2,
   Edit2,
   X,
-  Trash2
+  Trash2,
+  Rocket
 } from "lucide-react";
 import axios from 'axios';
 
@@ -1004,6 +1005,28 @@ const RecruiterDashboard = ({ user, onUpdateUser }) => {
             </div>
           </div>
         </div>
+
+        {/* Package Purchase Banner */}
+        {(!profile?.account?.tier_id || profile.account.tier_id === 'free') && (
+          <div className="mb-6 bg-gradient-to-r from-blue-600 to-slate-700 rounded-xl p-5 flex items-center justify-between shadow-lg" data-testid="purchase-package-banner">
+            <div className="flex items-center gap-4 text-white">
+              <div className="bg-white/20 p-2.5 rounded-lg">
+                <Rocket className="w-6 h-6" />
+              </div>
+              <div>
+                <h3 className="font-semibold text-lg">Activate your account</h3>
+                <p className="text-blue-100 text-sm">Purchase a package to start posting jobs and finding talent</p>
+              </div>
+            </div>
+            <Button
+              onClick={() => window.location.href = '/pricing'}
+              className="bg-white text-blue-700 hover:bg-blue-50 font-semibold px-6 shadow-md flex-shrink-0"
+              data-testid="dashboard-purchase-btn"
+            >
+              View Plans
+            </Button>
+          </div>
+        )}
 
         {/* Two Column Layout */}
         <div className="flex flex-col lg:flex-row gap-8">

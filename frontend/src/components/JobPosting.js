@@ -30,7 +30,8 @@ import {
   AlertCircle,
   CheckCircle,
   X,
-  Save
+  Save,
+  Rocket
 } from "lucide-react";
 import axios from 'axios';
 import { useToast } from "../hooks/use-toast";
@@ -474,6 +475,28 @@ Marketing Manager,Johannesburg,R45000 - R60000,Permanent,Onsite,Marketing,"Join 
 
   return (
     <div className="space-y-6">
+      {/* Package Purchase Banner */}
+      {(!user?.account?.tier_id || user.account.tier_id === 'free') && (
+        <div className="bg-gradient-to-r from-blue-600 to-slate-700 rounded-xl p-5 flex items-center justify-between shadow-lg" data-testid="listings-purchase-package-banner">
+          <div className="flex items-center gap-4 text-white">
+            <div className="bg-white/20 p-2.5 rounded-lg">
+              <Rocket className="w-6 h-6" />
+            </div>
+            <div>
+              <h3 className="font-semibold text-lg">Activate your account</h3>
+              <p className="text-blue-100 text-sm">Purchase a package to start posting jobs and finding talent</p>
+            </div>
+          </div>
+          <Button
+            onClick={() => window.location.href = '/pricing'}
+            className="bg-white text-blue-700 hover:bg-blue-50 font-semibold px-6 shadow-md flex-shrink-0"
+            data-testid="listings-purchase-btn"
+          >
+            View Plans
+          </Button>
+        </div>
+      )}
+
       {/* Edit Job Modal */}
       <Dialog open={showEditModal} onOpenChange={setShowEditModal}>
         <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">

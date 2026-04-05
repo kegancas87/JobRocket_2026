@@ -57,6 +57,7 @@ class BillingCycle(str, Enum):
 
 class TierId(str, Enum):
     """Subscription tier identifiers"""
+    FREE = "free"
     STARTER = "starter"
     GROWTH = "growth"
     PRO = "pro"

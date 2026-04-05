@@ -11,6 +11,25 @@ from .enums import TierId, FeatureId, AddonId, CompanyProfileLevel
 # ============================================
 
 TIER_CONFIG = {
+    TierId.FREE: {
+        "id": TierId.FREE,
+        "name": "Free",
+        "price_monthly": 0,
+        "price_annually": None,
+        "currency": "ZAR",
+        "included_users": 1,
+        "extra_user_price": 0,
+        "multi_user_access": False,
+        "role_based_permissions": False,
+        "company_profile_level": CompanyProfileLevel.BASIC,
+        "job_post_limit": 0,
+        "cv_search_enabled": False,
+        "contact_reveals_limit": 0,
+        "features": [],
+        "available_addons": [],
+        "display_order": 0,
+        "is_active": False,
+    },
     TierId.STARTER: {
         "id": TierId.STARTER,
         "name": "Starter",
@@ -388,7 +407,7 @@ ADDON_CONFIG = {
 
 def get_tier_config(tier_id: TierId) -> dict:
     """Get configuration for a specific tier"""
-    return TIER_CONFIG.get(tier_id, TIER_CONFIG[TierId.STARTER])
+    return TIER_CONFIG.get(tier_id, TIER_CONFIG[TierId.FREE])
 
 
 def get_addon_config(addon_id: AddonId) -> dict:
@@ -397,8 +416,11 @@ def get_addon_config(addon_id: AddonId) -> dict:
 
 
 def get_all_tiers() -> list:
-    """Get all tier configurations sorted by display order"""
-    return sorted(TIER_CONFIG.values(), key=lambda x: x["display_order"])
+    """Get all purchasable tier configurations sorted by display order"""
+    return sorted(
+        [t for t in TIER_CONFIG.values() if t["id"] != TierId.FREE],
+        key=lambda x: x["display_order"]
+    )
 
 
 def get_available_addons_for_tier(tier_id: TierId) -> list:

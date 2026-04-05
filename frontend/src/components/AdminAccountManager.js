@@ -18,8 +18,9 @@ import axios from 'axios';
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
 
-const TIER_COLORS = { starter: '#64748b', growth: '#3b82f6', pro: '#8b5cf6', enterprise: '#f59e0b' };
+const TIER_COLORS = { free: '#94a3b8', starter: '#64748b', growth: '#3b82f6', pro: '#8b5cf6', enterprise: '#f59e0b' };
 const TIERS = [
+  { id: 'free', name: 'Free', price: 0 },
   { id: 'starter', name: 'Starter', price: 6899 },
   { id: 'growth', name: 'Growth', price: 10499 },
   { id: 'pro', name: 'Pro', price: 19999 },

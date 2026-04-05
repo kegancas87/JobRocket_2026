@@ -209,6 +209,26 @@ async def get_current_recruiter(current_user: User = Depends(get_current_user)) 
     return current_user
 
 
+async def get_recruiter_for_billing(current_user: User = Depends(get_current_user)) -> User:
+    """
+    Get recruiter for billing-related read endpoints.
+    Allows pending/free tier users to access billing info so they can see 'No Active Package' card.
+    """
+    if current_user.role != UserRole.RECRUITER:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only recruiters can access this resource"
+        )
+    
+    if not current_user.account_id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="No account associated with this user"
+        )
+    
+    return current_user
+
+
 async def get_recruiter_read_only(current_user: User = Depends(get_current_user)) -> tuple:
     """
     Get recruiter with read-only flag for users with inactive seats.
@@ -3308,7 +3328,7 @@ async def get_admin_analytics(current_user: User = Depends(verify_admin_user)):
         job_count = await db.jobs.count_documents({"account_id": acc["id"]})
         app_count = await db.job_applications.count_documents({"account_id": acc["id"]})
         
-        tier_prices = {"starter": 6899, "growth": 10499, "pro": 19999, "enterprise": 39999}
+        tier_prices = {"free": 0, "starter": 6899, "growth": 10499, "pro": 19999, "enterprise": 39999}
         extra = acc.get("extra_users_count", 0)
         mrr = tier_prices.get(acc.get("tier_id", "starter"), 0) + (extra * 899)
         
@@ -4368,6 +4388,7 @@ async def match_candidates(
 
 # Contact reveal limits by tier (monthly)
 CONTACT_REVEAL_LIMITS = {
+    "free": 0,
     "starter": 0,
     "growth": 1500,
     "pro": 5000,
@@ -4830,13 +4851,13 @@ async def get_my_packages(current_user: User = Depends(get_current_user)):
     }]
 
 @api_router.get("/billing")
-async def get_billing_summary(current_user: User = Depends(get_current_recruiter)):
-    """Get billing summary for current account"""
+async def get_billing_summary(current_user: User = Depends(get_recruiter_for_billing)):
+    """Get billing summary for current account - allows free tier users to see 'No Active Package' card"""
     return await billing_service.get_billing_summary(current_user.account_id)
 
 @api_router.get("/billing/history")
 async def get_billing_history(
-    current_user: User = Depends(get_current_recruiter),
+    current_user: User = Depends(get_recruiter_for_billing),
     limit: int = 50,
     skip: int = 0
 ):
@@ -4844,7 +4865,7 @@ async def get_billing_history(
     history = await billing_service.get_billing_history(
         current_user.account_id, limit, skip
     )
-    return {"history": history, "total": len(history)}
+    return {"history": history, "total": len(history), "payments": history}
 
 @api_router.post("/billing/addon")
 async def purchase_addon(
