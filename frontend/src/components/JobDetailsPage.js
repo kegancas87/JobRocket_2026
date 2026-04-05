@@ -364,8 +364,31 @@ const JobDetailsPage = ({ user }) => {
               </CardContent>
             </Card>
 
-            {/* Application Form - Always visible for logged in users who haven't applied */}
-            {user && !applied && (
+            {/* Application Section */}
+            {user && !applied && job.external_url && (
+              <Card id="application-form" className="bg-white shadow-lg border-0" data-testid="apply-on-website-card">
+                <CardHeader>
+                  <CardTitle className="text-lg font-semibold text-slate-800">Apply for this Position</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="text-center py-4">
+                    <p className="text-slate-600 mb-6">
+                      This position requires you to apply directly on the company's website.
+                    </p>
+                    <Button
+                      onClick={() => window.open(job.external_url, '_blank')}
+                      className="bg-gradient-to-r from-slate-700 to-slate-900 hover:from-slate-800 hover:to-slate-950 text-white h-12 px-8 text-lg font-semibold shadow-lg"
+                      data-testid="apply-on-website-btn"
+                    >
+                      <ExternalLink className="w-5 h-5 mr-2" />
+                      Apply on Company Website
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
+            {user && !applied && !job.external_url && (
               <Card id="application-form" className="bg-white shadow-lg border-0">
                 <CardHeader>
                   <CardTitle className="text-lg font-semibold text-slate-800">Submit Your Application</CardTitle>
