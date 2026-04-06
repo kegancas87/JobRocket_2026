@@ -3033,7 +3033,6 @@ async def initiate_subscription_payment(
         "m_payment_id": payment_id,
         "amount": f"{final_amount:.2f}",
         "item_name": f"JobRocket {tier['name']} Subscription",
-        "item_description": f"Monthly subscription to {tier['name']} plan" + (f" (Discount: R{discount_amount:.2f})" if discount_amount > 0 else ""),
     }
     
     payfast_data["signature"] = generate_payfast_signature(payfast_data, PAYFAST_PASSPHRASE)
@@ -5149,7 +5148,6 @@ async def purchase_addon(
         "m_payment_id": payment['id'],
         "amount": f"{amount:.2f}",
         "item_name": f"JobRocket Add-on: {addon['name']}",
-        "item_description": addon.get("description", "Feature add-on"),
     }
     
     payfast_data["signature"] = generate_payfast_signature(payfast_data, PAYFAST_PASSPHRASE)
@@ -5207,7 +5205,6 @@ async def purchase_extra_seats(
         "m_payment_id": payment['id'],
         "amount": f"{amount:.2f}",
         "item_name": f"JobRocket Extra User Seats ({quantity})",
-        "item_description": f"{quantity} additional user seat(s) at R899/month each",
     }
     
     payfast_data["signature"] = generate_payfast_signature(payfast_data, PAYFAST_PASSPHRASE)
