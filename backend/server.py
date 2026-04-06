@@ -692,10 +692,41 @@ async def invite_user(
     if error:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=error)
     
+    # Send invitation email
+    try:
+        base_url = os.environ.get("FRONTEND_URL", "https://jobrocket.co.za")
+        accept_url = f"{base_url}/invitations/{invitation.invitation_token}/accept"
+        
+        account = await db.accounts.find_one({"id": current_user.account_id})
+        company_name = account.get("name", "Your Company") if account else "Your Company"
+        inviter_name = f"{current_user.first_name} {current_user.last_name}"
+        invitee_name = invitation_data.first_name or "there"
+        role = invitation_data.account_role.value if hasattr(invitation_data.account_role, 'value') else str(invitation_data.account_role)
+        
+        email_content = EmailTemplates.team_invitation(
+            invitee_name=invitee_name,
+            inviter_name=inviter_name,
+            company_name=company_name,
+            role=role,
+            accept_url=accept_url
+        )
+        result = email_service.send_email(
+            email_type=EmailType.JOB_ALERTS,
+            to_email=invitation_data.email,
+            subject=f"You're invited to join {company_name} on Job Rocket",
+            html_content=email_content["html"],
+            plain_content=email_content["plain"]
+        )
+        if result.get("success"):
+            logger.info(f"Invitation email sent to {invitation_data.email}")
+        else:
+            logger.warning(f"Failed to send invitation email: {result.get('error')}")
+    except Exception as e:
+        logger.error(f"Invitation email error: {str(e)}")
+    
     return {
         "message": "Invitation sent successfully",
         "invitation_token": invitation.invitation_token,
-        # In production, send this via email instead of returning it
     }
 
 

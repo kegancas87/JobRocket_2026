@@ -563,6 +563,70 @@ Keep pushing forward - your dream job is closer than you think!
             "plain": plain_content
         }
 
+    @staticmethod
+    def team_invitation(
+        invitee_name: str,
+        inviter_name: str,
+        company_name: str,
+        role: str,
+        accept_url: str
+    ) -> dict:
+        """Template for team invitation emails"""
+        content = f"""
+            <h2 style="margin: 0 0 20px 0; color: #1e293b; font-size: 24px;">You're Invited!</h2>
+            
+            <p style="margin: 0 0 15px 0; color: #475569; font-size: 16px; line-height: 1.6;">
+                Hi {invitee_name},
+            </p>
+            
+            <p style="margin: 0 0 20px 0; color: #475569; font-size: 16px; line-height: 1.6;">
+                <strong>{inviter_name}</strong> has invited you to join <strong>{company_name}</strong> on Job Rocket as a <strong>{role.title()}</strong>.
+            </p>
+            
+            <div style="background-color: #f1f5f9; border-radius: 8px; padding: 20px; margin: 20px 0;">
+                <table style="width: 100%;">
+                    <tr>
+                        <td style="color: #64748b; font-size: 14px; padding: 4px 0;">Company</td>
+                        <td style="color: #1e293b; font-size: 14px; font-weight: 600; padding: 4px 0; text-align: right;">{company_name}</td>
+                    </tr>
+                    <tr>
+                        <td style="color: #64748b; font-size: 14px; padding: 4px 0;">Role</td>
+                        <td style="color: #1e293b; font-size: 14px; font-weight: 600; padding: 4px 0; text-align: right;">{role.title()}</td>
+                    </tr>
+                    <tr>
+                        <td style="color: #64748b; font-size: 14px; padding: 4px 0;">Invited by</td>
+                        <td style="color: #1e293b; font-size: 14px; font-weight: 600; padding: 4px 0; text-align: right;">{inviter_name}</td>
+                    </tr>
+                </table>
+            </div>
+            
+            <div style="text-align: center; margin: 30px 0;">
+                <a href="{accept_url}" style="display: inline-block; background: linear-gradient(135deg, #2563eb 0%, #1e40af 100%); color: #ffffff; padding: 14px 32px; border-radius: 8px; text-decoration: none; font-weight: 600; font-size: 16px;">
+                    Accept Invitation
+                </a>
+            </div>
+            
+            <p style="margin: 25px 0 0 0; color: #64748b; font-size: 14px;">
+                If you didn't expect this invitation, you can safely ignore this email.
+            </p>
+"""
+        
+        plain_content = f"""You're Invited to Join {company_name} on Job Rocket
+
+Hi {invitee_name},
+
+{inviter_name} has invited you to join {company_name} on Job Rocket as a {role.title()}.
+
+Accept your invitation here: {accept_url}
+
+If you didn't expect this invitation, you can safely ignore this email.
+"""
+        
+        return {
+            "html": EmailTemplates.get_base_template(content, f"You're invited to join {company_name} on Job Rocket"),
+            "plain": plain_content
+        }
+
 
 # Singleton instance
 email_service = EmailService()
