@@ -2837,19 +2837,19 @@ async def get_candidate_documents(
 # ============================================
 
 def generate_payfast_signature(data: dict, passphrase: str = None) -> str:
-    """Generate PayFast signature - values must be URL encoded for signature"""
+    """Generate PayFast signature - raw values, no URL encoding"""
     # Filter out empty values and signature field, strip whitespace
     filtered_data = {k: str(v).strip() for k, v in data.items() if v is not None and str(v).strip() != '' and k != 'signature'}
     
     # Sort alphabetically by key (PayFast requirement)
     sorted_params = sorted(filtered_data.items())
     
-    # Build parameter string WITH URL encoding (PayFast requirement for signature)
-    param_string = '&'.join([f"{k}={urllib.parse.quote_plus(v)}" for k, v in sorted_params])
+    # Build parameter string with raw values (no URL encoding)
+    param_string = '&'.join([f"{k}={v}" for k, v in sorted_params])
     
     # Append passphrase if provided (required for live mode)
     if passphrase:
-        param_string += f"&passphrase={urllib.parse.quote_plus(passphrase.strip())}"
+        param_string += f"&passphrase={passphrase.strip()}"
     
     # Generate MD5 hash
     return hashlib.md5(param_string.encode('utf-8')).hexdigest()
