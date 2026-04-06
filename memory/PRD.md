@@ -406,6 +406,36 @@ Tasks performed:
   - Same banner on My Listings (/my-jobs) page for FREE tier users
   - Banners hidden for recruiters with active packages
 
+### Phase 19: Billing Cycle Enforcement (April 2026)
+- [x] **Recurring Payment Handling (PayFast ITN)**
+  - Webhook now handles recurring ITN via PayFast token (not just initial payment)
+  - COMPLETE: extends subscription by 30 days, clears grace period
+  - FAILED: starts 7-day grace period, logs failed payment
+  - All recurring payments logged in `payments` collection
+  
+- [x] **Auto Status Transitions**
+  - `get_current_recruiter` middleware checks `subscription_end_date` dynamically
+  - Active → Past Due: when subscription_end_date passes
+  - Past Due → Inactive: 7 days after grace_period_start (day 8)
+  - Grace period: full access with soft warning banner
+  - Suspended: 402 error, all recruiter services blocked
+
+- [x] **Grace Period & Suspended UI**
+  - Amber "Payment overdue" banner on Dashboard and My Listings (with days remaining countdown)
+  - Red "Account suspended" banner when services are blocked
+  - Both banners link to billing page for action
+
+- [x] **Admin Subscription Management**
+  - New "Subscriptions" tab in Admin Dashboard with status snapshot cards (Active, Trial, Grace Period, Suspended, Free, Pending)
+  - Grace period accounts list with days remaining + Reactivate button
+  - Suspended accounts list with Reactivate button
+  - Manual reactivation endpoint (POST /api/admin/accounts/{id}/reactivate) for EFT/wire payments
+  - Audit logging for all reactivations
+
+- [x] **PayFast Signature Fix**
+  - Removed `urllib.parse.quote_plus` from signature generation (both server.py and payfast_subscription_service.py)
+  - Signature now uses raw values per PayFast requirements
+
 ## Notes
 
 - Payfast is in SANDBOX mode
