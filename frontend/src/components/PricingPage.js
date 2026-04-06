@@ -155,7 +155,7 @@ const PricingPage = ({ user }) => {
       form.method = 'POST';
       form.action = payfast_url;
       
-      Object.entries(payfast_data).forEach(([key, value]) => {
+      Object.entries(payfast_data).filter(([key, value]) => value !== null && value !== undefined && value !== '').forEach(([key, value]) => {
         const input = document.createElement('input');
         input.type = 'hidden';
         input.name = key;
