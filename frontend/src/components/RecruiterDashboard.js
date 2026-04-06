@@ -28,7 +28,9 @@ import {
   Edit2,
   X,
   Trash2,
-  Rocket
+  Rocket,
+  AlertTriangle,
+  ShieldOff
 } from "lucide-react";
 import axios from 'axios';
 
@@ -1024,6 +1026,54 @@ const RecruiterDashboard = ({ user, onUpdateUser }) => {
               data-testid="dashboard-purchase-btn"
             >
               View Plans
+            </Button>
+          </div>
+        )}
+
+        {/* Grace Period Banner */}
+        {profile?.account?.subscription_status === 'past_due' && (
+          <div className="mb-6 bg-gradient-to-r from-amber-500 to-orange-500 rounded-xl p-5 flex items-center justify-between shadow-lg" data-testid="grace-period-banner">
+            <div className="flex items-center gap-4 text-white">
+              <div className="bg-white/20 p-2.5 rounded-lg">
+                <AlertTriangle className="w-6 h-6" />
+              </div>
+              <div>
+                <h3 className="font-semibold text-lg">Payment overdue</h3>
+                <p className="text-amber-100 text-sm">
+                  Your subscription payment is overdue. You have {profile.account.grace_days_remaining ?? 7} day{profile.account.grace_days_remaining !== 1 ? 's' : ''} remaining to make a payment before services are suspended.
+                </p>
+              </div>
+            </div>
+            <Button
+              onClick={() => window.location.href = '/billing'}
+              className="bg-white text-amber-700 hover:bg-amber-50 font-semibold px-6 shadow-md flex-shrink-0"
+              data-testid="grace-period-billing-btn"
+            >
+              View Billing
+            </Button>
+          </div>
+        )}
+
+        {/* Suspended Overlay */}
+        {profile?.account?.subscription_status === 'inactive' && profile?.account?.tier_id !== 'free' && (
+          <div className="mb-6 bg-gradient-to-r from-red-600 to-red-700 rounded-xl p-6 shadow-lg" data-testid="suspended-banner">
+            <div className="flex items-center gap-4 text-white mb-4">
+              <div className="bg-white/20 p-2.5 rounded-lg">
+                <ShieldOff className="w-6 h-6" />
+              </div>
+              <div>
+                <h3 className="font-semibold text-lg">Account suspended</h3>
+                <p className="text-red-100 text-sm">
+                  Your account has been suspended due to non-payment. Job listings, applications, CV search, and reports are disabled. Please make a payment to reactivate your account.
+                </p>
+              </div>
+            </div>
+            <Button
+              onClick={() => window.location.href = '/billing'}
+              className="bg-white text-red-700 hover:bg-red-50 font-semibold px-6 shadow-md"
+              data-testid="suspended-billing-btn"
+            >
+              Reactivate Account
             </Button>
           </div>
         )}

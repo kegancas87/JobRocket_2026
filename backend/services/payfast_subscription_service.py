@@ -47,13 +47,13 @@ class PayFastSubscriptionService:
     # ==========================================
     
     def generate_signature(self, data: dict, passphrase: str = None) -> str:
-        """Generate MD5 signature for PayFast data"""
-        filtered_data = {k: str(v) for k, v in data.items() if v is not None and v != '' and k != 'signature'}
+        """Generate MD5 signature for PayFast data — raw values, no URL encoding"""
+        filtered_data = {k: str(v).strip() for k, v in data.items() if v is not None and str(v).strip() != '' and k != 'signature'}
         sorted_params = sorted(filtered_data.items())
-        param_string = '&'.join([f"{k}={urllib.parse.quote_plus(str(v))}" for k, v in sorted_params])
+        param_string = '&'.join([f"{k}={v}" for k, v in sorted_params])
         
         if passphrase:
-            param_string += f"&passphrase={urllib.parse.quote_plus(passphrase)}"
+            param_string += f"&passphrase={passphrase.strip()}"
         
         return hashlib.md5(param_string.encode('utf-8')).hexdigest()
     

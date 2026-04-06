@@ -25,7 +25,12 @@ import {
   FileSpreadsheet,
   Loader2,
   CalendarDays,
-  Hash
+  Hash,
+  CreditCard,
+  AlertTriangle,
+  ShieldOff,
+  RefreshCw,
+  Activity
 } from "lucide-react";
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
@@ -38,6 +43,7 @@ const AdminDashboard = ({ user, onLogout, onNavigateToJobs }) => {
   const [loading, setLoading] = useState(false);
   const [exportLoading, setExportLoading] = useState(false);
   const [showCreateForm, setShowCreateForm] = useState(false);
+  const [subscriptionOverview, setSubscriptionOverview] = useState(null);
   const [editingCode, setEditingCode] = useState(null);
   
   // Export filter state
@@ -72,6 +78,8 @@ const AdminDashboard = ({ user, onLogout, onNavigateToJobs }) => {
       loadDiscountCodes();
     } else if (activeTab === 'statistics') {
       loadUsageStats();
+    } else if (activeTab === 'subscriptions') {
+      loadSubscriptionOverview();
     }
   }, [activeTab]);
 
@@ -268,6 +276,33 @@ const AdminDashboard = ({ user, onLogout, onNavigateToJobs }) => {
     }).format(amount);
   };
 
+  const loadSubscriptionOverview = async () => {
+    try {
+      setLoading(true);
+      const response = await axios.get(`${API}/admin/subscription-overview`, {
+        headers: getAuthHeaders()
+      });
+      setSubscriptionOverview(response.data);
+    } catch (error) {
+      console.error('Error loading subscription overview:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleReactivate = async (accountId) => {
+    if (!window.confirm('Are you sure you want to reactivate this account? This will grant 30 days of access.')) return;
+    try {
+      await axios.post(`${API}/admin/accounts/${accountId}/reactivate`, {}, {
+        headers: getAuthHeaders()
+      });
+      loadSubscriptionOverview();
+    } catch (error) {
+      console.error('Error reactivating account:', error);
+      alert(error.response?.data?.detail || 'Error reactivating account');
+    }
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900">
       {/* Header */}
@@ -329,6 +364,14 @@ const AdminDashboard = ({ user, onLogout, onNavigateToJobs }) => {
           >
             <FileSpreadsheet className="w-4 h-4 mr-2" />
             Export Jobs
+          </Button>
+          <Button
+            variant={activeTab === 'subscriptions' ? 'default' : 'outline'}
+            onClick={() => setActiveTab('subscriptions')}
+            className={activeTab === 'subscriptions' ? 'bg-blue-600 text-white' : 'border-slate-600 text-slate-300'}
+          >
+            <Activity className="w-4 h-4 mr-2" />
+            Subscriptions
           </Button>
         </div>
 
@@ -847,6 +890,117 @@ const AdminDashboard = ({ user, onLogout, onNavigateToJobs }) => {
                 </div>
               </CardContent>
             </Card>
+          </div>
+        )}
+
+        {/* Subscriptions Overview Tab */}
+        {activeTab === 'subscriptions' && (
+          <div className="space-y-6">
+            {/* Status Cards */}
+            {subscriptionOverview && (
+              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+                {[
+                  { label: 'Active', count: subscriptionOverview.status_counts.active, color: 'emerald', icon: Check },
+                  { label: 'Trial', count: subscriptionOverview.status_counts.trial, color: 'blue', icon: CreditCard },
+                  { label: 'Grace Period', count: subscriptionOverview.status_counts.past_due, color: 'amber', icon: AlertTriangle },
+                  { label: 'Suspended', count: subscriptionOverview.status_counts.inactive, color: 'red', icon: ShieldOff },
+                  { label: 'Free / No Plan', count: subscriptionOverview.status_counts.free, color: 'slate', icon: Users },
+                  { label: 'Pending', count: subscriptionOverview.status_counts.pending, color: 'purple', icon: Activity },
+                ].map(item => (
+                  <Card key={item.label} className="bg-slate-800/50 border-slate-700">
+                    <CardContent className="p-4 text-center">
+                      <item.icon className={`w-6 h-6 text-${item.color}-400 mx-auto mb-2`} />
+                      <p className={`text-3xl font-bold text-${item.color}-400`}>{item.count}</p>
+                      <p className="text-xs text-slate-400 mt-1">{item.label}</p>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            )}
+
+            {/* Grace Period Accounts */}
+            {subscriptionOverview?.grace_period_accounts?.length > 0 && (
+              <Card className="bg-slate-800/50 border-slate-700">
+                <CardHeader>
+                  <CardTitle className="text-white flex items-center">
+                    <AlertTriangle className="w-5 h-5 text-amber-400 mr-2" />
+                    Accounts in Grace Period
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-3">
+                    {subscriptionOverview.grace_period_accounts.map(acc => (
+                      <div key={acc.id} className="flex items-center justify-between p-3 bg-slate-900/50 rounded-lg border border-amber-500/20">
+                        <div>
+                          <p className="text-white font-medium">{acc.name}</p>
+                          <p className="text-sm text-slate-400">Tier: {acc.tier_id} | {acc.grace_days_remaining} day{acc.grace_days_remaining !== 1 ? 's' : ''} remaining</p>
+                        </div>
+                        <Button
+                          size="sm"
+                          onClick={() => handleReactivate(acc.id)}
+                          className="bg-emerald-600 hover:bg-emerald-700 text-white"
+                        >
+                          <RefreshCw className="w-4 h-4 mr-1" />
+                          Reactivate
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
+            {/* Suspended Accounts */}
+            {subscriptionOverview?.suspended_accounts?.length > 0 && (
+              <Card className="bg-slate-800/50 border-slate-700">
+                <CardHeader>
+                  <CardTitle className="text-white flex items-center">
+                    <ShieldOff className="w-5 h-5 text-red-400 mr-2" />
+                    Suspended Accounts
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-3">
+                    {subscriptionOverview.suspended_accounts.map(acc => (
+                      <div key={acc.id} className="flex items-center justify-between p-3 bg-slate-900/50 rounded-lg border border-red-500/20">
+                        <div>
+                          <p className="text-white font-medium">{acc.name}</p>
+                          <p className="text-sm text-slate-400">
+                            Tier: {acc.tier_id} | Suspended: {acc.deactivated_at ? new Date(acc.deactivated_at).toLocaleDateString() : 'Unknown'}
+                            {acc.deactivation_reason === 'grace_period_expired' && ' (Payment overdue)'}
+                          </p>
+                        </div>
+                        <Button
+                          size="sm"
+                          onClick={() => handleReactivate(acc.id)}
+                          className="bg-emerald-600 hover:bg-emerald-700 text-white"
+                        >
+                          <RefreshCw className="w-4 h-4 mr-1" />
+                          Reactivate
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
+            {loading && (
+              <div className="text-center py-12">
+                <Loader2 className="w-8 h-8 text-blue-400 animate-spin mx-auto mb-2" />
+                <p className="text-slate-400">Loading subscription data...</p>
+              </div>
+            )}
+
+            {!loading && subscriptionOverview && subscriptionOverview.grace_period_accounts?.length === 0 && subscriptionOverview.suspended_accounts?.length === 0 && (
+              <Card className="bg-slate-800/50 border-slate-700">
+                <CardContent className="p-8 text-center">
+                  <Check className="w-12 h-12 text-emerald-400 mx-auto mb-3" />
+                  <p className="text-white font-medium text-lg">All accounts in good standing</p>
+                  <p className="text-slate-400 text-sm mt-1">No accounts are currently in grace period or suspended</p>
+                </CardContent>
+              </Card>
+            )}
           </div>
         )}
       </div>

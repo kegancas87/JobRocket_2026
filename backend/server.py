@@ -173,6 +173,20 @@ async def get_current_recruiter(current_user: User = Depends(get_current_user)) 
     account = await db.accounts.find_one({"id": current_user.account_id})
     if account:
         subscription_status = account.get("subscription_status", "inactive")
+        subscription_end = account.get("subscription_end_date")
+        now = datetime.utcnow()
+        
+        # Auto-transition: if active but subscription_end_date has passed, start grace period
+        if subscription_status == "active" and subscription_end and now > subscription_end:
+            await db.accounts.update_one(
+                {"id": current_user.account_id},
+                {"$set": {
+                    "subscription_status": "past_due",
+                    "grace_period_start": subscription_end
+                }}
+            )
+            subscription_status = "past_due"
+            account["grace_period_start"] = subscription_end
         
         # Allow active and trial status
         if subscription_status not in ["active", "trial", "past_due"]:
@@ -185,12 +199,18 @@ async def get_current_recruiter(current_user: User = Depends(get_current_user)) 
         if subscription_status == "past_due":
             grace_period_start = account.get("grace_period_start")
             if grace_period_start:
+                if isinstance(grace_period_start, str):
+                    grace_period_start = datetime.fromisoformat(grace_period_start)
                 grace_end = grace_period_start + timedelta(days=7)
-                if datetime.utcnow() > grace_end:
-                    # Grace period expired
+                if now > grace_end:
+                    # Grace period expired — suspend account
                     await db.accounts.update_one(
                         {"id": current_user.account_id},
-                        {"$set": {"subscription_status": "inactive"}}
+                        {"$set": {
+                            "subscription_status": "inactive",
+                            "deactivated_at": now,
+                            "deactivation_reason": "grace_period_expired"
+                        }}
                     )
                     raise HTTPException(
                         status_code=status.HTTP_402_PAYMENT_REQUIRED,
@@ -529,6 +549,24 @@ async def get_me(current_user: User = Depends(get_current_user)):
                 "features": [f.value if hasattr(f, 'value') else f for f in features],
                 "active_addons": [a.value if hasattr(a, 'value') else a for a in active_addons],
             }
+            
+            # Add billing status info for frontend banners
+            sub_status = account.get("subscription_status", "pending")
+            user_dict["account"]["subscription_status"] = sub_status
+            
+            if sub_status == "past_due":
+                gp_start = account.get("grace_period_start")
+                if gp_start:
+                    if isinstance(gp_start, str):
+                        gp_start = datetime.fromisoformat(gp_start)
+                    grace_end = gp_start + timedelta(days=7)
+                    days_remaining = max(0, (grace_end - datetime.utcnow()).days)
+                    user_dict["account"]["grace_days_remaining"] = days_remaining
+                    user_dict["account"]["grace_period_end"] = grace_end.isoformat()
+            
+            sub_end = account.get("subscription_end_date")
+            if sub_end:
+                user_dict["account"]["subscription_end_date"] = sub_end.isoformat() if isinstance(sub_end, datetime) else sub_end
             
             # Calculate recruiter profile progress from account data
             rp = {}
@@ -2983,7 +3021,7 @@ async def initiate_subscription_payment(
 
 @api_router.post("/payments/webhook")
 async def payment_webhook(request: Request):
-    """Handle Payfast payment notification for all payment types"""
+    """Handle Payfast payment notification for all payment types (initial + recurring)"""
     from services.payfast_subscription_service import create_payfast_subscription_service
     
     form_data = await request.form()
@@ -2991,17 +3029,91 @@ async def payment_webhook(request: Request):
     
     payment_id = data.get("m_payment_id")
     payment_status = data.get("payment_status")
+    token = data.get("token")
     
-    logger.info(f"PayFast webhook received: payment_id={payment_id}, status={payment_status}")
+    logger.info(f"PayFast webhook received: payment_id={payment_id}, status={payment_status}, token={token}")
     
-    if not payment_id:
-        return {"status": "error", "message": "Missing payment ID"}
+    # Try to find the payment by m_payment_id
+    payment = await db.payments.find_one({"id": payment_id}) if payment_id else None
     
-    payment = await db.payments.find_one({"id": payment_id})
+    # If no payment found but we have a token, this is a RECURRING charge
+    if not payment and token:
+        account = await db.accounts.find_one({"payfast_token": token})
+        if account:
+            logger.info(f"Recurring ITN for account {account['id']} via token")
+            now = datetime.utcnow()
+            
+            if payment_status == "COMPLETE":
+                # Extend subscription by 30 days from now
+                next_billing = now + timedelta(days=30)
+                await db.accounts.update_one(
+                    {"id": account["id"]},
+                    {"$set": {
+                        "subscription_status": SubscriptionStatus.ACTIVE.value,
+                        "subscription_end_date": next_billing,
+                        "next_billing_date": next_billing,
+                        "last_payment_date": now,
+                        "grace_period_start": None,
+                        "payment_retry_count": 0,
+                        "updated_at": now
+                    }}
+                )
+                # Log the recurring payment
+                await db.payments.insert_one({
+                    "id": str(uuid.uuid4()),
+                    "account_id": account["id"],
+                    "payment_type": "subscription_recurring",
+                    "amount": int(float(data.get("amount_gross", 0)) * 100),
+                    "currency": "ZAR",
+                    "status": PaymentStatus.COMPLETED.value,
+                    "provider": "payfast",
+                    "pf_payment_id": data.get("pf_payment_id"),
+                    "created_at": now,
+                    "paid_at": now,
+                    "description": "Recurring subscription payment",
+                    "itn_data": data
+                })
+                logger.info(f"Recurring payment processed — account {account['id']} active until {next_billing}")
+            
+            elif payment_status == "FAILED":
+                # Start grace period
+                if account.get("subscription_status") != SubscriptionStatus.PAST_DUE.value:
+                    await db.accounts.update_one(
+                        {"id": account["id"]},
+                        {"$set": {
+                            "subscription_status": SubscriptionStatus.PAST_DUE.value,
+                            "grace_period_start": now,
+                            "last_failed_payment_date": now,
+                            "updated_at": now
+                        }}
+                    )
+                # Log the failed payment
+                await db.payments.insert_one({
+                    "id": str(uuid.uuid4()),
+                    "account_id": account["id"],
+                    "payment_type": "subscription_recurring",
+                    "amount": int(float(data.get("amount_gross", 0)) * 100),
+                    "currency": "ZAR",
+                    "status": PaymentStatus.FAILED.value,
+                    "provider": "payfast",
+                    "pf_payment_id": data.get("pf_payment_id"),
+                    "created_at": now,
+                    "failed_at": now,
+                    "description": "Recurring subscription payment failed",
+                    "itn_data": data
+                })
+                logger.info(f"Recurring payment FAILED — account {account['id']} entering grace period")
+            
+            return {"status": "ok"}
+        else:
+            logger.warning(f"No account found for token {token}")
+            return {"status": "error", "message": "Account not found for token"}
+    
     if not payment:
+        logger.warning(f"Payment not found: {payment_id}")
         return {"status": "error", "message": "Payment not found"}
     
-    # Use the PayFast subscription service for comprehensive handling
+    # Use the PayFast subscription service for initial payment handling
     payfast_service = create_payfast_subscription_service(db)
     result = await payfast_service.process_itn(data)
     
@@ -3597,6 +3709,103 @@ async def admin_get_audit_log(account_id: str, current_user: User = Depends(veri
             log["created_at"] = log["created_at"].isoformat()
         logs.append(log)
     return {"logs": logs}
+
+
+@api_router.post("/admin/accounts/{account_id}/reactivate")
+async def admin_reactivate_account(account_id: str, current_user: User = Depends(verify_admin_user)):
+    """Admin manual reactivation of a suspended account (e.g. after EFT payment)"""
+    account = await db.accounts.find_one({"id": account_id})
+    if not account:
+        raise HTTPException(status_code=404, detail="Account not found")
+    
+    now = datetime.utcnow()
+    next_billing = now + timedelta(days=30)
+    
+    await db.accounts.update_one(
+        {"id": account_id},
+        {"$set": {
+            "subscription_status": SubscriptionStatus.ACTIVE.value,
+            "subscription_end_date": next_billing,
+            "next_billing_date": next_billing,
+            "last_payment_date": now,
+            "grace_period_start": None,
+            "payment_retry_count": 0,
+            "deactivated_at": None,
+            "deactivation_reason": None,
+            "billing_cycle_reset_date": now,
+            "billing_cycle_reset_reason": "admin_manual_reactivation",
+            "updated_at": now
+        }}
+    )
+    
+    # Audit log
+    await db.admin_audit_log.insert_one({
+        "id": str(uuid.uuid4()),
+        "account_id": account_id,
+        "action": "manual_reactivation",
+        "performed_by": current_user.id,
+        "performed_by_email": current_user.email,
+        "details": f"Account manually reactivated by admin. Next billing: {next_billing.strftime('%Y-%m-%d')}",
+        "created_at": now
+    })
+    
+    logger.info(f"Account {account_id} manually reactivated by admin {current_user.email}")
+    return {"status": "reactivated", "next_billing_date": next_billing.isoformat()}
+
+
+@api_router.get("/admin/subscription-overview")
+async def admin_subscription_overview(current_user: User = Depends(verify_admin_user)):
+    """Get a snapshot of all account statuses for the admin dashboard"""
+    now = datetime.utcnow()
+    
+    pipeline = [
+        {"$match": {"subscription_status": {"$exists": True}}},
+        {"$group": {
+            "_id": "$subscription_status",
+            "count": {"$sum": 1}
+        }}
+    ]
+    
+    status_counts = {"active": 0, "trial": 0, "past_due": 0, "inactive": 0, "pending": 0, "free": 0}
+    async for doc in db.accounts.aggregate(pipeline):
+        status_id = doc["_id"]
+        if status_id in status_counts:
+            status_counts[status_id] = doc["count"]
+        elif status_id == "cancelled" or status_id == "expired":
+            status_counts["inactive"] += doc["count"]
+    
+    # Count accounts with tier_id = "free" as free (regardless of subscription_status)
+    free_count = await db.accounts.count_documents({"tier_id": "free"})
+    status_counts["free"] = free_count
+    
+    # Get accounts in grace period (past_due with grace_period_start)
+    grace_accounts = []
+    async for acc in db.accounts.find(
+        {"subscription_status": "past_due", "grace_period_start": {"$ne": None}},
+        {"_id": 0, "id": 1, "name": 1, "grace_period_start": 1, "tier_id": 1}
+    ).limit(50):
+        gp_start = acc.get("grace_period_start")
+        if isinstance(gp_start, datetime):
+            days_remaining = max(0, 7 - (now - gp_start).days)
+            acc["grace_days_remaining"] = days_remaining
+            acc["grace_period_start"] = gp_start.isoformat()
+        grace_accounts.append(acc)
+    
+    # Get recently suspended accounts
+    suspended_accounts = []
+    async for acc in db.accounts.find(
+        {"subscription_status": "inactive", "deactivation_reason": {"$exists": True}},
+        {"_id": 0, "id": 1, "name": 1, "deactivated_at": 1, "tier_id": 1, "deactivation_reason": 1}
+    ).sort("deactivated_at", -1).limit(20):
+        if isinstance(acc.get("deactivated_at"), datetime):
+            acc["deactivated_at"] = acc["deactivated_at"].isoformat()
+        suspended_accounts.append(acc)
+    
+    return {
+        "status_counts": status_counts,
+        "grace_period_accounts": grace_accounts,
+        "suspended_accounts": suspended_accounts
+    }
 
 
 @api_router.post("/admin/test-email")

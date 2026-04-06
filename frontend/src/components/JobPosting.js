@@ -31,7 +31,9 @@ import {
   CheckCircle,
   X,
   Save,
-  Rocket
+  Rocket,
+  AlertTriangle,
+  ShieldOff
 } from "lucide-react";
 import axios from 'axios';
 import { useToast } from "../hooks/use-toast";
@@ -493,6 +495,52 @@ Marketing Manager,Johannesburg,R45000 - R60000,Permanent,Onsite,Marketing,"Join 
             data-testid="listings-purchase-btn"
           >
             View Plans
+          </Button>
+        </div>
+      )}
+
+      {/* Grace Period Banner */}
+      {user?.account?.subscription_status === 'past_due' && (
+        <div className="bg-gradient-to-r from-amber-500 to-orange-500 rounded-xl p-5 flex items-center justify-between shadow-lg" data-testid="listings-grace-period-banner">
+          <div className="flex items-center gap-4 text-white">
+            <div className="bg-white/20 p-2.5 rounded-lg">
+              <AlertTriangle className="w-6 h-6" />
+            </div>
+            <div>
+              <h3 className="font-semibold text-lg">Payment overdue</h3>
+              <p className="text-amber-100 text-sm">
+                Your subscription payment is overdue. You have {user.account.grace_days_remaining ?? 7} day{user.account.grace_days_remaining !== 1 ? 's' : ''} remaining before services are suspended.
+              </p>
+            </div>
+          </div>
+          <Button
+            onClick={() => window.location.href = '/billing'}
+            className="bg-white text-amber-700 hover:bg-amber-50 font-semibold px-6 shadow-md flex-shrink-0"
+          >
+            View Billing
+          </Button>
+        </div>
+      )}
+
+      {/* Suspended Banner */}
+      {user?.account?.subscription_status === 'inactive' && user?.account?.tier_id !== 'free' && (
+        <div className="bg-gradient-to-r from-red-600 to-red-700 rounded-xl p-6 shadow-lg" data-testid="listings-suspended-banner">
+          <div className="flex items-center gap-4 text-white mb-4">
+            <div className="bg-white/20 p-2.5 rounded-lg">
+              <ShieldOff className="w-6 h-6" />
+            </div>
+            <div>
+              <h3 className="font-semibold text-lg">Account suspended</h3>
+              <p className="text-red-100 text-sm">
+                Your account has been suspended due to non-payment. Please make a payment to reactivate.
+              </p>
+            </div>
+          </div>
+          <Button
+            onClick={() => window.location.href = '/billing'}
+            className="bg-white text-red-700 hover:bg-red-50 font-semibold px-6 shadow-md"
+          >
+            Reactivate Account
           </Button>
         </div>
       )}
