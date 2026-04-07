@@ -4539,16 +4539,7 @@ async def admin_export_jobs(
         job_id = job.get("id", "")
         
         # Format salary
-        salary_min = job.get("salary_min", "")
-        salary_max = job.get("salary_max", "")
-        if salary_min and salary_max:
-            salary = f"R{salary_min} - R{salary_max}"
-        elif salary_min:
-            salary = f"R{salary_min}+"
-        elif salary_max:
-            salary = f"Up to R{salary_max}"
-        else:
-            salary = job.get("salary_range", "Not specified")
+        salary = job.get("salary", "Not specified")
         
         # Clean description (remove HTML and limit length)
         description = job.get("description", "")
