@@ -3029,6 +3029,7 @@ async def initiate_subscription_payment(
     await db.payments.insert_one(payment_dict)
     
     # Generate Payfast data with the final (discounted) amount
+    # Field order MUST match PayFast documentation: merchant → customer → transaction → subscription
     payfast_data = {
         "merchant_id": PAYFAST_MERCHANT_ID,
         "merchant_key": PAYFAST_MERCHANT_KEY,
@@ -3041,6 +3042,10 @@ async def initiate_subscription_payment(
         "m_payment_id": payment_id,
         "amount": f"{final_amount:.2f}",
         "item_name": f"JobRocket {tier['name']} Subscription",
+        "subscription_type": "1",
+        "recurring_amount": f"{final_amount:.2f}",
+        "frequency": "3",
+        "cycles": "0",
     }
     
     payfast_data["signature"] = generate_payfast_signature(payfast_data, PAYFAST_PASSPHRASE)
