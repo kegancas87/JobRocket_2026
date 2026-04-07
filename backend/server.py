@@ -2935,9 +2935,9 @@ def generate_payfast_signature(data: dict, passphrase: str = None) -> str:
 @api_router.post("/payments/subscription")
 async def initiate_subscription_payment(
     payment_data: SubscriptionPaymentRequest,
-    current_user: User = Depends(get_current_recruiter)
+    current_user: User = Depends(get_recruiter_for_billing)
 ):
-    """Initiate subscription payment via Payfast"""
+    """Initiate subscription payment via Payfast (allows free/inactive tier users to purchase)"""
     
     tier = get_tier_config(payment_data.tier_id)
     original_amount = tier["price_monthly"]
