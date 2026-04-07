@@ -47,13 +47,24 @@ class PayFastSubscriptionService:
     # ==========================================
     
     def generate_signature(self, data: dict, passphrase: str = None) -> str:
-        """Generate MD5 signature for PayFast data — raw values, no URL encoding"""
-        filtered_data = {k: str(v).strip() for k, v in data.items() if v is not None and str(v).strip() != '' and k != 'signature'}
-        sorted_params = sorted(filtered_data.items())
-        param_string = '&'.join([f"{k}={v}" for k, v in sorted_params])
+        """Generate MD5 signature for PayFast data — insertion order, URL-encoded values.
+        
+        Per PayFast docs: parameters must be in the order they appear in the
+        attributes description, NOT alphabetical. Values are URL-encoded.
+        """
+        import urllib.parse
+        pairs = []
+        for k, v in data.items():
+            if k == 'signature':
+                continue
+            val = str(v).strip()
+            if val != '':
+                pairs.append(f"{k}={urllib.parse.quote_plus(val)}")
+        
+        param_string = '&'.join(pairs)
         
         if passphrase:
-            param_string += f"&passphrase={passphrase.strip()}"
+            param_string += f"&passphrase={urllib.parse.quote_plus(passphrase.strip())}"
         
         return hashlib.md5(param_string.encode('utf-8')).hexdigest()
     

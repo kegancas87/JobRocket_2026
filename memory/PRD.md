@@ -432,9 +432,10 @@ Tasks performed:
   - Manual reactivation endpoint (POST /api/admin/accounts/{id}/reactivate) for EFT/wire payments
   - Audit logging for all reactivations
 
-- [x] **PayFast Signature Fix**
-  - Removed `urllib.parse.quote_plus` from signature generation (both server.py and payfast_subscription_service.py)
-  - Signature now uses raw values per PayFast requirements
+- [x] **PayFast Signature Fix** (April 2026)
+  - Root cause: signature was generated with alphabetically sorted parameters, but PayFast requires insertion order (the order fields appear in their attribute documentation)
+  - Fix: Removed `sorted()` call, iterate dict in insertion order; URL-encode values (matching PHP `urlencode()`)
+  - Fixed in both `server.py` and `payfast_subscription_service.py`
 
 ## Notes
 

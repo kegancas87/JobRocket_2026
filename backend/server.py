@@ -2906,15 +2906,23 @@ async def get_candidate_documents(
 # ============================================
 
 def generate_payfast_signature(data: dict, passphrase: str = None) -> str:
-    """Generate PayFast signature - URL-encoded values, sorted alphabetically"""
-    # Filter out empty values and signature field, strip whitespace
-    filtered_data = {k: str(v).strip() for k, v in data.items() if v is not None and str(v).strip() != '' and k != 'signature'}
+    """Generate PayFast signature using insertion order (NOT alphabetical).
     
-    # Sort alphabetically by key (PayFast requirement)
-    sorted_params = sorted(filtered_data.items())
+    Per PayFast docs: 'The pairs must be listed in the order in which they
+    appear in the attributes description. Do not use the API signature
+    format, which uses alphabetical ordering!'
+    Values are URL-encoded per the official PHP reference implementation.
+    """
+    # Build parameter string in insertion order, skipping blanks and 'signature'
+    pairs = []
+    for k, v in data.items():
+        if k == 'signature':
+            continue
+        val = str(v).strip()
+        if val != '':
+            pairs.append(f"{k}={urllib.parse.quote_plus(val)}")
     
-    # Build parameter string with URL-encoded values
-    param_string = '&'.join([f"{k}={urllib.parse.quote_plus(v)}" for k, v in sorted_params])
+    param_string = '&'.join(pairs)
     
     # Append passphrase (also URL-encoded)
     if passphrase:
