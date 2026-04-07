@@ -212,7 +212,12 @@ const CompanyStructure = ({ user, onUpdateUser }) => {
     
     try {
       setLoading(true);
-      const response = await axios.post(`${API}/company/invite`, inviteForm, getAuthHeaders());
+      const response = await axios.post(`${API}/account/invite`, {
+        email: inviteForm.email,
+        first_name: inviteForm.first_name,
+        last_name: inviteForm.last_name,
+        account_role: inviteForm.role,
+      }, getAuthHeaders());
       
       // Show success message with invitation link
       const invitationLink = `${window.location.origin}/invitation/${response.data.invitation_token}`;
