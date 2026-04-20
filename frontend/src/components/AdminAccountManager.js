@@ -114,6 +114,7 @@ const AdminAccountManager = ({ user }) => {
   const [editingUser, setEditingUser] = useState(null);
   const [accountsList, setAccountsList] = useState([]);
   const [showPassword, setShowPassword] = useState(false);
+  const [passwordTouched, setPasswordTouched] = useState(false);
   const [userForm, setUserForm] = useState({
     email: '',
     password: '',
@@ -305,6 +306,7 @@ const AdminAccountManager = ({ user }) => {
       company_size: '', company_description: '', tier_id: 'starter', credit_balance: 0
     });
     setShowPassword(false);
+    setPasswordTouched(false);
     setNewSkill('');
     setNewWorkExp({ company: '', position: '', location: '', start_date: '', end_date: '', current: false, description: '' });
     setNewEducation({ institution: '', degree: '', field_of_study: '', level: 'Bachelors', start_date: '', end_date: '', current: false, grade: '' });
@@ -369,13 +371,19 @@ const AdminAccountManager = ({ user }) => {
       return;
     }
 
+    // Only include password if the admin explicitly typed one (prevents browser autofill overwrites)
+    const payload = { ...userForm };
+    if (editingUser && !passwordTouched) {
+      delete payload.password;
+    }
+
     setActionLoading(true);
     try {
       if (editingUser) {
-        await axios.put(`${API}/admin/users/${editingUser.id}`, userForm, getAuthHeaders());
+        await axios.put(`${API}/admin/users/${editingUser.id}`, payload, getAuthHeaders());
         showFeedback('success', 'User updated successfully');
       } else {
-        await axios.post(`${API}/admin/users`, userForm, getAuthHeaders());
+        await axios.post(`${API}/admin/users`, payload, getAuthHeaders());
         showFeedback('success', 'User created successfully');
       }
       setShowUserModal(false);
@@ -929,7 +937,7 @@ const AdminAccountManager = ({ user }) => {
               </div>
               <div className="space-y-2">
                 <Label>Email *</Label>
-                <Input type="email" value={userForm.email} onChange={(e) => setUserForm(f => ({ ...f, email: e.target.value }))} placeholder="john@example.com" disabled={!!editingUser} data-testid="user-email" />
+                <Input type="email" value={userForm.email} onChange={(e) => setUserForm(f => ({ ...f, email: e.target.value }))} placeholder="john@example.com" disabled={!!editingUser} data-testid="user-email" autoComplete="off" />
               </div>
               <div className="space-y-2">
                 <Label>{editingUser ? 'New Password (leave blank to keep)' : 'Password *'}</Label>
@@ -937,10 +945,12 @@ const AdminAccountManager = ({ user }) => {
                   <Input 
                     type={showPassword ? "text" : "password"} 
                     value={userForm.password} 
-                    onChange={(e) => setUserForm(f => ({ ...f, password: e.target.value }))} 
+                    onChange={(e) => { setPasswordTouched(true); setUserForm(f => ({ ...f, password: e.target.value })); }} 
                     placeholder={showPassword ? "Enter password" : "••••••••"} 
                     className="pr-10"
-                    data-testid="user-password" 
+                    data-testid="user-password"
+                    autoComplete="new-password"
+                    name="new-password-field"
                   />
                   <button
                     type="button"
