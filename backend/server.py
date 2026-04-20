@@ -417,7 +417,96 @@ async def login(login_data: UserLogin):
     )
 
 
-@api_router.post("/auth/google")
+@api_router.post("/auth/forgot-password")
+async def forgot_password(request: Request):
+    """Send a password reset email"""
+    from services.email_service import email_service, EmailType, EmailTemplates
+    
+    body = await request.json()
+    email = body.get("email", "").strip().lower()
+    
+    if not email:
+        raise HTTPException(status_code=400, detail="Email is required")
+    
+    # Always return success to prevent email enumeration
+    user = await db.users.find_one({"email": email})
+    if not user:
+        return {"message": "If an account with that email exists, a password reset link has been sent."}
+    
+    # Generate a short-lived reset token (1 hour)
+    reset_token = secrets.token_urlsafe(32)
+    expires_at = datetime.utcnow() + timedelta(hours=1)
+    
+    # Store token in DB
+    await db.password_resets.delete_many({"user_id": user["id"]})  # Remove old tokens
+    await db.password_resets.insert_one({
+        "user_id": user["id"],
+        "email": email,
+        "token": reset_token,
+        "expires_at": expires_at,
+        "created_at": datetime.utcnow(),
+        "used": False
+    })
+    
+    # Build reset URL
+    frontend_url = os.environ.get("FRONTEND_URL", "https://jobrocket.co.za")
+    reset_url = f"{frontend_url}/reset-password/{reset_token}"
+    
+    # Send email
+    try:
+        user_name = user.get("first_name", "there")
+        email_content = EmailTemplates.password_reset(
+            user_name=user_name,
+            reset_url=reset_url
+        )
+        email_service.send_email(
+            email_type=EmailType.JOB_ALERTS,
+            to_email=email,
+            subject="Reset your Job Rocket password",
+            html_content=email_content["html"],
+            plain_content=email_content["plain"]
+        )
+        logger.info(f"Password reset email sent to {email}")
+    except Exception as e:
+        logger.error(f"Failed to send password reset email: {e}")
+    
+    return {"message": "If an account with that email exists, a password reset link has been sent."}
+
+
+@api_router.post("/auth/reset-password")
+async def reset_password(request: Request):
+    """Reset password using a valid token"""
+    body = await request.json()
+    token = body.get("token", "").strip()
+    new_password = body.get("new_password", "").strip()
+    
+    if not token or not new_password:
+        raise HTTPException(status_code=400, detail="Token and new password are required")
+    
+    if len(new_password) < 6:
+        raise HTTPException(status_code=400, detail="Password must be at least 6 characters")
+    
+    # Find and validate token
+    reset_record = await db.password_resets.find_one({"token": token, "used": False})
+    if not reset_record:
+        raise HTTPException(status_code=400, detail="Invalid or expired reset link. Please request a new one.")
+    
+    if datetime.utcnow() > reset_record["expires_at"]:
+        await db.password_resets.update_one({"token": token}, {"$set": {"used": True}})
+        raise HTTPException(status_code=400, detail="This reset link has expired. Please request a new one.")
+    
+    # Update user password
+    new_hash = get_password_hash(new_password)
+    await db.users.update_one(
+        {"id": reset_record["user_id"]},
+        {"$set": {"password_hash": new_hash, "updated_at": datetime.utcnow()}}
+    )
+    
+    # Mark token as used
+    await db.password_resets.update_one({"token": token}, {"$set": {"used": True}})
+    
+    logger.info(f"Password reset completed for user {reset_record['user_id']}")
+    return {"message": "Password has been reset successfully. You can now log in with your new password."}
 async def google_auth(request: Request):
     """Authenticate or register via Google OAuth"""
     from google.oauth2 import id_token

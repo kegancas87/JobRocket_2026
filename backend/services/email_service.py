@@ -564,6 +564,54 @@ Keep pushing forward - your dream job is closer than you think!
         }
 
     @staticmethod
+    def password_reset(user_name: str, reset_url: str) -> dict:
+        """Template for password reset emails"""
+        content = f"""
+            <h2 style="margin: 0 0 20px 0; color: #1e293b; font-size: 24px;">Reset Your Password</h2>
+            
+            <p style="margin: 0 0 15px 0; color: #475569; font-size: 16px; line-height: 1.6;">
+                Hi {user_name},
+            </p>
+            
+            <p style="margin: 0 0 20px 0; color: #475569; font-size: 16px; line-height: 1.6;">
+                We received a request to reset your password for your Job Rocket account. Click the button below to set a new password.
+            </p>
+            
+            <div style="text-align: center; margin: 30px 0;">
+                <a href="{reset_url}" style="display: inline-block; background: linear-gradient(135deg, #2563eb 0%, #1e40af 100%); color: #ffffff; padding: 14px 32px; border-radius: 8px; text-decoration: none; font-weight: 600; font-size: 16px;">
+                    Reset Password
+                </a>
+            </div>
+            
+            <div style="background-color: #fef3c7; border-radius: 8px; padding: 16px; margin: 20px 0; border-left: 4px solid #f59e0b;">
+                <p style="margin: 0; color: #92400e; font-size: 14px;">
+                    This link will expire in <strong>1 hour</strong>. If you didn't request a password reset, you can safely ignore this email.
+                </p>
+            </div>
+            
+            <p style="margin: 25px 0 0 0; color: #64748b; font-size: 14px;">
+                If the button doesn't work, copy and paste this link into your browser:<br>
+                <a href="{reset_url}" style="color: #2563eb; word-break: break-all;">{reset_url}</a>
+            </p>
+"""
+        
+        plain_content = f"""Reset Your Password
+
+Hi {user_name},
+
+We received a request to reset your password for your Job Rocket account.
+
+Reset your password here: {reset_url}
+
+This link will expire in 1 hour. If you didn't request a password reset, you can safely ignore this email.
+"""
+        
+        return {
+            "html": EmailTemplates.get_base_template(content, "Reset your Job Rocket password"),
+            "plain": plain_content
+        }
+
+    @staticmethod
     def team_invitation(
         invitee_name: str,
         inviter_name: str,

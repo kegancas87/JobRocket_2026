@@ -178,10 +178,13 @@ JobRocket is a B2B SaaS recruitment platform targeting recruiters, businesses, a
 
 ## Backlog / Roadmap
 
+### Recently Completed
+- **Forgot Password Flow** (April 2026) - Full email-based reset flow with branded template, 1-hour expiry tokens, single-use. Google users can set a password via this flow.
+
 ### P1 - Next
 1. **Fix and Re-enable Onboarding Flow** - Currently disabled per user request
 2. **Enhance CV Search Candidate Cards** - Add job title, location, company, salary, phone
-3. **Implement "Change Password" Feature** - User self-service security
+3. **Implement "Change Password" Feature** - User self-service security (in-app for logged-in users)
 4. **More Email Notifications** - Shortlisted, Interview Scheduled, Offer Made
 
 ### P2 - Later

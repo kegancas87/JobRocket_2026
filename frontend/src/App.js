@@ -29,6 +29,8 @@ import TermsOfServicePage from "./components/TermsOfServicePage";
 import CVSearchPage from "./components/CVSearchPage";
 import JobDetailsPage from "./components/JobDetailsPage";
 import GuestJobListings from "./components/GuestJobListings";
+import ForgotPasswordPage from "./components/ForgotPasswordPage";
+import ResetPasswordPage from "./components/ResetPasswordPage";
 import { ApplyButton } from "./components/EasyApply";
 import JobDetailsModal from "./components/JobDetailsModal";
 import Navigation from "./components/Navigation";
@@ -1280,6 +1282,12 @@ function App() {
             } />
             <Route path="/browse-jobs" element={
               <GuestJobListings />
+            } />
+            <Route path="/forgot-password" element={
+              <ForgotPasswordPage />
+            } />
+            <Route path="/reset-password/:token" element={
+              <ResetPasswordPage />
             } />
             <Route path="/register" element={
               <RegisterPage 

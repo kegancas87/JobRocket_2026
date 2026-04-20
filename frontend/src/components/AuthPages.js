@@ -159,6 +159,17 @@ const LoginPage = ({ onLogin, onSwitchToRegister }) => {
               </div>
             </div>
             
+            <div className="flex justify-end">
+              <button
+                type="button"
+                onClick={() => navigate('/forgot-password')}
+                className="text-sm text-blue-600 hover:text-blue-800 font-medium hover:underline"
+                data-testid="forgot-password-link"
+              >
+                Forgot Password?
+              </button>
+            </div>
+            
             <Button
               type="submit"
               disabled={loading}
