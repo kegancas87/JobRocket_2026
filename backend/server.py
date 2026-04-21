@@ -459,14 +459,17 @@ async def forgot_password(request: Request):
             user_name=user_name,
             reset_url=reset_url
         )
-        email_service.send_email(
+        result = email_service.send_email(
             email_type=EmailType.JOB_ALERTS,
             to_email=email,
             subject="Reset your Job Rocket password",
             html_content=email_content["html"],
             plain_content=email_content["plain"]
         )
-        logger.info(f"Password reset email sent to {email}")
+        if result.get("success"):
+            logger.info(f"Password reset email sent to {email}")
+        else:
+            logger.error(f"Password reset email FAILED for {email}: {result.get('error')}")
     except Exception as e:
         logger.error(f"Failed to send password reset email: {e}")
     
