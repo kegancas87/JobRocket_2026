@@ -31,6 +31,8 @@ import JobDetailsPage from "./components/JobDetailsPage";
 import GuestJobListings from "./components/GuestJobListings";
 import ForgotPasswordPage from "./components/ForgotPasswordPage";
 import ResetPasswordPage from "./components/ResetPasswordPage";
+import SEO from "./components/SEO";
+import { HelmetProvider } from 'react-helmet-async';
 import { ApplyButton } from "./components/EasyApply";
 import JobDetailsModal from "./components/JobDetailsModal";
 import Navigation from "./components/Navigation";
@@ -1238,17 +1240,20 @@ function App() {
 
   if (loading) {
     return (
+      <HelmetProvider>
       <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-slate-100 flex items-center justify-center">
         <div className="text-center">
           <div className="animate-spin rounded-full h-24 w-24 border-4 border-slate-200 border-t-blue-600 mx-auto mb-4"></div>
           <p className="text-slate-600">Loading Job Rocket...</p>
         </div>
       </div>
+      </HelmetProvider>
     );
   }
 
   if (!isAuthenticated) {
     return (
+      <HelmetProvider>
       <div className="App">
         <BrowserRouter>
           <Routes>
@@ -1316,6 +1321,7 @@ function App() {
           </Routes>
         </BrowserRouter>
       </div>
+      </HelmetProvider>
     );
   }
 
@@ -1352,6 +1358,7 @@ function App() {
   }
 
   return (
+    <HelmetProvider>
     <div className="App">
       <BrowserRouter>
         <div className="min-h-screen flex flex-col">
@@ -1605,6 +1612,7 @@ function App() {
         <Toaster />
       </BrowserRouter>
     </div>
+    </HelmetProvider>
   );
 }
 

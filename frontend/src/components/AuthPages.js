@@ -20,6 +20,7 @@ import {
 } from "lucide-react";
 import { GoogleLogin } from '@react-oauth/google';
 import axios from 'axios';
+import SEO from './SEO';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
@@ -96,6 +97,12 @@ const LoginPage = ({ onLogin, onSwitchToRegister }) => {
         backgroundPosition: 'center'
       }}
     >
+      <SEO 
+        title="Login - Find Jobs & Hire Talent in South Africa"
+        description="Log in to Job Rocket to search jobs, apply to opportunities, or manage your recruitment pipeline. South Africa's leading job board."
+        keywords="job rocket login, job board South Africa, recruitment platform login, find jobs SA"
+        canonicalPath="/"
+      />
       {/* Animated stars background */}
       <div className="absolute inset-0 stars"></div>
       

@@ -26,6 +26,7 @@ import { Input } from "./ui/input";
 import { Textarea } from "./ui/textarea";
 import { Label } from "./ui/label";
 import axios from 'axios';
+import SEO from './SEO';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
@@ -233,6 +234,35 @@ const JobDetailsPage = ({ user }) => {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-slate-100">
+      <SEO 
+        title={`${job.title} at ${job.company_name || 'Company'} - ${job.location || 'South Africa'}`}
+        description={`Apply for ${job.title} at ${job.company_name || 'Company'} in ${job.location || 'South Africa'}. ${job.salary ? `Salary: ${job.salary}.` : ''} ${(job.description || '').substring(0, 150)}`}
+        keywords={`${job.title}, ${job.company_name || ''}, ${job.location || 'South Africa'}, ${job.industry || ''}, jobs, careers, employment`}
+        canonicalPath={`/jobs/${job.id}`}
+        ogType="article"
+        jsonLd={{
+          "@context": "https://schema.org",
+          "@type": "JobPosting",
+          "title": job.title,
+          "description": job.description || '',
+          "datePosted": job.posted_date,
+          "jobLocation": {
+            "@type": "Place",
+            "address": {
+              "@type": "PostalAddress",
+              "addressLocality": job.location || "South Africa",
+              "addressCountry": "ZA"
+            }
+          },
+          "hiringOrganization": {
+            "@type": "Organization",
+            "name": job.company_name || "Company"
+          },
+          ...(job.salary ? { "baseSalary": { "@type": "MonetaryAmount", "currency": "ZAR", "value": { "@type": "QuantitativeValue", "value": job.salary } } } : {}),
+          ...(job.role_type ? { "employmentType": job.role_type.toUpperCase().replace(' ', '_') } : {}),
+          ...(job.work_type ? { "jobLocationType": job.work_type === 'Remote' ? 'TELECOMMUTE' : undefined } : {})
+        }}
+      />
       <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Back Button */}
         <Button 

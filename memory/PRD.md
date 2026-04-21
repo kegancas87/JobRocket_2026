@@ -179,6 +179,15 @@ JobRocket is a B2B SaaS recruitment platform targeting recruiters, businesses, a
 ## Backlog / Roadmap
 
 ### Recently Completed
+- **SEO Optimization** (April 2026) - Comprehensive SEO overhaul:
+  - Meta tags (title, description, keywords, Open Graph, Twitter cards) on all public pages
+  - Dynamic per-page meta via react-helmet-async (SEO.js component)
+  - JSON-LD structured data: Organization, WebSite with SearchAction, JobPosting schema per job
+  - Dynamic sitemap at /api/sitemap (355+ URLs: static pages + all jobs + companies)
+  - robots.txt with proper allow/disallow rules
+  - Geo targeting for South Africa (geo.region, ICBM)
+  - Noscript fallback content for crawlers
+  - Canonical URLs to prevent duplicate content
 - **Forgot Password Flow** (April 2026) - Full email-based reset flow with branded template, 1-hour expiry tokens, single-use. Google users can set a password via this flow.
 
 ### P1 - Next

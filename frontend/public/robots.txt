@@ -1,0 +1,25 @@
+# Job Rocket Robots.txt
+# https://jobrocket.co.za
+
+User-agent: *
+Allow: /
+Allow: /browse-jobs
+Allow: /jobs
+Allow: /jobs/*
+Allow: /company/*
+Allow: /pricing
+Allow: /about
+Allow: /contact
+Allow: /privacy-policy
+Allow: /terms-of-service
+Allow: /register
+
+# Block internal/admin routes from indexing
+Disallow: /admin*
+Disallow: /api/
+Disallow: /payment/
+Disallow: /onboarding
+Disallow: /reset-password/
+
+# Sitemaps
+Sitemap: https://jobrocket.co.za/api/sitemap

@@ -3,10 +3,79 @@
     <head>
         <meta charset="utf-8" />
         <link rel="icon" type="image/png" href="%PUBLIC_URL%/favicon.png" />
+        <link rel="apple-touch-icon" href="%PUBLIC_URL%/favicon.png" />
         <meta name="viewport" content="width=device-width, initial-scale=1" />
-        <meta name="theme-color" content="#000000" />
-        <meta name="description" content="Job Rocket - Your career launchpad" />
-        <title>Job Rocket</title>
+        <meta name="theme-color" content="#2563eb" />
+        
+        <!-- Primary Meta Tags -->
+        <title>Job Rocket | South Africa's Leading Job Board & Recruitment Platform</title>
+        <meta name="description" content="Find your dream job in South Africa. Browse thousands of jobs in Johannesburg, Cape Town, Durban & more. IT jobs, finance jobs, engineering jobs - all industries. Recruiters post jobs free." />
+        <meta name="keywords" content="jobs in South Africa, job board South Africa, recruitment platform, jobs Johannesburg, jobs Cape Town, jobs Durban, IT jobs South Africa, finance jobs SA, engineering jobs, remote jobs South Africa, career opportunities, hiring platform, recruiter tools, CV search, job listings" />
+        <meta name="author" content="Job Rocket" />
+        <meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1" />
+        <link rel="canonical" href="https://jobrocket.co.za" />
+        
+        <!-- Open Graph / Facebook -->
+        <meta property="og:type" content="website" />
+        <meta property="og:url" content="https://jobrocket.co.za/" />
+        <meta property="og:title" content="Job Rocket | South Africa's Leading Job Board & Recruitment Platform" />
+        <meta property="og:description" content="Find your dream job in South Africa. Browse thousands of jobs across all industries. Recruiters: post jobs, search CVs, and manage applications." />
+        <meta property="og:image" content="https://jobrocket.co.za/favicon.png" />
+        <meta property="og:site_name" content="Job Rocket" />
+        <meta property="og:locale" content="en_ZA" />
+        
+        <!-- Twitter -->
+        <meta name="twitter:card" content="summary_large_image" />
+        <meta name="twitter:url" content="https://jobrocket.co.za/" />
+        <meta name="twitter:title" content="Job Rocket | South Africa's Leading Job Board & Recruitment Platform" />
+        <meta name="twitter:description" content="Find your dream job in South Africa. Browse thousands of jobs across all industries." />
+        <meta name="twitter:image" content="https://jobrocket.co.za/favicon.png" />
+        
+        <!-- Geo Tags for South Africa -->
+        <meta name="geo.region" content="ZA" />
+        <meta name="geo.placename" content="South Africa" />
+        <meta name="ICBM" content="-30.5595, 22.9375" />
+        
+        <!-- Structured Data: Organization -->
+        <script type="application/ld+json">
+        {
+            "@context": "https://schema.org",
+            "@type": "Organization",
+            "name": "Job Rocket",
+            "url": "https://jobrocket.co.za",
+            "logo": "https://jobrocket.co.za/favicon.png",
+            "description": "South Africa's leading job board and recruitment platform connecting job seekers with top employers.",
+            "contactPoint": {
+                "@type": "ContactPoint",
+                "email": "support@jobrocket.co.za",
+                "contactType": "customer service",
+                "areaServed": "ZA",
+                "availableLanguage": "English"
+            },
+            "sameAs": [],
+            "address": {
+                "@type": "PostalAddress",
+                "addressCountry": "ZA"
+            }
+        }
+        </script>
+        
+        <!-- Structured Data: WebSite with SearchAction -->
+        <script type="application/ld+json">
+        {
+            "@context": "https://schema.org",
+            "@type": "WebSite",
+            "name": "Job Rocket",
+            "url": "https://jobrocket.co.za",
+            "description": "Find jobs in South Africa - Browse thousands of career opportunities",
+            "potentialAction": {
+                "@type": "SearchAction",
+                "target": "https://jobrocket.co.za/browse-jobs?q={search_term_string}",
+                "query-input": "required name=search_term_string"
+            }
+        }
+        </script>
+        
         <!-- Google tag (gtag.js) -->
         <script async src="https://www.googletagmanager.com/gtag/js?id=G-3GXE5MLBVF"></script>
         <script>
@@ -17,7 +86,11 @@
         </script>
     </head>
     <body>
-        <noscript>You need to enable JavaScript to run this app.</noscript>
+        <noscript>
+            <h1>Job Rocket - South Africa's Leading Job Board</h1>
+            <p>Find your dream job in South Africa. Browse thousands of jobs in Johannesburg, Cape Town, Durban and more across all industries including IT, finance, engineering, healthcare, and marketing.</p>
+            <p>Visit <a href="https://jobrocket.co.za">jobrocket.co.za</a> to start your job search.</p>
+        </noscript>
         <div id="root"></div>
     </body>
 </html>

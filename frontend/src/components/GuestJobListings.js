@@ -25,6 +25,7 @@ import {
 } from "lucide-react";
 import axios from 'axios';
 import Footer from './Footer';
+import SEO from './SEO';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
@@ -473,6 +474,37 @@ const GuestJobListings = () => {
 
   return (
     <div className="min-h-screen flex flex-col">
+      <SEO 
+        title="Browse Jobs in South Africa"
+        description="Search and browse thousands of job opportunities across South Africa. Find jobs in Johannesburg, Cape Town, Durban and more. IT, finance, engineering, healthcare and all industries."
+        keywords="jobs South Africa, job search, careers, employment, vacancies, hiring, Johannesburg jobs, Cape Town jobs, Durban jobs, remote jobs SA, IT jobs, finance jobs, engineering jobs"
+        canonicalPath="/browse-jobs"
+        jsonLd={{
+          "@context": "https://schema.org",
+          "@type": "ItemList",
+          "name": "Job Listings in South Africa",
+          "description": "Browse latest job opportunities in South Africa",
+          "numberOfItems": jobs.length,
+          "itemListElement": jobs.slice(0, 10).map((job, i) => ({
+            "@type": "ListItem",
+            "position": i + 1,
+            "item": {
+              "@type": "JobPosting",
+              "title": job.title,
+              "description": (job.description || '').substring(0, 200),
+              "datePosted": job.posted_date,
+              "jobLocation": {
+                "@type": "Place",
+                "address": { "@type": "PostalAddress", "addressLocality": job.location || "South Africa", "addressCountry": "ZA" }
+              },
+              "hiringOrganization": {
+                "@type": "Organization",
+                "name": job.company_name || "Company"
+              }
+            }
+          }))
+        }}
+      />
       <GuestNavigation />
 
       <div className="flex-1 bg-gradient-to-br from-slate-50 via-blue-50 to-slate-100 relative">

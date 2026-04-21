@@ -6168,6 +6168,62 @@ async def export_report_csv(
     )
 
 
+# SEO: Dynamic Sitemap
+@api_router.get("/sitemap")
+async def generate_sitemap():
+    """Generate dynamic XML sitemap for search engines"""
+    from fastapi.responses import Response
+    
+    base_url = "https://jobrocket.co.za"
+    
+    static_pages = [
+        {"loc": "/", "changefreq": "daily", "priority": "1.0"},
+        {"loc": "/browse-jobs", "changefreq": "hourly", "priority": "0.9"},
+        {"loc": "/pricing", "changefreq": "weekly", "priority": "0.8"},
+        {"loc": "/register", "changefreq": "monthly", "priority": "0.7"},
+        {"loc": "/about", "changefreq": "monthly", "priority": "0.5"},
+        {"loc": "/contact", "changefreq": "monthly", "priority": "0.5"},
+        {"loc": "/privacy-policy", "changefreq": "yearly", "priority": "0.3"},
+        {"loc": "/terms-of-service", "changefreq": "yearly", "priority": "0.3"},
+    ]
+    
+    jobs = await db.jobs.find(
+        {"status": {"$in": ["active", "published", None]}},
+        {"_id": 0, "id": 1, "title": 1, "posted_date": 1, "updated_at": 1}
+    ).sort("posted_date", -1).limit(500).to_list(500)
+    
+    companies = await db.accounts.find(
+        {"company_name": {"$exists": True, "$ne": ""}},
+        {"_id": 0, "id": 1, "company_name": 1, "updated_at": 1}
+    ).limit(200).to_list(200)
+    
+    xml_parts = [
+        '<?xml version="1.0" encoding="UTF-8"?>',
+        '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">',
+    ]
+    
+    for page in static_pages:
+        xml_parts.append(f'  <url>\n    <loc>{base_url}{page["loc"]}</loc>\n    <changefreq>{page["changefreq"]}</changefreq>\n    <priority>{page["priority"]}</priority>\n  </url>')
+    
+    for job in jobs:
+        lastmod = ""
+        date_val = job.get("updated_at") or job.get("posted_date")
+        if date_val:
+            if isinstance(date_val, str):
+                lastmod = f"\n    <lastmod>{date_val[:10]}</lastmod>"
+            else:
+                lastmod = f"\n    <lastmod>{date_val.strftime('%Y-%m-%d')}</lastmod>"
+        xml_parts.append(f'  <url>\n    <loc>{base_url}/jobs/{job["id"]}</loc>{lastmod}\n    <changefreq>weekly</changefreq>\n    <priority>0.8</priority>\n  </url>')
+    
+    for company in companies:
+        xml_parts.append(f'  <url>\n    <loc>{base_url}/company/{company["id"]}</loc>\n    <changefreq>weekly</changefreq>\n    <priority>0.6</priority>\n  </url>')
+    
+    xml_parts.append('</urlset>')
+    xml_content = "\n".join(xml_parts)
+    return Response(content=xml_content, media_type="application/xml")
+
+
+
 # Include router
 app.include_router(api_router)
 
