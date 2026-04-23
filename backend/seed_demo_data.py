@@ -1,10 +1,13 @@
 """
 JobRocket - Demo Data Seeder
 Creates test accounts, users, and jobs for all tiers
+
+WARNING: This script inserts demo data. It will NEVER run on production.
 """
 
 import asyncio
 import os
+import sys
 from pathlib import Path
 from dotenv import load_dotenv
 from motor.motor_asyncio import AsyncIOMotorClient
@@ -20,6 +23,39 @@ mongo_url = os.environ['MONGO_URL']
 db_name = os.environ['DB_NAME']
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+
+
+# ============================================================
+# PRODUCTION SAFETY CHECK - DO NOT REMOVE
+# ============================================================
+def is_production():
+    """Detect if this is a production environment"""
+    env = os.environ.get("ENV", "").lower()
+    node_env = os.environ.get("NODE_ENV", "").lower()
+    if env in ("production", "prod") or node_env in ("production", "prod"):
+        return True
+    frontend_url = os.environ.get("FRONTEND_URL", "").lower()
+    if "jobrocket.co.za" in frontend_url:
+        return True
+    mongo = mongo_url.lower()
+    if "mongodb+srv" in mongo or "atlas" in mongo:
+        return True
+    payfast_sandbox = os.environ.get("PAYFAST_SANDBOX", "True").lower()
+    if payfast_sandbox == "false":
+        return True
+    return False
+
+def enforce_safety():
+    """Block execution on production"""
+    if is_production():
+        print("\n" + "=" * 60)
+        print("BLOCKED: seed_demo_data.py CANNOT run on a production server.")
+        print("This script inserts test data into the database.")
+        print("=" * 60 + "\n")
+        sys.exit(1)
+
+enforce_safety()
+# ============================================================
 
 
 def get_password_hash(password: str) -> str:
