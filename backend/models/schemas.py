@@ -188,6 +188,9 @@ class User(BaseModel):
     profile_progress: Optional[ProfileProgress] = Field(default_factory=ProfileProgress)
     badges: List[str] = []
     
+    # Wallet (for AI features)
+    wallet_balance: float = 0.0
+    
     # Timestamps
     created_at: datetime = Field(default_factory=datetime.utcnow)
     updated_at: datetime = Field(default_factory=datetime.utcnow)

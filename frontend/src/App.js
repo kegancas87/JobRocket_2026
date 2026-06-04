@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import "./App.css";
-import { BrowserRouter, Routes, Route, Navigate, useParams, useSearchParams, useNavigate } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate, useParams, useSearchParams, useNavigate, useLocation } from "react-router-dom";
 import axios from "axios";
 import { LoginPage, RegisterPage } from "./components/AuthPages";
 import ProfileDashboard from "./components/ProfileDashboard";
@@ -33,6 +33,8 @@ import ForgotPasswordPage from "./components/ForgotPasswordPage";
 import ResetPasswordPage from "./components/ResetPasswordPage";
 import SEO from "./components/SEO";
 import { HelmetProvider } from 'react-helmet-async';
+import Sidekick, { SidekickToggle } from "./components/Sidekick";
+import MatchScoreBadge from "./components/MatchScoreBadge";
 import { ApplyButton } from "./components/EasyApply";
 import JobDetailsModal from "./components/JobDetailsModal";
 import Navigation from "./components/Navigation";
@@ -511,6 +513,9 @@ const JobCard = ({ job, user, onSave, onApply, onJobClick }) => {
                   <Badge variant="outline" className="border-slate-300 text-slate-600 px-2 sm:px-3 py-1 font-medium text-xs sm:text-sm">
                     {job.industry}
                   </Badge>
+                  {user && user.role === 'job_seeker' && (
+                    <MatchScoreBadge jobId={job.id} />
+                  )}
                 </div>
                 <div className="flex items-center space-x-2 justify-end">
                   <ApplyButton 
@@ -1151,12 +1156,31 @@ const JobListingPage = ({ user, onLogout }) => {
   );
 };
 
+const SidekickWithJobContext = ({ sidekickOpen, setSidekickOpen }) => {
+  const location = useLocation();
+  const jobMatch = location.pathname.match(/^\/jobs\/([^/]+)$/);
+  const currentJobId = jobMatch ? jobMatch[1] : null;
+
+  return (
+    <>
+      <SidekickToggle onClick={() => setSidekickOpen(true)} isOpen={sidekickOpen} />
+      <Sidekick
+        isOpen={sidekickOpen}
+        onClose={() => setSidekickOpen(false)}
+        currentJobId={currentJobId}
+        currentJobTitle={currentJobId ? 'Current Job' : null}
+      />
+    </>
+  );
+};
+
 function App() {
   const [user, setUser] = useState(null);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [authPage, setAuthPage] = useState('login'); // 'login' or 'register'
   const [currentPage, setCurrentPage] = useState('jobs'); // 'jobs' or 'profile'
   const [loading, setLoading] = useState(true);
+  const [sidekickOpen, setSidekickOpen] = useState(false);
 
   useEffect(() => {
     // Check if user is already logged in
@@ -1609,6 +1633,9 @@ function App() {
           
           <Footer user={user} />
         </div>
+        {user && user.role === 'job_seeker' && (
+          <SidekickWithJobContext sidekickOpen={sidekickOpen} setSidekickOpen={setSidekickOpen} />
+        )}
         <Toaster />
       </BrowserRouter>
     </div>

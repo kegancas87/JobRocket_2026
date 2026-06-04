@@ -6168,6 +6168,239 @@ async def export_report_csv(
     )
 
 
+# ============================================================
+# SIDEKICK AI ENDPOINTS — Job Seeker AI Features
+# ============================================================
+
+@api_router.get("/ai/pricing")
+async def get_ai_pricing(current_user: User = Depends(get_current_user)):
+    """Get AI feature pricing and user wallet balance"""
+    from services.ai_service import AI_PRICING
+    balance = current_user.wallet_balance if hasattr(current_user, 'wallet_balance') else 0
+    user_doc = await db.users.find_one({"id": current_user.id}, {"_id": 0, "wallet_balance": 1})
+    balance = user_doc.get("wallet_balance", 0) if user_doc else 0
+    return {"pricing": AI_PRICING, "wallet_balance": balance}
+
+
+@api_router.get("/ai/wallet")
+async def get_wallet_balance(current_user: User = Depends(get_current_user)):
+    """Get job seeker wallet balance"""
+    user_doc = await db.users.find_one({"id": current_user.id}, {"_id": 0, "wallet_balance": 1})
+    return {"wallet_balance": user_doc.get("wallet_balance", 0) if user_doc else 0}
+
+
+@api_router.post("/ai/wallet/topup")
+async def topup_wallet(request: Request, current_user: User = Depends(get_current_user)):
+    """Top up job seeker wallet"""
+    body = await request.json()
+    amount = body.get("amount", 0)
+    if not isinstance(amount, (int, float)) or amount <= 0 or amount > 10000:
+        raise HTTPException(status_code=400, detail="Amount must be between R1 and R10,000")
+
+    result = await db.users.find_one_and_update(
+        {"id": current_user.id},
+        {"$inc": {"wallet_balance": amount}, "$set": {"updated_at": datetime.utcnow()}},
+        return_document=True,
+        projection={"_id": 0, "wallet_balance": 1},
+    )
+    new_balance = result.get("wallet_balance", 0) if result else 0
+
+    await db.ai_usage_log.insert_one({
+        "id": str(uuid.uuid4()),
+        "user_id": current_user.id,
+        "action": "topup",
+        "amount": amount,
+        "created_at": datetime.utcnow(),
+    })
+
+    return {"success": True, "wallet_balance": new_balance}
+
+
+@api_router.post("/ai/match-score")
+async def ai_match_score(request: Request, current_user: User = Depends(get_current_user)):
+    """Get AI match score between job seeker and a job (R10)"""
+    from services.ai_service import get_match_score
+    body = await request.json()
+    job_id = body.get("job_id")
+    if not job_id:
+        raise HTTPException(status_code=400, detail="job_id is required")
+
+    result = await get_match_score(db, current_user.id, job_id)
+    if not result.get("success"):
+        status = 402 if "Insufficient" in result.get("error", "") else 500
+        raise HTTPException(status_code=status, detail=result.get("error", "Unknown error"))
+    return result
+
+
+@api_router.get("/ai/match-scores")
+async def get_my_match_scores(current_user: User = Depends(get_current_user)):
+    """Get all cached match scores for the current user"""
+    scores = []
+    async for s in db.ai_match_scores.find({"user_id": current_user.id}, {"_id": 0}).sort("created_at", -1):
+        if isinstance(s.get("created_at"), datetime):
+            s["created_at"] = s["created_at"].isoformat()
+        scores.append(s)
+    return {"scores": scores}
+
+
+@api_router.post("/ai/top-matches")
+async def ai_top_matches(current_user: User = Depends(get_current_user)):
+    """Find the top 10 best matching jobs for this job seeker (R50)"""
+    from services.ai_service import get_top_matches
+    result = await get_top_matches(db, current_user.id)
+    if not result.get("success"):
+        status = 402 if "Insufficient" in result.get("error", "") else 500
+        raise HTTPException(status_code=status, detail=result.get("error", "Unknown error"))
+    return result
+
+
+@api_router.post("/ai/auto-apply")
+async def ai_auto_apply(request: Request, current_user: User = Depends(get_current_user)):
+    """Auto-apply to selected jobs with AI cover letters (R50)"""
+    from services.ai_service import auto_apply_jobs
+    body = await request.json()
+    job_ids = body.get("job_ids", [])
+    min_score = body.get("min_match_score", 70)
+
+    if not job_ids:
+        raise HTTPException(status_code=400, detail="job_ids list is required")
+
+    result = await auto_apply_jobs(db, current_user.id, job_ids, min_score)
+    if not result.get("success"):
+        status = 402 if "Insufficient" in result.get("error", "") else 500
+        raise HTTPException(status_code=status, detail=result.get("error", "Unknown error"))
+    return result
+
+
+@api_router.post("/ai/cv-enhance")
+async def ai_cv_enhance(current_user: User = Depends(get_current_user)):
+    """Enhance CV and profile with AI recommendations (R80)"""
+    from services.ai_service import enhance_cv_profile
+    result = await enhance_cv_profile(db, current_user.id)
+    if not result.get("success"):
+        status = 402 if "Insufficient" in result.get("error", "") else 500
+        raise HTTPException(status_code=status, detail=result.get("error", "Unknown error"))
+    return result
+
+
+@api_router.get("/ai/dashboard")
+async def ai_dashboard(current_user: User = Depends(get_current_user)):
+    """Get AI insights dashboard data for job seeker"""
+    user_doc = await db.users.find_one({"id": current_user.id}, {"_id": 0, "wallet_balance": 1})
+    wallet_balance = user_doc.get("wallet_balance", 0) if user_doc else 0
+
+    # Transaction history
+    transactions = []
+    async for t in db.ai_usage_log.find({"user_id": current_user.id}, {"_id": 0}).sort("created_at", -1).limit(50):
+        if isinstance(t.get("created_at"), datetime):
+            t["created_at"] = t["created_at"].isoformat()
+        transactions.append(t)
+
+    # Counts
+    match_count = await db.ai_match_scores.count_documents({"user_id": current_user.id})
+    search_count = await db.ai_top_searches.count_documents({"user_id": current_user.id})
+    auto_apply_count = await db.ai_auto_applies.count_documents({"user_id": current_user.id})
+    cv_enhance_count = await db.ai_cv_enhancements.count_documents({"user_id": current_user.id})
+
+    # Total spent
+    total_spent = sum(t.get("cost", 0) for t in transactions if t.get("action") != "topup" and t.get("action") != "refund")
+
+    return {
+        "wallet_balance": wallet_balance,
+        "transactions": transactions,
+        "stats": {
+            "match_reports": match_count,
+            "top_job_searches": search_count,
+            "auto_applies": auto_apply_count,
+            "cv_enhancements": cv_enhance_count,
+            "total_spent": total_spent,
+        },
+    }
+
+
+@api_router.get("/admin/ai/analytics")
+async def admin_ai_analytics(current_user: User = Depends(verify_admin_user)):
+    """Admin AI analytics — usage, revenue, per-feature breakdown"""
+    from services.ai_service import AI_PRICING
+
+    # Revenue by feature
+    revenue = {}
+    for action in AI_PRICING:
+        pipeline = [
+            {"$match": {"action": action}},
+            {"$group": {"_id": None, "total": {"$sum": "$cost"}, "count": {"$sum": 1}}},
+        ]
+        result = await db.ai_usage_log.aggregate(pipeline).to_list(1)
+        if result:
+            revenue[action] = {"total_revenue": result[0]["total"], "usage_count": result[0]["count"]}
+        else:
+            revenue[action] = {"total_revenue": 0, "usage_count": 0}
+
+    # Total revenue
+    total_revenue = sum(r["total_revenue"] for r in revenue.values())
+
+    # Total unique users
+    unique_users = await db.ai_usage_log.distinct("user_id")
+
+    # Recent transactions
+    recent = []
+    async for t in db.ai_usage_log.find({"action": {"$nin": ["topup", "refund"]}}, {"_id": 0}).sort("created_at", -1).limit(50):
+        if isinstance(t.get("created_at"), datetime):
+            t["created_at"] = t["created_at"].isoformat()
+        user = await db.users.find_one({"id": t.get("user_id")}, {"_id": 0, "email": 1, "first_name": 1, "last_name": 1})
+        t["user_email"] = user.get("email", "Unknown") if user else "Unknown"
+        t["user_name"] = f"{user.get('first_name', '')} {user.get('last_name', '')}" if user else "Unknown"
+        recent.append(t)
+
+    # Wallet transactions (topups)
+    topups = []
+    async for t in db.ai_usage_log.find({"action": "topup"}, {"_id": 0}).sort("created_at", -1).limit(50):
+        if isinstance(t.get("created_at"), datetime):
+            t["created_at"] = t["created_at"].isoformat()
+        topups.append(t)
+
+    return {
+        "total_revenue": total_revenue,
+        "unique_users": len(unique_users),
+        "revenue_by_feature": revenue,
+        "pricing": AI_PRICING,
+        "recent_transactions": recent,
+        "recent_topups": topups,
+    }
+
+
+@api_router.post("/admin/ai/refund/{transaction_id}")
+async def admin_ai_refund(transaction_id: str, current_user: User = Depends(verify_admin_user)):
+    """Admin: Refund an AI transaction"""
+    from services.ai_service import refund_wallet
+    transaction = await db.ai_usage_log.find_one({"id": transaction_id}, {"_id": 0})
+    if not transaction:
+        raise HTTPException(status_code=404, detail="Transaction not found")
+    if transaction.get("action") in ("topup", "refund"):
+        raise HTTPException(status_code=400, detail="Cannot refund topups or refunds")
+
+    cost = transaction.get("cost", 0)
+    user_id = transaction.get("user_id")
+    await refund_wallet(db, user_id, cost, f"Admin refund by {current_user.email}")
+
+    return {"success": True, "message": f"Refunded R{cost:.2f} to user"}
+
+
+@api_router.put("/admin/ai/pricing")
+async def admin_update_pricing(request: Request, current_user: User = Depends(verify_admin_user)):
+    """Admin: Update AI feature pricing"""
+    from services import ai_service
+    body = await request.json()
+
+    for action, price in body.items():
+        if action in ai_service.AI_PRICING:
+            if isinstance(price, (int, float)) and price >= 0:
+                ai_service.AI_PRICING[action] = float(price)
+
+    return {"success": True, "pricing": ai_service.AI_PRICING}
+
+
+
 # SEO: Dynamic Sitemap
 @api_router.get("/sitemap")
 async def generate_sitemap():
