@@ -70,6 +70,23 @@ async def check_and_deduct_wallet(db, user_id: str, action: str) -> dict:
     return {"success": True, "cost": cost, "new_balance": result.get("wallet_balance", 0)}
 
 
+async def _trigger_auto_topup_if_needed(db, user_id: str, new_balance: float) -> dict:
+    """
+    After wallet deduction, check if auto top-up should be triggered.
+    Runs async — non-blocking to the main AI flow.
+    Returns the top-up result or None.
+    """
+    try:
+        from services.payfast_wallet_service import process_auto_topup
+        topup_result = await process_auto_topup(db, user_id)
+        if topup_result and topup_result.get("success"):
+            logger.info(f"Auto top-up triggered for {user_id}: +R{topup_result['amount']}")
+        return topup_result
+    except Exception as e:
+        logger.error(f"Auto top-up check failed for {user_id}: {e}")
+        return None
+
+
 async def refund_wallet(db, user_id: str, amount: float, reason: str):
     """Refund wallet if AI call fails"""
     await db.users.update_one(

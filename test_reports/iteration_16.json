@@ -1,0 +1,71 @@
+{
+  "summary": "Tested Wallet Auto Top-Up feature with PayFast tokenization. All 15 backend tests passed. Frontend verified: Settings page shows Change Password + Wallet Auto Top-Up for job seekers, ONLY Change Password for recruiters. Sidekick panel wallet bar displays correctly with balance and top-up button.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_wallet_auto_topup.py",
+    "/app/test_reports/pytest/pytest_wallet_auto_topup.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "Fixed missing 'Response' import in server.py - ITN webhook was returning 500 error",
+    "PayFast tokenization setup correctly returns subscription_type=2 and amount=0.00 for card save",
+    "Auto top-up settings validation working: threshold 0-5000, amount 5-10000",
+    "Business logic correct: cannot enable auto top-up without saved card (returns 400)",
+    "ITN webhook is public endpoint (no auth required) - correct for PayFast callbacks",
+    "Remove card endpoint is idempotent - returns success even when no card saved",
+    "Role-based visibility correct: Wallet Auto Top-Up section only shows for job_seeker role"
+  ],
+  "updated_files": [
+    "/app/backend/server.py (added Response import)",
+    "/app/backend/tests/test_wallet_auto_topup.py"
+  ],
+  "success_rate": {
+    "backend": "100% (15/15 tests passed)",
+    "frontend": "100% (all UI elements verified)"
+  },
+  "test_credentials": {
+    "job_seeker": "thabo.mthembu@gmail.com / demo123 (wallet balance: R640)",
+    "recruiter": "hr@techcorp.co.za / demo123"
+  },
+  "seed_data_creation": "None - used existing test data",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Wallet Auto Top-Up feature fully tested. Key findings: 1) All wallet API endpoints working: card-status, auto-topup (GET/POST), setup-card, remove-card, wallet-itn. 2) PayFast card setup returns real form data pointing to www.payfast.co.za/eng/process (LIVE mode). 3) ITN webhook at /api/payfast/wallet-itn is public (no auth). 4) Auto-topup settings stored in user.wallet_auto_topup, card token in user.wallet_payfast_token. 5) Settings page correctly shows Wallet Auto Top-Up section ONLY for job seekers. 6) Auto top-up form is greyed out when no card saved - correct UX. 7) Sidekick panel shows wallet balance and auto-topup badge (when enabled). 8) Fixed missing Response import in server.py.",
+  "features_tested": {
+    "backend": {
+      "GET /api/ai/wallet/card-status": "PASSED - Returns has_card boolean and saved_at timestamp",
+      "GET /api/ai/wallet/auto-topup": "PASSED - Returns enabled, threshold, amount, has_card",
+      "POST /api/ai/wallet/auto-topup (save settings)": "PASSED - Saves threshold/amount without enabling",
+      "POST /api/ai/wallet/auto-topup (enable without card)": "PASSED - Returns 400 'save card first'",
+      "POST /api/ai/wallet/auto-topup (threshold validation)": "PASSED - Rejects threshold > 5000 or < 0",
+      "POST /api/ai/wallet/auto-topup (amount validation)": "PASSED - Rejects amount < 5 or > 10000",
+      "POST /api/ai/wallet/setup-card": "PASSED - Returns PayFast form data with subscription_type=2, amount=0.00",
+      "DELETE /api/ai/wallet/remove-card": "PASSED - Idempotent, returns success even when no card",
+      "POST /api/payfast/wallet-itn": "PASSED - Public endpoint, accepts POST without auth",
+      "auth_required": "PASSED - All wallet endpoints (except ITN) require authentication"
+    },
+    "frontend": {
+      "job_seeker_settings_page": "PASSED - Shows Change Password AND Wallet Auto Top-Up sections",
+      "recruiter_settings_page": "PASSED - Shows ONLY Change Password (no wallet section)",
+      "card_status_display": "PASSED - Shows 'No card saved' with 'Save Card via PayFast' button",
+      "auto_topup_form_greyed": "PASSED - Form is greyed out when no card saved",
+      "sidekick_wallet_balance": "PASSED - Shows R640.00 balance",
+      "sidekick_topup_button": "PASSED - Top Up button exists in wallet bar"
+    }
+  },
+  "bug_fix_applied": {
+    "issue": "ITN webhook returning 500 Internal Server Error",
+    "root_cause": "Missing 'Response' import from fastapi.responses in server.py",
+    "fix": "Added 'from fastapi.responses import Response' to imports",
+    "file": "/app/backend/server.py line 9"
+  },
+  "mocked_apis_note": "PayFast card tokenization setup generates real form data but the PayFast redirect and ITN callback cannot be tested in preview environment. The charge_saved_card function calls PayFast API which won't work without a real token."
+}

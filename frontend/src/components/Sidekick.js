@@ -239,6 +239,7 @@ const CVEnhanceResult = ({ data }) => {
 
 const Sidekick = ({ isOpen, onClose, currentJobId, currentJobTitle }) => {
   const [walletBalance, setWalletBalance] = useState(0);
+  const [autoTopupEnabled, setAutoTopupEnabled] = useState(false);
   const [messages, setMessages] = useState([]);
   const [loading, setLoading] = useState(false);
   const [loadingAction, setLoadingAction] = useState('');
@@ -267,6 +268,9 @@ const Sidekick = ({ isOpen, onClose, currentJobId, currentJobTitle }) => {
     try {
       const res = await axios.get(`${API}/ai/wallet`, getAuthHeaders());
       setWalletBalance(res.data.wallet_balance || 0);
+      // Also check auto top-up status
+      const topupRes = await axios.get(`${API}/ai/wallet/auto-topup`, getAuthHeaders());
+      setAutoTopupEnabled(topupRes.data.enabled && topupRes.data.has_card);
     } catch (err) {
       console.error('Failed to fetch wallet:', err);
     }
@@ -339,6 +343,11 @@ const Sidekick = ({ isOpen, onClose, currentJobId, currentJobTitle }) => {
       if (res?.data?.new_balance !== undefined) {
         setWalletBalance(res.data.new_balance);
       }
+      // Handle auto top-up notification
+      if (res?.data?.auto_topup?.success) {
+        setWalletBalance(res.data.auto_topup.new_balance);
+        addMessage('system', `Auto top-up triggered: +R${res.data.auto_topup.amount.toFixed(2)}. New balance: R${res.data.auto_topup.new_balance.toFixed(2)}`);
+      }
     } catch (err) {
       const detail = err.response?.data?.detail || 'Something went wrong';
       if (err.response?.status === 402) {
@@ -384,6 +393,11 @@ const Sidekick = ({ isOpen, onClose, currentJobId, currentJobTitle }) => {
           <Wallet className="w-4 h-4 text-emerald-400" />
           <span className="text-sm text-slate-300">Balance: </span>
           <span className="text-sm font-bold text-emerald-400" data-testid="sidekick-wallet-balance">R{walletBalance.toFixed(2)}</span>
+          {autoTopupEnabled && (
+            <span className="text-[10px] bg-amber-500/20 text-amber-400 px-1.5 py-0.5 rounded-full flex items-center gap-0.5" data-testid="auto-topup-badge">
+              <Zap className="w-2.5 h-2.5" /> Auto
+            </span>
+          )}
         </div>
         <button
           onClick={() => setShowTopup(!showTopup)}

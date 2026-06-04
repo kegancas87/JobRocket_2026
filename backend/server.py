@@ -6,6 +6,7 @@ Refactored for multi-tenant SaaS architecture
 from fastapi import FastAPI, APIRouter, HTTPException, Query, Depends, status, UploadFile, File, Form, Request
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from fastapi.staticfiles import StaticFiles
+from fastapi.responses import Response
 from dotenv import load_dotenv
 from starlette.middleware.cors import CORSMiddleware
 from motor.motor_asyncio import AsyncIOMotorClient
@@ -6249,6 +6250,151 @@ async def topup_wallet(request: Request, current_user: User = Depends(get_curren
     return {"success": True, "wallet_balance": new_balance}
 
 
+@api_router.post("/ai/wallet/setup-card")
+async def wallet_setup_card(request: Request, current_user: User = Depends(get_current_user)):
+    """Generate PayFast tokenization form data to save a card for wallet auto top-up"""
+    from services.payfast_wallet_service import generate_card_setup_data
+
+    base_url = os.environ.get("FRONTEND_URL", "https://jobrocket.co.za")
+    notify_url = os.environ.get("PAYFAST_NOTIFY_URL", f"{base_url}/api/payfast/wallet-itn")
+
+    data = generate_card_setup_data(
+        user_id=current_user.id,
+        user_email=current_user.email,
+        user_first=current_user.first_name,
+        user_last=current_user.last_name,
+        return_url=f"{base_url}/settings?card_saved=true",
+        cancel_url=f"{base_url}/settings?card_saved=false",
+        notify_url=notify_url,
+    )
+
+    await db.wallet_card_setups.insert_one({
+        "id": data["m_payment_id"],
+        "user_id": current_user.id,
+        "status": "pending",
+        "created_at": datetime.utcnow(),
+    })
+
+    return data
+
+
+@api_router.post("/payfast/wallet-itn")
+async def payfast_wallet_itn(request: Request):
+    """Handle PayFast ITN webhook for wallet card tokenization"""
+    try:
+        form = await request.form()
+        itn_data = dict(form)
+
+        logger.info(f"Wallet ITN received: payment_status={itn_data.get('payment_status')}, token={itn_data.get('token', 'N/A')}")
+
+        token = itn_data.get("token")
+        payment_status = itn_data.get("payment_status")
+        custom_str1 = itn_data.get("custom_str1")  # user_id
+        custom_str2 = itn_data.get("custom_str2")  # "wallet_tokenization"
+        m_payment_id = itn_data.get("m_payment_id")
+
+        if custom_str2 == "wallet_tokenization" and token and payment_status == "COMPLETE":
+            if custom_str1:
+                await db.users.update_one(
+                    {"id": custom_str1},
+                    {"$set": {
+                        "wallet_payfast_token": token,
+                        "wallet_card_saved_at": datetime.utcnow(),
+                        "updated_at": datetime.utcnow(),
+                    }}
+                )
+                logger.info(f"Saved wallet PayFast token for user {custom_str1}")
+
+            if m_payment_id:
+                await db.wallet_card_setups.update_one(
+                    {"id": m_payment_id},
+                    {"$set": {"status": "completed", "token": token, "completed_at": datetime.utcnow()}}
+                )
+        elif custom_str2 == "wallet_tokenization" and payment_status == "CANCELLED":
+            if m_payment_id:
+                await db.wallet_card_setups.update_one(
+                    {"id": m_payment_id},
+                    {"$set": {"status": "cancelled", "updated_at": datetime.utcnow()}}
+                )
+
+        # Handle ITN for auto top-up charges (not tokenization setup)
+        if itn_data.get("m_payment_id", "").startswith("auto-topup-"):
+            logger.info(f"Auto top-up ITN confirmed: {m_payment_id}")
+
+    except Exception as e:
+        logger.error(f"Wallet ITN error: {e}")
+
+    return Response(status_code=200)
+
+
+@api_router.get("/ai/wallet/card-status")
+async def wallet_card_status(current_user: User = Depends(get_current_user)):
+    """Check if user has a saved card for auto top-up"""
+    user_doc = await db.users.find_one({"id": current_user.id}, {
+        "_id": 0, "wallet_payfast_token": 1, "wallet_card_saved_at": 1
+    })
+    has_card = bool(user_doc and user_doc.get("wallet_payfast_token"))
+    saved_at = user_doc.get("wallet_card_saved_at") if user_doc else None
+    if isinstance(saved_at, datetime):
+        saved_at = saved_at.isoformat()
+    return {"has_card": has_card, "saved_at": saved_at}
+
+
+@api_router.delete("/ai/wallet/remove-card")
+async def wallet_remove_card(current_user: User = Depends(get_current_user)):
+    """Remove saved card and disable auto top-up"""
+    await db.users.update_one(
+        {"id": current_user.id},
+        {"$unset": {"wallet_payfast_token": "", "wallet_card_saved_at": ""},
+         "$set": {"wallet_auto_topup.enabled": False, "updated_at": datetime.utcnow()}}
+    )
+    return {"success": True, "message": "Card removed and auto top-up disabled"}
+
+
+@api_router.get("/ai/wallet/auto-topup")
+async def get_auto_topup_settings(current_user: User = Depends(get_current_user)):
+    """Get auto top-up settings"""
+    user_doc = await db.users.find_one({"id": current_user.id}, {
+        "_id": 0, "wallet_auto_topup": 1, "wallet_payfast_token": 1
+    })
+    settings = user_doc.get("wallet_auto_topup", {}) if user_doc else {}
+    has_card = bool(user_doc and user_doc.get("wallet_payfast_token"))
+    return {
+        "enabled": settings.get("enabled", False),
+        "threshold": settings.get("threshold", 50),
+        "amount": settings.get("amount", 200),
+        "has_card": has_card,
+    }
+
+
+@api_router.post("/ai/wallet/auto-topup")
+async def update_auto_topup_settings(request: Request, current_user: User = Depends(get_current_user)):
+    """Update auto top-up settings"""
+    body = await request.json()
+    enabled = body.get("enabled", False)
+    threshold = body.get("threshold", 50)
+    amount = body.get("amount", 200)
+
+    if not isinstance(threshold, (int, float)) or threshold < 0 or threshold > 5000:
+        raise HTTPException(status_code=400, detail="Threshold must be between R0 and R5,000")
+    if not isinstance(amount, (int, float)) or amount < 5 or amount > 10000:
+        raise HTTPException(status_code=400, detail="Top-up amount must be between R5 and R10,000")
+
+    if enabled:
+        user_doc = await db.users.find_one({"id": current_user.id}, {"_id": 0, "wallet_payfast_token": 1})
+        if not user_doc or not user_doc.get("wallet_payfast_token"):
+            raise HTTPException(status_code=400, detail="Please save a card before enabling auto top-up")
+
+    await db.users.update_one(
+        {"id": current_user.id},
+        {"$set": {
+            "wallet_auto_topup": {"enabled": enabled, "threshold": threshold, "amount": amount},
+            "updated_at": datetime.utcnow(),
+        }}
+    )
+    return {"success": True, "enabled": enabled, "threshold": threshold, "amount": amount}
+
+
 @api_router.post("/ai/match-score")
 async def ai_match_score(request: Request, current_user: User = Depends(get_current_user)):
     """Get AI match score between job seeker and a job (R10)"""
@@ -6262,6 +6408,12 @@ async def ai_match_score(request: Request, current_user: User = Depends(get_curr
     if not result.get("success"):
         status = 402 if "Insufficient" in result.get("error", "") else 500
         raise HTTPException(status_code=status, detail=result.get("error", "Unknown error"))
+    # Trigger auto top-up if balance dropped below threshold
+    if not result.get("cached"):
+        from services.ai_service import _trigger_auto_topup_if_needed
+        topup = await _trigger_auto_topup_if_needed(db, current_user.id, result.get("new_balance", 0))
+        if topup and topup.get("success"):
+            result["auto_topup"] = {"amount": topup["amount"], "new_balance": topup["new_balance"]}
     return result
 
 
@@ -6284,6 +6436,10 @@ async def ai_top_matches(current_user: User = Depends(get_current_user)):
     if not result.get("success"):
         status = 402 if "Insufficient" in result.get("error", "") else 500
         raise HTTPException(status_code=status, detail=result.get("error", "Unknown error"))
+    from services.ai_service import _trigger_auto_topup_if_needed
+    topup = await _trigger_auto_topup_if_needed(db, current_user.id, result.get("new_balance", 0))
+    if topup and topup.get("success"):
+        result["auto_topup"] = {"amount": topup["amount"], "new_balance": topup["new_balance"]}
     return result
 
 
@@ -6302,6 +6458,10 @@ async def ai_auto_apply(request: Request, current_user: User = Depends(get_curre
     if not result.get("success"):
         status = 402 if "Insufficient" in result.get("error", "") else 500
         raise HTTPException(status_code=status, detail=result.get("error", "Unknown error"))
+    from services.ai_service import _trigger_auto_topup_if_needed
+    topup = await _trigger_auto_topup_if_needed(db, current_user.id, result.get("new_balance", 0))
+    if topup and topup.get("success"):
+        result["auto_topup"] = {"amount": topup["amount"], "new_balance": topup["new_balance"]}
     return result
 
 
@@ -6313,6 +6473,10 @@ async def ai_cv_enhance(current_user: User = Depends(get_current_user)):
     if not result.get("success"):
         status = 402 if "Insufficient" in result.get("error", "") else 500
         raise HTTPException(status_code=status, detail=result.get("error", "Unknown error"))
+    from services.ai_service import _trigger_auto_topup_if_needed
+    topup = await _trigger_auto_topup_if_needed(db, current_user.id, result.get("new_balance", 0))
+    if topup and topup.get("success"):
+        result["auto_topup"] = {"amount": topup["amount"], "new_balance": topup["new_balance"]}
     return result
 
 
