@@ -31,7 +31,13 @@ import {
   Bell,
   Trash2,
   Pencil,
-  Loader2
+  Loader2,
+  Lock,
+  Settings,
+  Eye,
+  EyeOff,
+  CheckCircle,
+  AlertCircle
 } from "lucide-react";
 import axios from 'axios';
 
@@ -120,6 +126,43 @@ const ProfileDashboard = ({ user, onUpdateUser }) => {
     can_upload_other: true
   });
   const [selectedDocType, setSelectedDocType] = useState('other');
+
+  // Change password state
+  const [passwordForm, setPasswordForm] = useState({ current_password: '', new_password: '', confirm_password: '' });
+  const [showCurrentPw, setShowCurrentPw] = useState(false);
+  const [showNewPw, setShowNewPw] = useState(false);
+  const [passwordLoading, setPasswordLoading] = useState(false);
+  const [passwordMsg, setPasswordMsg] = useState({ type: '', text: '' });
+
+  const handleChangePassword = async () => {
+    setPasswordMsg({ type: '', text: '' });
+    const { current_password, new_password, confirm_password } = passwordForm;
+    if (!current_password || !new_password) {
+      setPasswordMsg({ type: 'error', text: 'Please fill in all fields' });
+      return;
+    }
+    if (new_password.length < 6) {
+      setPasswordMsg({ type: 'error', text: 'New password must be at least 6 characters' });
+      return;
+    }
+    if (new_password !== confirm_password) {
+      setPasswordMsg({ type: 'error', text: 'New passwords do not match' });
+      return;
+    }
+    setPasswordLoading(true);
+    try {
+      const token = localStorage.getItem('token');
+      await axios.post(`${API}/auth/change-password`, { current_password, new_password }, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      setPasswordMsg({ type: 'success', text: 'Password changed successfully!' });
+      setPasswordForm({ current_password: '', new_password: '', confirm_password: '' });
+    } catch (err) {
+      setPasswordMsg({ type: 'error', text: err.response?.data?.detail || 'Failed to change password' });
+    } finally {
+      setPasswordLoading(false);
+    }
+  };
 
   const toggleEmploymentType = (type) => {
     setNewJobAlert(prev => ({
@@ -791,7 +834,7 @@ const ProfileDashboard = ({ user, onUpdateUser }) => {
           {/* Main Profile Tabs */}
           <div className="lg:col-span-3">
             <Tabs value={activeTab} onValueChange={setActiveTab}>
-              <TabsList className="grid w-full grid-cols-7 bg-white/80 backdrop-blur-sm">
+              <TabsList className="grid w-full grid-cols-8 bg-white/80 backdrop-blur-sm">
                 <TabsTrigger value="overview" className="flex items-center space-x-1">
                   <User className="w-4 h-4" />
                   <span className="hidden sm:inline">Overview</span>
@@ -819,6 +862,10 @@ const ProfileDashboard = ({ user, onUpdateUser }) => {
                 <TabsTrigger value="alerts" className="flex items-center space-x-1">
                   <Bell className="w-4 h-4" />
                   <span className="hidden sm:inline">Alerts</span>
+                </TabsTrigger>
+                <TabsTrigger value="settings" className="flex items-center space-x-1">
+                  <Settings className="w-4 h-4" />
+                  <span className="hidden sm:inline">Settings</span>
                 </TabsTrigger>
               </TabsList>
 
@@ -2014,6 +2061,83 @@ const ProfileDashboard = ({ user, onUpdateUser }) => {
                   </CardContent>
                 </Card>
               </TabsContent>
+
+              {/* Settings Tab */}
+              <TabsContent value="settings" className="space-y-6 mt-6">
+                <Card className="bg-white/80 backdrop-blur-sm border-0 shadow-xl">
+                  <CardHeader>
+                    <CardTitle className="flex items-center space-x-2">
+                      <Lock className="w-5 h-5 text-blue-600" />
+                      <span>Change Password</span>
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="max-w-md space-y-4">
+                      {passwordMsg.text && (
+                        <div className={`flex items-center gap-2 p-3 rounded-lg text-sm ${passwordMsg.type === 'success' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-red-50 text-red-700 border border-red-200'}`} data-testid="password-change-msg">
+                          {passwordMsg.type === 'success' ? <CheckCircle className="w-4 h-4" /> : <AlertCircle className="w-4 h-4" />}
+                          {passwordMsg.text}
+                        </div>
+                      )}
+                      <div className="space-y-2">
+                        <Label htmlFor="current_password">Current Password</Label>
+                        <div className="relative">
+                          <Input
+                            id="current_password"
+                            type={showCurrentPw ? 'text' : 'password'}
+                            value={passwordForm.current_password}
+                            onChange={(e) => setPasswordForm(prev => ({ ...prev, current_password: e.target.value }))}
+                            placeholder="Enter current password"
+                            data-testid="current-password-input"
+                          />
+                          <button type="button" onClick={() => setShowCurrentPw(!showCurrentPw)}
+                            className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
+                            {showCurrentPw ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                          </button>
+                        </div>
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="new_password">New Password</Label>
+                        <div className="relative">
+                          <Input
+                            id="new_password"
+                            type={showNewPw ? 'text' : 'password'}
+                            value={passwordForm.new_password}
+                            onChange={(e) => setPasswordForm(prev => ({ ...prev, new_password: e.target.value }))}
+                            placeholder="At least 6 characters"
+                            data-testid="new-password-input"
+                          />
+                          <button type="button" onClick={() => setShowNewPw(!showNewPw)}
+                            className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
+                            {showNewPw ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                          </button>
+                        </div>
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="confirm_password">Confirm New Password</Label>
+                        <Input
+                          id="confirm_password"
+                          type="password"
+                          value={passwordForm.confirm_password}
+                          onChange={(e) => setPasswordForm(prev => ({ ...prev, confirm_password: e.target.value }))}
+                          placeholder="Re-enter new password"
+                          data-testid="confirm-password-input"
+                        />
+                      </div>
+                      <Button
+                        onClick={handleChangePassword}
+                        disabled={passwordLoading}
+                        className="bg-blue-600 hover:bg-blue-700"
+                        data-testid="change-password-btn"
+                      >
+                        {passwordLoading ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Lock className="w-4 h-4 mr-2" />}
+                        Change Password
+                      </Button>
+                    </div>
+                  </CardContent>
+                </Card>
+              </TabsContent>
+
             </Tabs>
           </div>
         </div>

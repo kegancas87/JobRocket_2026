@@ -32,6 +32,7 @@ import GuestJobListings from "./components/GuestJobListings";
 import ForgotPasswordPage from "./components/ForgotPasswordPage";
 import ResetPasswordPage from "./components/ResetPasswordPage";
 import SEO from "./components/SEO";
+import SettingsPage from "./components/SettingsPage";
 import { HelmetProvider } from 'react-helmet-async';
 import Sidekick, { SidekickToggle } from "./components/Sidekick";
 import MatchScoreBadge from "./components/MatchScoreBadge";
@@ -1567,10 +1568,10 @@ function App() {
 
               {/* Settings redirects to billing for recruiters */}
               <Route path="/settings" element={
-                user && user.role === 'recruiter' ? (
-                  <Navigate to="/billing" replace />
+                user ? (
+                  <SettingsPage user={user} />
                 ) : (
-                  <Navigate to="/profile" replace />
+                  <Navigate to="/login" replace />
                 )
               } />
 

@@ -57,13 +57,15 @@ const Navigation = ({ user, onLogout }) => {
       return [
         { name: 'Profile', path: '/', icon: User },
         { name: 'Billing', path: '/billing', icon: CreditCard },
-        { name: 'Reports', path: '/reports', icon: PieChart }
+        { name: 'Reports', path: '/reports', icon: PieChart },
+        { name: 'Settings', path: '/settings', icon: Settings }
       ];
     } else if (user?.role === 'job_seeker') {
-      // Job seeker dropdown: Profile, Notifications
+      // Job seeker dropdown: Profile, Notifications, Settings
       return [
         { name: 'Profile', path: '/profile', icon: User },
-        { name: 'Notifications', path: '/notifications', icon: Bell }
+        { name: 'Notifications', path: '/notifications', icon: Bell },
+        { name: 'Settings', path: '/settings', icon: Settings }
       ];
     }
     return [];

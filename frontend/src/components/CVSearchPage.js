@@ -539,7 +539,7 @@ const CandidateCard = ({ candidate, onReveal, revealing }) => {
   const isRevealed = candidate.contact_revealed;
 
   return (
-    <Card className="shadow-lg border-0 hover:shadow-xl transition-shadow">
+    <Card className="shadow-lg border-0 hover:shadow-xl transition-shadow" data-testid={`candidate-card-${candidate.id}`}>
       <CardContent className="p-6">
         <div className="flex flex-col md:flex-row md:items-start gap-6">
           {/* Avatar & Basic Info */}
@@ -556,9 +556,17 @@ const CandidateCard = ({ candidate, onReveal, revealing }) => {
                 <h3 className="text-lg font-bold text-slate-800">
                   {candidate.first_name} {candidate.last_name}
                 </h3>
-                {candidate.headline && (
-                  <p className="text-slate-600 mt-0.5">{candidate.headline}</p>
+                {(candidate.desired_job_title || candidate.headline) && (
+                  <p className="text-blue-600 font-medium mt-0.5">{candidate.desired_job_title || candidate.headline}</p>
                 )}
+                {candidate.work_experience && candidate.work_experience.length > 0 && (() => {
+                  const current = candidate.work_experience.find(w => w.current) || candidate.work_experience[0];
+                  return current ? (
+                    <p className="text-sm text-slate-500 mt-0.5">
+                      {current.position || current.title} at {current.company}
+                    </p>
+                  ) : null;
+                })()}
                 
                 <div className="flex flex-wrap gap-3 mt-3 text-sm text-slate-600">
                   {candidate.location && (
@@ -573,16 +581,22 @@ const CandidateCard = ({ candidate, onReveal, revealing }) => {
                       {candidate.years_experience} years exp.
                     </span>
                   )}
-                  {candidate.expected_salary && (
+                  {(candidate.expected_salary || candidate.desired_salary_range) && (
                     <span className="flex items-center">
                       <span className="font-semibold mr-1 text-slate-400">R</span>
-                      {candidate.expected_salary.toLocaleString()}/mo
+                      {candidate.expected_salary ? `${candidate.expected_salary.toLocaleString()}/mo` : candidate.desired_salary_range}
                     </span>
                   )}
                   {candidate.availability_status && (
                     <span className="flex items-center">
                       <Clock className="w-4 h-4 mr-1 text-slate-400" />
                       {candidate.availability_status.replace('_', ' ')}
+                    </span>
+                  )}
+                  {candidate.years_of_experience && !candidate.years_experience && (
+                    <span className="flex items-center">
+                      <Briefcase className="w-4 h-4 mr-1 text-slate-400" />
+                      {candidate.years_of_experience}
                     </span>
                   )}
                 </div>

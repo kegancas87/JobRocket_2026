@@ -510,6 +510,39 @@ async def reset_password(request: Request):
     
     logger.info(f"Password reset completed for user {reset_record['user_id']}")
     return {"message": "Password has been reset successfully. You can now log in with your new password."}
+
+
+@api_router.post("/auth/change-password")
+async def change_password(request: Request, current_user: User = Depends(get_current_user)):
+    """Change password for logged-in users. Requires current password."""
+    body = await request.json()
+    current_password = body.get("current_password", "").strip()
+    new_password = body.get("new_password", "").strip()
+
+    if not current_password or not new_password:
+        raise HTTPException(status_code=400, detail="Current password and new password are required")
+    if len(new_password) < 6:
+        raise HTTPException(status_code=400, detail="New password must be at least 6 characters")
+    if current_password == new_password:
+        raise HTTPException(status_code=400, detail="New password must be different from current password")
+
+    user_doc = await db.users.find_one({"id": current_user.id})
+    if not user_doc:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    stored_hash = user_doc.get("password_hash", "")
+    if not stored_hash or not verify_password(current_password, stored_hash):
+        raise HTTPException(status_code=400, detail="Current password is incorrect")
+
+    new_hash = get_password_hash(new_password)
+    await db.users.update_one(
+        {"id": current_user.id},
+        {"$set": {"password_hash": new_hash, "updated_at": datetime.utcnow()}}
+    )
+
+    logger.info(f"Password changed for user {current_user.id}")
+    return {"message": "Password changed successfully"}
+
 async def google_auth(request: Request):
     """Authenticate or register via Google OAuth"""
     from google.oauth2 import id_token
