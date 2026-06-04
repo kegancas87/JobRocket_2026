@@ -1,7 +1,7 @@
 # JobRocket - Product Requirements Document
 
-> **Last Updated**: June 2026
-> **Version**: 2.12.0 (AI Sidekick + Change Password + CV Search Enhancement)
+> **Last Updated**: June 4, 2026
+> **Version**: 2.13.0 (Wallet Auto Top-Up with PayFast Tokenization)
 
 ---
 
@@ -16,9 +16,9 @@ JobRocket is a B2B SaaS recruitment platform targeting recruiters, businesses, a
 - **Frontend**: React + Tailwind CSS + Shadcn UI
 - **Backend**: FastAPI (Python)
 - **Database**: MongoDB
-- **Payments**: Payfast (sandbox) with automated subscription billing
+- **Payments**: Payfast (LIVE) with subscription billing + card tokenization
 - **Auth**: JWT with role-based access
-- **AI**: OpenAI GPT-5.2 via emergentintegrations (kill switch)
+- **AI**: OpenAI GPT-5.2 via emergentintegrations
 
 ---
 
@@ -74,22 +74,58 @@ JobRocket is a B2B SaaS recruitment platform targeting recruiters, businesses, a
 
 ### Phase 21: AI Sidekick for Job Seekers (Jun 2026)
 - [x] **Wallet System** — `wallet_balance` field on users, atomic $inc deductions
-- [x] **Job Match Score (R10)** — GPT-5.2 analyzes candidate vs job, returns score/strengths/weaknesses
-- [x] **Top 10 Jobs (R50)** — Scans all active jobs, ranks by match percentage
-- [x] **Auto-Apply (R50)** — Generates AI cover letters and creates applications
+- [x] **Job Match Score (R10)** — GPT-5.2 analyzes candidate vs job
+- [x] **Top 10 Jobs (R50)** — Scans all active jobs, ranks by match
+- [x] **Auto-Apply (R50)** — AI cover letters + application creation
 - [x] **CV Enhancement (R80)** — ATS score, profile analysis, rewritten summaries
-- [x] **MatchScoreBadge** — Inline reveal button on job cards
+- [x] **MatchScoreBadge** — Inline reveal on job cards
 - [x] **Sidekick Panel** — Floating chat sidebar with wallet top-up
-- [x] **Profile data integration** — Falls back to user doc when job_seeker_profiles empty
+- [x] **Profile data fix** — Falls back to user doc when job_seeker_profiles empty
 - [x] **Caching** — Match scores cached to avoid duplicate charges
-- [x] **Refund system** — Auto-refunds wallet on AI failures
+- [x] **Refund system** — Auto-refunds on AI failures
 
-### Phase 22: Change Password & CV Search Enhancement (Jun 2026)
-- [x] **Change Password API** — POST /api/auth/change-password (validates current pw, min 6 chars, different)
-- [x] **Settings Page** — /settings route accessible for all roles
-- [x] **Profile Settings Tab** — Added to job seeker profile tabs
-- [x] **Navigation Integration** — Settings link in dropdown for job seekers and recruiters
-- [x] **CV Search Enhancement** — Candidate cards now show desired_job_title, current company/role, salary range
+### Phase 22: Account Settings (Jun 2026)
+- [x] **Change Password API** — POST /api/auth/change-password
+- [x] **Settings Page** — /settings route for all roles
+- [x] **Profile Settings Tab** — Added to job seeker profile
+- [x] **CV Search Enhancement** — Cards show job title, company/role, salary
+
+### Phase 23: Wallet Auto Top-Up with PayFast Tokenization (Jun 2026)
+- [x] **Card Setup** — POST /api/ai/wallet/setup-card → PayFast redirect with subscription_type=2
+- [x] **Token Capture** — POST /api/payfast/wallet-itn webhook stores card token
+- [x] **Auto Charge** — charge_saved_card() calls PayFast POST /subscriptions/{token}/adhoc
+- [x] **Auto Top-Up Logic** — After each AI deduction, if balance < threshold → auto charge
+- [x] **Settings CRUD** — GET/POST /api/ai/wallet/auto-topup (enabled, threshold, amount)
+- [x] **Card Management** — GET /api/ai/wallet/card-status, DELETE /api/ai/wallet/remove-card
+- [x] **Frontend Settings UI** — Card status display, save/remove card, threshold/amount config
+- [x] **Sidekick Integration** — Auto top-up badge in wallet bar, notification on auto charge
+- [x] **Validation** — Can't enable without saved card, threshold 0-5000, amount 5-10000
+
+---
+
+## Key API Endpoints
+
+### AI Sidekick
+- `GET /api/ai/pricing` - Feature pricing + wallet balance
+- `GET /api/ai/wallet` - Wallet balance
+- `POST /api/ai/wallet/topup` - Manual top-up
+- `POST /api/ai/wallet/setup-card` - Get PayFast tokenization form data
+- `POST /api/payfast/wallet-itn` - PayFast ITN webhook (public)
+- `GET /api/ai/wallet/card-status` - Check saved card
+- `DELETE /api/ai/wallet/remove-card` - Remove saved card
+- `GET /api/ai/wallet/auto-topup` - Get auto top-up settings
+- `POST /api/ai/wallet/auto-topup` - Update auto top-up settings
+- `POST /api/ai/match-score` - Job match score (R10)
+- `POST /api/ai/top-matches` - Top 10 jobs (R50)
+- `POST /api/ai/auto-apply` - Auto-apply (R50)
+- `POST /api/ai/cv-enhance` - CV enhancement (R80)
+
+### Auth
+- `POST /api/auth/login` - Login (returns access_token)
+- `POST /api/auth/register` - Register
+- `POST /api/auth/change-password` - Change password
+- `POST /api/auth/forgot-password` - Request reset email
+- `POST /api/auth/reset-password` - Reset with token
 
 ---
 
@@ -97,69 +133,24 @@ JobRocket is a B2B SaaS recruitment platform targeting recruiters, businesses, a
 
 ### P1 - Next
 1. AI Match Score for CV Search (Recruiter Sidekick)
-2. More Email Notifications (Shortlisted, Interview Scheduled, Offer Made)
-3. Fix and Re-enable Onboarding Flow
+2. More Email Notifications (Shortlisted, Interview, Offer)
 
 ### P2 - Later
-1. **Refactor server.py** (>6200 lines) into modular routers
-2. Admin AI Insights Dashboard (view AI usage, revenue, refunds)
+1. **Refactor server.py** (>6500 lines) into modular routers
+2. Admin AI Insights Dashboard
 3. Stripe Integration
-4. Distribution features (email, WhatsApp, social)
-5. Fix legal page footer links
+4. Fix legal page footer links
 
 ### P3 - Future
-1. Enterprise features (RBAC, API access, white-label)
+1. Enterprise features (RBAC, API, white-label)
 2. In-App Notifications
 3. ATS export, calendar integration
-4. Talent Pool Alerts
-
----
-
-## Test Credentials
-
-| Role | Email | Password |
-|------|-------|----------|
-| Admin | admin@jobrocket.co.za | admin123 |
-| Recruiter (Starter) | hr@techcorp.co.za | demo123 |
-| Recruiter (Growth) | talent@innovatedigital.co.za | demo123 |
-| Recruiter (Pro) | careers@fintechsa.co.za | demo123 |
-| Recruiter (Enterprise) | admin@globalrecruit.co.za | demo123 |
-| Job Seeker | thabo.mthembu@gmail.com | demo123 |
-| Job Seeker | nomsa.dlamini@gmail.com | demo123 |
-| Job Seeker | pieter.vandermerwe@gmail.com | demo123 |
-
----
-
-## Key API Endpoints
-
-### AI Sidekick (NEW)
-- `GET /api/ai/pricing` - Get feature pricing and wallet balance
-- `GET /api/ai/wallet` - Get wallet balance
-- `POST /api/ai/wallet/topup` - Top up wallet (amount: 1-10000)
-- `POST /api/ai/match-score` - Match score for candidate vs job (R10)
-- `GET /api/ai/match-scores` - Get all cached match scores
-- `POST /api/ai/top-matches` - Find top 10 matching jobs (R50)
-- `POST /api/ai/auto-apply` - Auto-apply with AI cover letters (R50)
-- `POST /api/ai/cv-enhance` - CV and profile enhancement (R80)
-- `GET /api/ai/dashboard` - AI usage dashboard for job seekers
-
-### Auth
-- `POST /api/auth/login` - Login (returns access_token)
-- `POST /api/auth/register` - Register
-- `POST /api/auth/change-password` - Change password (requires current + new)
-- `POST /api/auth/forgot-password` - Request reset email
-- `POST /api/auth/reset-password` - Reset with token
-
-### CV Search
-- `GET /api/cv-search` - Search candidates (Growth+ tier)
-- `POST /api/cv-search/reveal/{id}` - Reveal contact info
 
 ---
 
 ## Notes
 
 - Payfast is in LIVE mode with production credentials
-- Onboarding: Currently DISABLED - users go straight to dashboard
-- Admin role skips onboarding entirely
 - AI features use Emergent LLM Key (EMERGENT_LLM_KEY in .env)
 - init_db.py has production safety blocks
+- Auto top-up uses PayFast tokenization (subscription_type=2, ad hoc charges)
