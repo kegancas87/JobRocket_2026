@@ -64,7 +64,7 @@ const MatchScoreBadge = ({ jobId, cachedScore, onReveal }) => {
     <button
       onClick={handleReveal}
       disabled={loading}
-      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold bg-gradient-to-r from-blue-600 to-slate-700 text-white shadow-md hover:from-blue-700 hover:to-slate-800 transition-all cursor-pointer disabled:opacity-60"
+      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold bg-gradient-to-r from-pink-500 to-purple-600 text-white shadow-md hover:from-pink-600 hover:to-purple-700 transition-all cursor-pointer disabled:opacity-60"
       data-testid={`match-score-reveal-${jobId}`}
     >
       {loading ? (
