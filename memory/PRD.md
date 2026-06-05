@@ -1,7 +1,7 @@
 # JobRocket - Product Requirements Document
 
 > **Last Updated**: June 5, 2026
-> **Version**: 2.14.0 (Admin Bulk Upload)
+> **Version**: 2.15.0 (Auto-Apply Fix + Admin Bulk Upload)
 
 ---
 
@@ -128,6 +128,12 @@ JobRocket is a B2B SaaS recruitment platform targeting recruiters, businesses, a
 - [x] **API Endpoints** — POST /api/admin/jobs/bulk (upload), GET /api/admin/jobs/bulk/template (CSV/XLSX template)
 - [x] **Admin-Only Auth** — Recruiters and job seekers get 403 Forbidden
 - [x] **Frontend Tab** — New "Bulk Upload" tab in Admin Dashboard with drag-drop, template download, results display
+
+### Phase 27: Auto-Apply Timeout Fix (Jun 2026)
+- [x] **Root Cause** — 502 Bad Gateway from Kubernetes proxy timeout (10 sequential AI calls > 60s)
+- [x] **Backend Fix** — Capped auto-apply to 5 jobs max per request (keeps time ~35s)
+- [x] **Frontend Fix** — 90s Axios timeout, graceful timeout message, button text updated to "Auto-Apply to Top 5 Jobs"
+- [x] **Success Message** — "Auto-Apply Complete!" banner now displays correctly with per-job status badges
 
 ---
 

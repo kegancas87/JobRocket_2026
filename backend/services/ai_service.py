@@ -7,6 +7,7 @@ All wallet operations use atomic MongoDB $inc to prevent race conditions.
 import os
 import json
 import uuid
+import asyncio
 import logging
 from datetime import datetime
 from motor.motor_asyncio import AsyncIOMotorClient
@@ -488,7 +489,10 @@ Return top 10 matches as JSON."""
 # ============================================================
 
 async def auto_apply_jobs(db, user_id: str, job_ids: list, min_match_score: int = 70) -> dict:
-    """Auto-apply to selected jobs with AI-generated cover letters."""
+    """Auto-apply to selected jobs with AI-generated cover letters. Max 5 jobs per request."""
+    # Cap at 5 to stay within proxy timeout limits
+    job_ids = job_ids[:5]
+    
     # First check if there are any jobs to actually apply to
     new_jobs = []
     already_applied = []
@@ -532,20 +536,18 @@ async def auto_apply_jobs(db, user_id: str, job_ids: list, min_match_score: int 
             cv_text = await _get_cv_text_cached(db, user_id, cv_url)
         candidate_text = _build_candidate_profile(user, profile, cv_text)
 
-        results = list(already_applied)  # Start with already-applied entries
-        for job_id in new_jobs:
+        async def _apply_to_single_job(job_id):
+            """Process a single job application concurrently."""
+            try:
+                job = await db.jobs.find_one({"id": job_id, "is_active": {"$ne": False}}, {"_id": 0})
+                if not job:
+                    return {"job_id": job_id, "status": "skipped", "message": "Job not found or inactive"}
 
-            job = await db.jobs.find_one({"id": job_id, "is_active": {"$ne": False}}, {"_id": 0})
-            if not job:
-                results.append({"job_id": job_id, "status": "skipped", "message": "Job not found or inactive"})
-                continue
+                job_text = _build_job_summary(job)
 
-            job_text = _build_job_summary(job)
-
-            # Generate cover letter
-            chat = _get_chat(
-                session_id=f"cover-{user_id}-{job_id}",
-                system_message="""You are an expert career coach. Write a personalized, compelling cover letter for this candidate applying to this job.
+                chat = _get_chat(
+                    session_id=f"cover-{user_id}-{job_id}",
+                    system_message="""You are an expert career coach. Write a personalized, compelling cover letter for this candidate applying to this job.
 The cover letter should:
 - Be professional but not generic
 - Highlight specific matching skills and experience
@@ -558,9 +560,9 @@ Return ONLY valid JSON:
   "cover_letter": "<the full cover letter text>",
   "key_selling_points": ["point1", "point2", "point3"]
 }""",
-            )
+                )
 
-            prompt = f"""Write a cover letter for this application:
+                prompt = f"""Write a cover letter for this application:
 
 === CANDIDATE ===
 {candidate_text}
@@ -570,34 +572,40 @@ Return ONLY valid JSON:
 
 Return as JSON."""
 
-            response_text = await chat.send_message(UserMessage(text=prompt))
+                response_text = await chat.send_message(UserMessage(text=prompt))
 
-            cover_data = _parse_json_response(response_text)
-            cover_letter = cover_data.get("cover_letter", "") if cover_data else ""
+                cover_data = _parse_json_response(response_text)
+                cover_letter = cover_data.get("cover_letter", "") if cover_data else ""
 
-            # Create the application
-            application = {
-                "id": str(uuid.uuid4()),
-                "job_id": job_id,
-                "applicant_id": user_id,
-                "cover_letter": cover_letter,
-                "status": "submitted",
-                "source": "ai_auto_apply",
-                "ai_generated": True,
-                "applied_date": datetime.utcnow(),
-                "created_at": datetime.utcnow(),
-                "updated_at": datetime.utcnow(),
-            }
-            await db.job_applications.insert_one(application)
+                application = {
+                    "id": str(uuid.uuid4()),
+                    "job_id": job_id,
+                    "applicant_id": user_id,
+                    "cover_letter": cover_letter,
+                    "status": "submitted",
+                    "source": "ai_auto_apply",
+                    "ai_generated": True,
+                    "applied_date": datetime.utcnow(),
+                    "created_at": datetime.utcnow(),
+                    "updated_at": datetime.utcnow(),
+                }
+                await db.job_applications.insert_one(application)
 
-            results.append({
-                "job_id": job_id,
-                "application_id": application["id"],
-                "job_title": job.get("title", ""),
-                "company_name": job.get("company_name", ""),
-                "status": "applied",
-                "cover_letter_preview": cover_letter[:150] + "..." if len(cover_letter) > 150 else cover_letter,
-            })
+                return {
+                    "job_id": job_id,
+                    "application_id": application["id"],
+                    "job_title": job.get("title", ""),
+                    "company_name": job.get("company_name", ""),
+                    "status": "applied",
+                    "cover_letter_preview": cover_letter[:150] + "..." if len(cover_letter) > 150 else cover_letter,
+                }
+            except Exception as e:
+                logger.error(f"Auto-apply single job {job_id} error: {e}")
+                return {"job_id": job_id, "status": "skipped", "message": str(e)}
+
+        # Process all new jobs concurrently
+        new_results = await asyncio.gather(*[_apply_to_single_job(jid) for jid in new_jobs])
+        results = list(already_applied) + list(new_results)
 
         # Store auto-apply record
         apply_record = {

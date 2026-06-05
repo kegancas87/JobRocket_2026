@@ -141,12 +141,12 @@ const TopMatchesResult = ({ data, onAutoApply }) => {
       ))}
       {matches.length > 0 && (
         <Button
-          onClick={() => onAutoApply(matches.map(m => m.job_id))}
+          onClick={() => onAutoApply(matches.slice(0, 5).map(m => m.job_id))}
           className="w-full bg-gradient-to-r from-emerald-500 to-emerald-700 hover:from-emerald-600 hover:to-emerald-800 text-sm mt-2"
           data-testid="auto-apply-from-matches-btn"
         >
           <Send className="w-4 h-4 mr-2" />
-          Auto-Apply to These Jobs (R50)
+          Auto-Apply to Top {Math.min(matches.length, 5)} Jobs (R50)
         </Button>
       )}
     </div>
@@ -363,7 +363,10 @@ const Sidekick = ({ isOpen, onClose, currentJobId, currentJobTitle }) => {
           break;
 
         case 'auto_apply':
-          res = await axios.post(`${API}/ai/auto-apply`, { job_ids: lastTopMatches }, getAuthHeaders());
+          res = await axios.post(`${API}/ai/auto-apply`, { job_ids: (lastTopMatches || []).slice(0, 5) }, {
+            ...getAuthHeaders(),
+            timeout: 90000
+          });
           addMessage('result', 'auto_apply', res.data);
           break;
 
@@ -385,12 +388,16 @@ const Sidekick = ({ isOpen, onClose, currentJobId, currentJobTitle }) => {
         addMessage('system', `Auto top-up triggered: +R${res.data.auto_topup.amount.toFixed(2)}. New balance: R${res.data.auto_topup.new_balance.toFixed(2)}`);
       }
     } catch (err) {
-      const detail = err.response?.data?.detail || 'Something went wrong';
-      if (err.response?.status === 402) {
-        addMessage('error', `${detail} Your balance: R${walletBalance.toFixed(2)}. Required: R${feature.price}.`);
-        setShowTopup(true);
+      if (err.code === 'ECONNABORTED' || !err.response) {
+        addMessage('error', 'The request took too long. Your applications may still be processing — check "My Applications" in a moment.');
       } else {
-        addMessage('error', detail);
+        const detail = err.response?.data?.detail || 'Something went wrong';
+        if (err.response?.status === 402) {
+          addMessage('error', `${detail} Your balance: R${walletBalance.toFixed(2)}. Required: R${feature.price}.`);
+          setShowTopup(true);
+        } else {
+          addMessage('error', detail);
+        }
       }
     } finally {
       setLoading(false);
