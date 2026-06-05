@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Target, Loader2, Lock } from 'lucide-react';
+import { Target, Loader2 } from 'lucide-react';
 import axios from 'axios';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
@@ -39,12 +39,13 @@ const MatchScoreBadge = ({ jobId, cachedScore, onReveal }) => {
   };
 
   if (score) {
-    const color = score >= 80 ? 'bg-emerald-100 text-emerald-700 border-emerald-300' :
-                  score >= 60 ? 'bg-amber-100 text-amber-700 border-amber-300' :
-                  'bg-red-100 text-red-700 border-red-300';
+    const color = score >= 80 ? 'bg-emerald-500 text-white' :
+                  score >= 60 ? 'bg-blue-500 text-white' :
+                  score >= 40 ? 'bg-amber-500 text-white' :
+                  'bg-red-400 text-white';
     return (
-      <div className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold border ${color}`} data-testid={`match-score-badge-${jobId}`}>
-        <Target className="w-3 h-3" />
+      <div className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold shadow-md ${color}`} data-testid={`match-score-badge-${jobId}`}>
+        <Target className="w-3.5 h-3.5" />
         {score}% Match
       </div>
     );
@@ -52,8 +53,8 @@ const MatchScoreBadge = ({ jobId, cachedScore, onReveal }) => {
 
   if (error) {
     return (
-      <div className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs bg-red-50 text-red-600 border border-red-200 cursor-pointer" 
-        onClick={handleReveal} title="Click to retry">
+      <div className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium bg-red-500 text-white shadow-md cursor-pointer hover:bg-red-600 transition-colors" 
+        onClick={handleReveal} title="Click to retry" data-testid={`match-score-error-${jobId}`}>
         {error}
       </div>
     );
@@ -63,13 +64,13 @@ const MatchScoreBadge = ({ jobId, cachedScore, onReveal }) => {
     <button
       onClick={handleReveal}
       disabled={loading}
-      className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs bg-blue-50 text-blue-600 border border-blue-200 hover:bg-blue-100 hover:border-blue-300 transition-colors cursor-pointer disabled:opacity-50"
+      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold bg-gradient-to-r from-blue-600 to-slate-700 text-white shadow-md hover:from-blue-700 hover:to-slate-800 transition-all cursor-pointer disabled:opacity-60"
       data-testid={`match-score-reveal-${jobId}`}
     >
       {loading ? (
-        <><Loader2 className="w-3 h-3 animate-spin" /> Checking...</>
+        <><Loader2 className="w-3.5 h-3.5 animate-spin" /> Checking...</>
       ) : (
-        <><Lock className="w-3 h-3" /> Match Score (R10)</>
+        <><Target className="w-3.5 h-3.5" /> Match Score</>
       )}
     </button>
   );

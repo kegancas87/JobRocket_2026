@@ -514,9 +514,6 @@ const JobCard = ({ job, user, onSave, onApply, onJobClick }) => {
                   <Badge variant="outline" className="border-slate-300 text-slate-600 px-2 sm:px-3 py-1 font-medium text-xs sm:text-sm">
                     {job.industry}
                   </Badge>
-                  {user && user.role === 'job_seeker' && (
-                    <MatchScoreBadge jobId={job.id} />
-                  )}
                 </div>
                 <div className="flex items-center space-x-2 justify-end">
                   <ApplyButton 
@@ -541,6 +538,11 @@ const JobCard = ({ job, user, onSave, onApply, onJobClick }) => {
               </div>
             </div>
           </div>
+          {user && user.role === 'job_seeker' && (
+            <div className="flex-shrink-0 ml-2">
+              <MatchScoreBadge jobId={job.id} />
+            </div>
+          )}
         </div>
       </CardContent>
     </Card>
