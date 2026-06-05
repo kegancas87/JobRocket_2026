@@ -109,6 +109,15 @@ JobRocket is a B2B SaaS recruitment platform targeting recruiters, businesses, a
 - [x] **Wallet & Auto Top-Up Stats** — Balance held, avg balance, cards saved, auto-topup users, pricing
 - [x] **Recent Transactions** — Expandable table with color-coded action types
 - [x] **Admin-Only Access** — API returns 403 for job seekers/recruiters, frontend tab only in admin dashboard
+
+### Phase 25: Recruiter AI Match Score for CV Search (Jun 2026)
+- [x] **AI Match Endpoint** — POST /api/cv-search/ai-match (candidate_id + job_id, recruiter auth, Growth+ tier)
+- [x] **GPT-5.2 Analysis** — Uses AIMatchingService for detailed candidate-job scoring
+- [x] **Cached Scores** — Results stored in recruiter_match_scores collection, returned on repeat calls
+- [x] **Score Retrieval** — GET /api/cv-search/ai-match-scores with candidate_id/job_id filters
+- [x] **Frontend UI** — AI Match Score button on each candidate card, job selector dropdown
+- [x] **Result Display** — Score badge, match label, reasoning, Skills/Experience/Location breakdown, matching/missing skills tags
+- [x] **Access Control** — Recruiter-only, Growth+ tier, job must belong to recruiter's account
 - [x] **Validation** — Can't enable without saved card, threshold 0-5000, amount 5-10000
 
 ---
@@ -142,11 +151,10 @@ JobRocket is a B2B SaaS recruitment platform targeting recruiters, businesses, a
 ## Backlog / Roadmap
 
 ### P1 - Next
-1. AI Match Score for CV Search (Recruiter Sidekick)
-2. More Email Notifications (Shortlisted, Interview, Offer)
+1. More Email Notifications (Shortlisted, Interview Scheduled, Offer Made)
 
 ### P2 - Later
-1. **Refactor server.py** (>6500 lines) into modular routers
+1. **Refactor server.py** (>6700 lines) into modular routers
 2. Stripe Integration
 3. Fix legal page footer links
 
