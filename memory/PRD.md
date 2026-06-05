@@ -91,14 +91,24 @@ JobRocket is a B2B SaaS recruitment platform targeting recruiters, businesses, a
 - [x] **CV Search Enhancement** — Cards show job title, company/role, salary
 
 ### Phase 23: Wallet Auto Top-Up with PayFast Tokenization (Jun 2026)
-- [x] **Card Setup** — POST /api/ai/wallet/setup-card → PayFast redirect with subscription_type=2
+- [x] **Card Setup** — POST /api/ai/wallet/setup-card -> PayFast redirect with subscription_type=2
 - [x] **Token Capture** — POST /api/payfast/wallet-itn webhook stores card token
 - [x] **Auto Charge** — charge_saved_card() calls PayFast POST /subscriptions/{token}/adhoc
-- [x] **Auto Top-Up Logic** — After each AI deduction, if balance < threshold → auto charge
+- [x] **Auto Top-Up Logic** — After each AI deduction, if balance < threshold -> auto charge
 - [x] **Settings CRUD** — GET/POST /api/ai/wallet/auto-topup (enabled, threshold, amount)
 - [x] **Card Management** — GET /api/ai/wallet/card-status, DELETE /api/ai/wallet/remove-card
 - [x] **Frontend Settings UI** — Card status display, save/remove card, threshold/amount config
 - [x] **Sidekick Integration** — Auto top-up badge in wallet bar, notification on auto charge
+
+### Phase 24: Admin AI Insights Dashboard (Jun 2026)
+- [x] **Comprehensive API** — GET /api/admin/ai/analytics (admin-only, verify_admin_user)
+- [x] **KPI Cards** — Net Revenue, AI Actions, Wallet Top-Ups, Refunds
+- [x] **Revenue by Feature** — Color-coded bars for all 4 AI features with usage counts
+- [x] **Daily Revenue Trend** — 30-day bar chart of AI revenue and action counts
+- [x] **Top Users Leaderboard** — Top 10 AI spenders with medal badges
+- [x] **Wallet & Auto Top-Up Stats** — Balance held, avg balance, cards saved, auto-topup users, pricing
+- [x] **Recent Transactions** — Expandable table with color-coded action types
+- [x] **Admin-Only Access** — API returns 403 for job seekers/recruiters, frontend tab only in admin dashboard
 - [x] **Validation** — Can't enable without saved card, threshold 0-5000, amount 5-10000
 
 ---
@@ -137,9 +147,8 @@ JobRocket is a B2B SaaS recruitment platform targeting recruiters, businesses, a
 
 ### P2 - Later
 1. **Refactor server.py** (>6500 lines) into modular routers
-2. Admin AI Insights Dashboard
-3. Stripe Integration
-4. Fix legal page footer links
+2. Stripe Integration
+3. Fix legal page footer links
 
 ### P3 - Future
 1. Enterprise features (RBAC, API, white-label)
