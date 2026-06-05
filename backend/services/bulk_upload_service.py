@@ -406,6 +406,235 @@ class BulkUploadService:
         raise ValueError(f"Unsupported format: {format}")
 
 
+class AdminBulkUploadService:
+    """Service for admin bulk job uploads - flexible format with only Job Title required"""
+    
+    COLUMN_VARIATIONS = {
+        'job_link': ['job link', 'job_link', 'link', 'url', 'apply_url', 'application_url', 'apply link', 'apply url'],
+        'title': ['job title', 'job_title', 'title', 'position', 'role', 'job name'],
+        'company': ['company', 'company_name', 'company name', 'employer', 'organisation', 'organization'],
+        'location': ['location', 'city', 'area', 'place', 'office_location', 'region'],
+        'salary': ['salary', 'compensation', 'pay', 'remuneration', 'salary_range', 'package'],
+        'description': ['description', 'job_description', 'job description', 'details', 'summary', 'about'],
+    }
+    
+    TBC = "TBC"
+    
+    def __init__(self, db: AsyncIOMotorDatabase):
+        self.db = db
+    
+    def _create_column_mapping(self, headers: List[str]) -> Dict[str, str]:
+        mapping = {}
+        for header in headers:
+            header_lower = header.lower().strip()
+            for standard_name, aliases in self.COLUMN_VARIATIONS.items():
+                if header_lower in aliases:
+                    mapping[standard_name] = header
+                    break
+        return mapping
+    
+    async def process_file(
+        self,
+        file_content: bytes,
+        filename: str,
+        admin_user_id: str
+    ) -> Dict[str, Any]:
+        if filename.lower().endswith('.csv'):
+            return await self._process_csv(file_content, admin_user_id)
+        elif filename.lower().endswith(('.xlsx', '.xls')):
+            return await self._process_excel(file_content, admin_user_id)
+        else:
+            return {
+                "success": False, "total_rows": 0, "created": 0, "failed": 0,
+                "errors": [{"row": 0, "error": f"Unsupported file format: {filename}. Use .csv or .xlsx"}]
+            }
+    
+    async def _process_csv(self, content: bytes, admin_user_id: str) -> Dict[str, Any]:
+        try:
+            text_content = content.decode('utf-8-sig')
+            reader = csv.DictReader(io.StringIO(text_content))
+            
+            if reader.fieldnames is None:
+                return {"success": False, "total_rows": 0, "created": 0, "failed": 0,
+                        "errors": [{"row": 0, "error": "Could not read CSV headers"}]}
+            
+            column_mapping = self._create_column_mapping(reader.fieldnames)
+            
+            if 'title' not in column_mapping:
+                return {"success": False, "total_rows": 0, "created": 0, "failed": 0,
+                        "errors": [{"row": 0, "error": "Missing required column: Job Title. Please include a column named 'Job Title' or 'Title'."}]}
+            
+            rows = list(reader)
+            return await self._process_rows(rows, column_mapping, admin_user_id)
+            
+        except UnicodeDecodeError:
+            return {"success": False, "total_rows": 0, "created": 0, "failed": 0,
+                    "errors": [{"row": 0, "error": "Could not decode file. Please use UTF-8 encoding."}]}
+        except Exception as e:
+            logger.error(f"Admin CSV processing error: {e}")
+            return {"success": False, "total_rows": 0, "created": 0, "failed": 0,
+                    "errors": [{"row": 0, "error": f"Error processing file: {str(e)}"}]}
+    
+    async def _process_excel(self, content: bytes, admin_user_id: str) -> Dict[str, Any]:
+        try:
+            import openpyxl
+            workbook = openpyxl.load_workbook(io.BytesIO(content), read_only=True)
+            sheet = workbook.active
+            
+            headers = []
+            for cell in sheet[1]:
+                headers.append(str(cell.value) if cell.value else '')
+            
+            column_mapping = self._create_column_mapping(headers)
+            
+            if 'title' not in column_mapping:
+                return {"success": False, "total_rows": 0, "created": 0, "failed": 0,
+                        "errors": [{"row": 0, "error": "Missing required column: Job Title. Please include a column named 'Job Title' or 'Title'."}]}
+            
+            rows = []
+            for row in sheet.iter_rows(min_row=2, values_only=True):
+                if all(cell is None or cell == '' for cell in row):
+                    continue
+                row_dict = {}
+                for i, header in enumerate(headers):
+                    if i < len(row):
+                        row_dict[header] = row[i]
+                rows.append(row_dict)
+            
+            workbook.close()
+            return await self._process_rows(rows, column_mapping, admin_user_id)
+            
+        except ImportError:
+            return {"success": False, "total_rows": 0, "created": 0, "failed": 0,
+                    "errors": [{"row": 0, "error": "Excel support not installed. Please contact support."}]}
+        except Exception as e:
+            logger.error(f"Admin Excel processing error: {e}")
+            return {"success": False, "total_rows": 0, "created": 0, "failed": 0,
+                    "errors": [{"row": 0, "error": f"Error processing file: {str(e)}"}]}
+    
+    async def _process_rows(
+        self,
+        rows: List[Dict],
+        column_mapping: Dict[str, str],
+        admin_user_id: str
+    ) -> Dict[str, Any]:
+        total_rows = len(rows)
+        created = 0
+        failed = 0
+        errors = []
+        
+        for row_num, row in enumerate(rows, start=2):
+            try:
+                def get_value(key: str) -> str:
+                    if key in column_mapping:
+                        val = row.get(column_mapping[key])
+                        if val is not None and str(val).strip():
+                            return str(val).strip()
+                    return self.TBC
+                
+                title_val = get_value('title')
+                if title_val == self.TBC:
+                    errors.append({"row": row_num, "error": "Missing Job Title (mandatory)"})
+                    failed += 1
+                    continue
+                
+                job_link = get_value('job_link')
+                company = get_value('company')
+                location = get_value('location')
+                salary = get_value('salary')
+                description = get_value('description')
+                
+                job_dict = {
+                    "id": str(uuid.uuid4()),
+                    "account_id": None,
+                    "posted_by": admin_user_id,
+                    "company_name": company,
+                    "logo_url": None,
+                    "title": title_val,
+                    "description": description,
+                    "location": location,
+                    "salary": salary,
+                    "job_type": "Permanent",
+                    "work_type": "Onsite",
+                    "industry": self.TBC,
+                    "experience": None,
+                    "qualifications": None,
+                    "closing_date": None,
+                    "posted_date": datetime.utcnow(),
+                    "expiry_date": datetime.utcnow() + timedelta(days=60),
+                    "is_active": True,
+                    "featured": False,
+                    "source": "admin_bulk_upload",
+                    "application_url": job_link if job_link != self.TBC else None
+                }
+                
+                await self.db.jobs.insert_one(job_dict)
+                created += 1
+                
+            except Exception as e:
+                logger.error(f"Admin bulk row {row_num} error: {e}")
+                errors.append({"row": row_num, "error": str(e)})
+                failed += 1
+        
+        return {
+            "success": failed == 0,
+            "total_rows": total_rows,
+            "created": created,
+            "failed": failed,
+            "errors": errors[:50]
+        }
+    
+    def generate_template(self, format: str = 'csv') -> Tuple[bytes, str]:
+        headers = ['Job Link', 'Job Title', 'Company', 'Location', 'Salary', 'Description']
+        sample_row = {
+            'Job Link': 'https://www.example.com/jobs-apply-here',
+            'Job Title': 'Software Developer',
+            'Company': 'TechCorp SA',
+            'Location': 'Johannesburg',
+            'Salary': 'R50,000 - R70,000',
+            'Description': 'We are looking for a skilled developer...'
+        }
+        
+        if format == 'csv':
+            output = io.StringIO()
+            writer = csv.DictWriter(output, fieldnames=headers)
+            writer.writeheader()
+            writer.writerow(sample_row)
+            return output.getvalue().encode('utf-8'), 'admin_job_upload_template.csv'
+        
+        elif format == 'xlsx':
+            import openpyxl
+            from openpyxl.styles import Font, PatternFill
+            
+            workbook = openpyxl.Workbook()
+            sheet = workbook.active
+            sheet.title = 'Jobs'
+            
+            header_font = Font(bold=True, color='FFFFFF')
+            header_fill = PatternFill(start_color='1E293B', end_color='1E293B', fill_type='solid')
+            
+            for col, header in enumerate(headers, start=1):
+                cell = sheet.cell(row=1, column=col, value=header)
+                cell.font = header_font
+                cell.fill = header_fill
+                sheet.column_dimensions[openpyxl.utils.get_column_letter(col)].width = 25
+            
+            for col, header in enumerate(headers, start=1):
+                sheet.cell(row=2, column=col, value=sample_row.get(header, ''))
+            
+            output = io.BytesIO()
+            workbook.save(output)
+            output.seek(0)
+            return output.read(), 'admin_job_upload_template.xlsx'
+        
+        raise ValueError(f"Unsupported format: {format}")
+
+
 def create_bulk_upload_service(db: AsyncIOMotorDatabase) -> BulkUploadService:
     """Factory function to create bulk upload service"""
     return BulkUploadService(db)
+
+
+def create_admin_bulk_upload_service(db: AsyncIOMotorDatabase) -> AdminBulkUploadService:
+    """Factory function to create admin bulk upload service"""
+    return AdminBulkUploadService(db)

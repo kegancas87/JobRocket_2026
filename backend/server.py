@@ -5180,8 +5180,9 @@ async def reveal_candidate_contact(
 # Bulk Upload Endpoints
 # ============================================
 
-from services.bulk_upload_service import create_bulk_upload_service
+from services.bulk_upload_service import create_bulk_upload_service, create_admin_bulk_upload_service
 bulk_upload_service = create_bulk_upload_service(db)
+admin_bulk_upload_service = create_admin_bulk_upload_service(db)
 
 @api_router.post("/jobs/bulk")
 async def bulk_upload_jobs(
@@ -5237,8 +5238,47 @@ async def get_bulk_upload_template(
 
 
 # ============================================
-# Billing Endpoints
+# Admin Bulk Upload Endpoints
 # ============================================
+
+@api_router.post("/admin/jobs/bulk")
+async def admin_bulk_upload_jobs(
+    file: UploadFile = File(...),
+    current_user: User = Depends(get_current_user)
+):
+    """Admin bulk upload jobs from CSV or Excel file"""
+    if current_user.role != UserRole.ADMIN:
+        raise HTTPException(status_code=403, detail="Admin access required")
+    
+    content = await file.read()
+    
+    result = await admin_bulk_upload_service.process_file(
+        file_content=content,
+        filename=file.filename,
+        admin_user_id=current_user.id
+    )
+    
+    return result
+
+@api_router.get("/admin/jobs/bulk/template")
+async def admin_bulk_upload_template(
+    format: str = "csv",
+    current_user: User = Depends(get_current_user)
+):
+    """Download admin bulk upload template file"""
+    if current_user.role != UserRole.ADMIN:
+        raise HTTPException(status_code=403, detail="Admin access required")
+    
+    try:
+        content, filename = admin_bulk_upload_service.generate_template(format)
+        content_type = "text/csv" if format == "csv" else "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        return Response(
+            content=content,
+            media_type=content_type,
+            headers={"Content-Disposition": f"attachment; filename={filename}"}
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
 
 from services.billing_service import create_billing_service
 billing_service = create_billing_service(db)

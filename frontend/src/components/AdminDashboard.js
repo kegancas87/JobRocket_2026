@@ -32,7 +32,11 @@ import {
   ShieldOff,
   RefreshCw,
   Activity,
-  Zap
+  Zap,
+  Upload,
+  CheckCircle2,
+  XCircle,
+  AlertCircle
 } from "lucide-react";
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
@@ -47,6 +51,12 @@ const AdminDashboard = ({ user, onLogout, onNavigateToJobs }) => {
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [subscriptionOverview, setSubscriptionOverview] = useState(null);
   const [editingCode, setEditingCode] = useState(null);
+  
+  // Bulk upload state
+  const [bulkFile, setBulkFile] = useState(null);
+  const [bulkUploading, setBulkUploading] = useState(false);
+  const [bulkResults, setBulkResults] = useState(null);
+  const [dragOver, setDragOver] = useState(false);
   
   // Export filter state
   const [exportStartDate, setExportStartDate] = useState('');
@@ -89,6 +99,50 @@ const AdminDashboard = ({ user, onLogout, onNavigateToJobs }) => {
     'Authorization': `Bearer ${localStorage.getItem('token')}`,
     'Content-Type': 'application/json'
   });
+
+  const handleBulkUpload = async () => {
+    if (!bulkFile) return;
+    setBulkUploading(true);
+    setBulkResults(null);
+    try {
+      const formData = new FormData();
+      formData.append('file', bulkFile);
+      const response = await axios.post(`${API}/admin/jobs/bulk`, formData, {
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('token')}`,
+          'Content-Type': 'multipart/form-data'
+        }
+      });
+      setBulkResults(response.data);
+      if (response.data.created > 0) setBulkFile(null);
+    } catch (error) {
+      setBulkResults({
+        success: false, total_rows: 0, created: 0, failed: 0,
+        errors: [{ row: 0, error: error.response?.data?.detail || 'Upload failed' }]
+      });
+    } finally {
+      setBulkUploading(false);
+    }
+  };
+
+  const downloadAdminTemplate = async (format) => {
+    try {
+      const response = await axios.get(`${API}/admin/jobs/bulk/template?format=${format}`, {
+        headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` },
+        responseType: 'blob'
+      });
+      const url = window.URL.createObjectURL(new Blob([response.data]));
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', `admin_job_upload_template.${format}`);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+    } catch (error) {
+      console.error('Template download failed:', error);
+    }
+  };
 
   const loadDiscountCodes = async () => {
     setLoading(true);
@@ -383,6 +437,15 @@ const AdminDashboard = ({ user, onLogout, onNavigateToJobs }) => {
           >
             <Zap className="w-4 h-4 mr-2" />
             AI Insights
+          </Button>
+          <Button
+            variant={activeTab === 'bulk-upload' ? 'default' : 'outline'}
+            onClick={() => setActiveTab('bulk-upload')}
+            className={activeTab === 'bulk-upload' ? 'bg-blue-600 text-white' : 'border-slate-600 text-slate-300'}
+            data-testid="admin-bulk-upload-tab"
+          >
+            <Upload className="w-4 h-4 mr-2" />
+            Bulk Upload
           </Button>
         </div>
 
@@ -1018,6 +1081,211 @@ const AdminDashboard = ({ user, onLogout, onNavigateToJobs }) => {
         {/* AI Insights Tab */}
         {activeTab === 'ai-insights' && (
           <AdminAIInsights />
+        )}
+
+        {/* Bulk Upload Tab */}
+        {activeTab === 'bulk-upload' && (
+          <div className="space-y-6">
+            {/* Template Download */}
+            <Card className="bg-slate-800/50 backdrop-blur border-slate-700">
+              <CardHeader>
+                <CardTitle className="text-white flex items-center">
+                  <Download className="w-5 h-5 text-blue-400 mr-2" />
+                  Download Template
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="text-slate-400 text-sm mb-4">
+                  Download the template with the correct column headers. Only <strong className="text-white">Job Title</strong> is mandatory — all other empty fields will be set to "TBC".
+                </p>
+                <p className="text-slate-500 text-xs mb-4">
+                  Columns: Job Link, Job Title, Company, Location, Salary, Description
+                </p>
+                <div className="flex gap-3">
+                  <Button
+                    variant="outline"
+                    onClick={() => downloadAdminTemplate('csv')}
+                    className="border-slate-600 text-slate-300 hover:bg-slate-700"
+                    data-testid="admin-download-csv-template"
+                  >
+                    <FileSpreadsheet className="w-4 h-4 mr-2" />
+                    CSV Template
+                  </Button>
+                  <Button
+                    variant="outline"
+                    onClick={() => downloadAdminTemplate('xlsx')}
+                    className="border-slate-600 text-slate-300 hover:bg-slate-700"
+                    data-testid="admin-download-xlsx-template"
+                  >
+                    <FileSpreadsheet className="w-4 h-4 mr-2" />
+                    Excel Template
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Upload Area */}
+            <Card className="bg-slate-800/50 backdrop-blur border-slate-700">
+              <CardHeader>
+                <CardTitle className="text-white flex items-center">
+                  <Upload className="w-5 h-5 text-emerald-400 mr-2" />
+                  Upload Jobs
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div
+                  className={`border-2 border-dashed rounded-xl p-8 text-center transition-colors cursor-pointer ${
+                    dragOver
+                      ? 'border-blue-400 bg-blue-500/10'
+                      : bulkFile
+                      ? 'border-emerald-500 bg-emerald-500/5'
+                      : 'border-slate-600 hover:border-slate-500'
+                  }`}
+                  onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
+                  onDragLeave={() => setDragOver(false)}
+                  onDrop={(e) => {
+                    e.preventDefault();
+                    setDragOver(false);
+                    const file = e.dataTransfer.files[0];
+                    if (file && (file.name.endsWith('.csv') || file.name.endsWith('.xlsx') || file.name.endsWith('.xls'))) {
+                      setBulkFile(file);
+                      setBulkResults(null);
+                    }
+                  }}
+                  onClick={() => document.getElementById('admin-bulk-file-input').click()}
+                  data-testid="admin-bulk-upload-dropzone"
+                >
+                  <input
+                    id="admin-bulk-file-input"
+                    type="file"
+                    accept=".csv,.xlsx,.xls"
+                    className="hidden"
+                    onChange={(e) => {
+                      if (e.target.files[0]) {
+                        setBulkFile(e.target.files[0]);
+                        setBulkResults(null);
+                      }
+                    }}
+                    data-testid="admin-bulk-file-input"
+                  />
+                  {bulkFile ? (
+                    <div>
+                      <CheckCircle2 className="w-10 h-10 text-emerald-400 mx-auto mb-3" />
+                      <p className="text-white font-medium">{bulkFile.name}</p>
+                      <p className="text-slate-400 text-sm mt-1">
+                        {(bulkFile.size / 1024).toFixed(1)} KB — Click to change file
+                      </p>
+                    </div>
+                  ) : (
+                    <div>
+                      <Upload className="w-10 h-10 text-slate-500 mx-auto mb-3" />
+                      <p className="text-slate-300 font-medium">
+                        Drop your CSV or Excel file here
+                      </p>
+                      <p className="text-slate-500 text-sm mt-1">or click to browse</p>
+                    </div>
+                  )}
+                </div>
+
+                <div className="mt-4 flex items-center gap-3">
+                  <Button
+                    onClick={handleBulkUpload}
+                    disabled={!bulkFile || bulkUploading}
+                    className="bg-blue-600 hover:bg-blue-700 text-white"
+                    data-testid="admin-bulk-upload-btn"
+                  >
+                    {bulkUploading ? (
+                      <>
+                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                        Uploading...
+                      </>
+                    ) : (
+                      <>
+                        <Upload className="w-4 h-4 mr-2" />
+                        Upload Jobs
+                      </>
+                    )}
+                  </Button>
+                  {bulkFile && !bulkUploading && (
+                    <Button
+                      variant="ghost"
+                      onClick={() => { setBulkFile(null); setBulkResults(null); }}
+                      className="text-slate-400 hover:text-white"
+                    >
+                      <X className="w-4 h-4 mr-1" />
+                      Clear
+                    </Button>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Results */}
+            {bulkResults && (
+              <Card className={`backdrop-blur border ${bulkResults.success ? 'bg-emerald-900/20 border-emerald-700' : 'bg-slate-800/50 border-slate-700'}`}>
+                <CardHeader>
+                  <CardTitle className="text-white flex items-center">
+                    {bulkResults.created > 0 ? (
+                      <CheckCircle2 className="w-5 h-5 text-emerald-400 mr-2" />
+                    ) : (
+                      <AlertCircle className="w-5 h-5 text-amber-400 mr-2" />
+                    )}
+                    Upload Results
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="grid grid-cols-3 gap-4 mb-4">
+                    <div className="bg-slate-900/50 rounded-lg p-4 text-center">
+                      <p className="text-3xl font-bold text-blue-400">{bulkResults.total_rows}</p>
+                      <p className="text-xs text-slate-400 mt-1">Total Rows</p>
+                    </div>
+                    <div className="bg-slate-900/50 rounded-lg p-4 text-center">
+                      <p className="text-3xl font-bold text-emerald-400">{bulkResults.created}</p>
+                      <p className="text-xs text-slate-400 mt-1">Jobs Created</p>
+                    </div>
+                    <div className="bg-slate-900/50 rounded-lg p-4 text-center">
+                      <p className="text-3xl font-bold text-red-400">{bulkResults.failed}</p>
+                      <p className="text-xs text-slate-400 mt-1">Failed</p>
+                    </div>
+                  </div>
+
+                  {bulkResults.errors && bulkResults.errors.length > 0 && (
+                    <div className="space-y-2">
+                      <p className="text-sm text-slate-300 font-medium">Errors:</p>
+                      <div className="max-h-48 overflow-y-auto space-y-1">
+                        {bulkResults.errors.map((err, i) => (
+                          <div key={i} className="flex items-start gap-2 text-sm bg-red-900/20 border border-red-800/30 rounded-lg px-3 py-2">
+                            <XCircle className="w-4 h-4 text-red-400 mt-0.5 shrink-0" />
+                            <span className="text-slate-300">
+                              {err.row > 0 && <span className="text-red-400 font-mono">Row {err.row}: </span>}
+                              {err.error}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            )}
+
+            {/* Help Info */}
+            <Card className="bg-slate-800/30 border-slate-700/50">
+              <CardContent className="p-5">
+                <h4 className="text-slate-300 font-medium mb-2 flex items-center">
+                  <AlertCircle className="w-4 h-4 mr-2 text-blue-400" />
+                  Upload Guide
+                </h4>
+                <ul className="text-sm text-slate-400 space-y-1.5 ml-6 list-disc">
+                  <li>Accepted formats: <strong className="text-slate-300">.csv</strong> and <strong className="text-slate-300">.xlsx</strong></li>
+                  <li>Only <strong className="text-slate-300">Job Title</strong> is mandatory — rows without a title will be skipped</li>
+                  <li>Empty fields are automatically set to <strong className="text-slate-300">"TBC"</strong> (To Be Confirmed)</li>
+                  <li><strong className="text-slate-300">Job Link</strong> maps to the external Application URL where candidates apply</li>
+                  <li>Jobs are posted immediately and visible to all job seekers</li>
+                </ul>
+              </CardContent>
+            </Card>
+          </div>
         )}
       </div>
     </div>
