@@ -24,7 +24,11 @@ import {
   ArrowUpRight,
   Zap,
   Clock,
-  Download
+  Download,
+  Target,
+  Loader2,
+  TrendingUp,
+  X
 } from "lucide-react";
 import axios from 'axios';
 import { useToast } from "../hooks/use-toast";
@@ -42,6 +46,7 @@ const CVSearchPage = ({ user }) => {
   const [hasSearched, setHasSearched] = useState(false);
   const [searchResults, setSearchResults] = useState([]);
   const [totalResults, setTotalResults] = useState(0);
+  const [recruiterJobs, setRecruiterJobs] = useState([]);
   
   // Search criteria
   const [searchCriteria, setSearchCriteria] = useState({
@@ -69,6 +74,12 @@ const CVSearchPage = ({ user }) => {
       try {
         const response = await axios.get(`${API}/cv-search/access`, getAuthHeaders());
         setAccessInfo(response.data);
+        // Also fetch recruiter's jobs for AI match
+        if (response.data.has_access) {
+          const jobsRes = await axios.get(`${API}/jobs`, getAuthHeaders());
+          const jobsList = Array.isArray(jobsRes.data) ? jobsRes.data : jobsRes.data?.jobs || [];
+          setRecruiterJobs(jobsList.filter(j => j.is_active !== false));
+        }
       } catch (error) {
         console.error('Error checking CV search access:', error);
         if (error.response?.status === 403) {
@@ -522,6 +533,7 @@ const CVSearchPage = ({ user }) => {
                       candidate={candidate}
                       onReveal={handleRevealContact}
                       revealing={revealing === candidate.id}
+                      recruiterJobs={recruiterJobs}
                     />
                   ))}
                 </div>
@@ -535,8 +547,37 @@ const CVSearchPage = ({ user }) => {
 };
 
 // Candidate Card Component
-const CandidateCard = ({ candidate, onReveal, revealing }) => {
+const CandidateCard = ({ candidate, onReveal, revealing, recruiterJobs = [] }) => {
   const isRevealed = candidate.contact_revealed;
+  const [matchState, setMatchState] = useState('idle'); // idle, selecting, loading, result
+  const [selectedJobId, setSelectedJobId] = useState('');
+  const [matchResult, setMatchResult] = useState(null);
+  const [matchError, setMatchError] = useState('');
+
+  const handleAIMatch = async () => {
+    if (!selectedJobId) return;
+    setMatchState('loading');
+    setMatchError('');
+    try {
+      const token = localStorage.getItem('token');
+      const res = await axios.post(`${API}/cv-search/ai-match`, {
+        candidate_id: candidate.id,
+        job_id: selectedJobId,
+      }, { headers: { Authorization: `Bearer ${token}` } });
+      setMatchResult(res.data.result);
+      setMatchState('result');
+    } catch (err) {
+      setMatchError(err.response?.data?.detail || 'Failed to get match score');
+      setMatchState('selecting');
+    }
+  };
+
+  const getScoreColor = (score) => {
+    if (score >= 70) return { bg: 'bg-emerald-500', text: 'text-emerald-700', ring: 'ring-emerald-200', label: 'Excellent Match' };
+    if (score >= 50) return { bg: 'bg-blue-500', text: 'text-blue-700', ring: 'ring-blue-200', label: 'Good Match' };
+    if (score >= 30) return { bg: 'bg-amber-500', text: 'text-amber-700', ring: 'ring-amber-200', label: 'Partial Match' };
+    return { bg: 'bg-red-400', text: 'text-red-700', ring: 'ring-red-200', label: 'Low Match' };
+  };
 
   return (
     <Card className="shadow-lg border-0 hover:shadow-xl transition-shadow" data-testid={`candidate-card-${candidate.id}`}>
@@ -688,7 +729,7 @@ const CandidateCard = ({ candidate, onReveal, revealing }) => {
             )}
 
             {/* Actions */}
-            <div className="mt-4 flex gap-3">
+            <div className="mt-4 flex flex-wrap gap-3 items-start">
               {candidate.cv_url && (
                 <Button variant="outline" size="sm" asChild>
                   <a href={`${BACKEND_URL}${candidate.cv_url}`} target="_blank" rel="noopener noreferrer">
@@ -697,7 +738,129 @@ const CandidateCard = ({ candidate, onReveal, revealing }) => {
                   </a>
                 </Button>
               )}
+
+              {/* AI Match Score */}
+              {matchState === 'idle' && recruiterJobs.length > 0 && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setMatchState('selecting')}
+                  className="border-purple-200 text-purple-700 hover:bg-purple-50"
+                  data-testid={`ai-match-btn-${candidate.id}`}
+                >
+                  <Target className="w-4 h-4 mr-1.5" />
+                  AI Match Score
+                </Button>
+              )}
+
+              {matchState === 'selecting' && (
+                <div className="flex items-center gap-2 flex-wrap">
+                  <select
+                    value={selectedJobId}
+                    onChange={(e) => setSelectedJobId(e.target.value)}
+                    className="text-sm border border-purple-200 rounded-md px-2 py-1.5 bg-white focus:ring-2 focus:ring-purple-300 max-w-[200px]"
+                    data-testid={`ai-match-job-select-${candidate.id}`}
+                  >
+                    <option value="">Select a job...</option>
+                    {recruiterJobs.map(j => (
+                      <option key={j.id} value={j.id}>{j.title}</option>
+                    ))}
+                  </select>
+                  <Button
+                    size="sm"
+                    disabled={!selectedJobId}
+                    onClick={handleAIMatch}
+                    className="bg-purple-600 hover:bg-purple-700"
+                    data-testid={`ai-match-run-btn-${candidate.id}`}
+                  >
+                    <Zap className="w-3.5 h-3.5 mr-1" />
+                    Score
+                  </Button>
+                  <button onClick={() => { setMatchState('idle'); setMatchError(''); }} className="text-slate-400 hover:text-slate-600">
+                    <X className="w-4 h-4" />
+                  </button>
+                  {matchError && (
+                    <span className="text-xs text-red-500 flex items-center gap-1">
+                      <AlertCircle className="w-3 h-3" /> {matchError}
+                    </span>
+                  )}
+                </div>
+              )}
+
+              {matchState === 'loading' && (
+                <div className="flex items-center gap-2 text-purple-600">
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  <span className="text-sm">Analyzing match...</span>
+                </div>
+              )}
             </div>
+
+            {/* Match Result */}
+            {matchState === 'result' && matchResult && (() => {
+              const sc = getScoreColor(matchResult.score);
+              return (
+                <div className="mt-4 border border-purple-200 rounded-xl p-4 bg-purple-50/50" data-testid={`ai-match-result-${candidate.id}`}>
+                  <div className="flex items-start justify-between mb-3">
+                    <div className="flex items-center gap-3">
+                      <div className={`w-12 h-12 rounded-full ${sc.bg} flex items-center justify-center ring-4 ${sc.ring}`}>
+                        <span className="text-white font-bold text-sm">{matchResult.score}%</span>
+                      </div>
+                      <div>
+                        <p className={`font-semibold ${sc.text}`}>{sc.label}</p>
+                        <p className="text-xs text-slate-500">vs {matchResult.job_title}</p>
+                      </div>
+                    </div>
+                    <button onClick={() => { setMatchState('idle'); setMatchResult(null); setSelectedJobId(''); }}
+                      className="text-slate-400 hover:text-slate-600">
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
+
+                  {matchResult.reasoning && (
+                    <p className="text-sm text-slate-600 mb-3">{matchResult.reasoning}</p>
+                  )}
+
+                  {matchResult.breakdown && (
+                    <div className="grid grid-cols-3 gap-2 mb-3">
+                      {matchResult.breakdown.skills_match !== undefined && (
+                        <div className="bg-white rounded-lg p-2 text-center">
+                          <p className="text-xs text-slate-400">Skills</p>
+                          <p className="text-sm font-bold text-slate-800">{matchResult.breakdown.skills_match}%</p>
+                        </div>
+                      )}
+                      {matchResult.breakdown.experience_match !== undefined && (
+                        <div className="bg-white rounded-lg p-2 text-center">
+                          <p className="text-xs text-slate-400">Experience</p>
+                          <p className="text-sm font-bold text-slate-800">{matchResult.breakdown.experience_match}%</p>
+                        </div>
+                      )}
+                      {matchResult.breakdown.location_match !== undefined && (
+                        <div className="bg-white rounded-lg p-2 text-center">
+                          <p className="text-xs text-slate-400">Location</p>
+                          <p className="text-sm font-bold text-slate-800">{matchResult.breakdown.location_match}%</p>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {matchResult.breakdown?.top_matching_skills?.length > 0 && (
+                    <div className="flex flex-wrap gap-1.5">
+                      {matchResult.breakdown.top_matching_skills.map((skill, i) => (
+                        <Badge key={i} className="bg-emerald-100 text-emerald-700 border-0 text-xs">{skill}</Badge>
+                      ))}
+                      {matchResult.breakdown.missing_skills?.map((skill, i) => (
+                        <Badge key={`m-${i}`} variant="outline" className="text-red-500 border-red-200 text-xs">{skill}</Badge>
+                      ))}
+                    </div>
+                  )}
+
+                  <p className="text-[10px] text-slate-400 mt-2 flex items-center gap-1">
+                    <Zap className="w-3 h-3" /> AI analysis via {matchResult.method === 'ai' ? 'GPT-5.2' : 'keyword matching'}
+                    {matchResult.created_at && ` | ${new Date(matchResult.created_at).toLocaleDateString()}`}
+                  </p>
+                </div>
+              );
+            })()}
           </div>
         </div>
       </CardContent>

@@ -4751,6 +4751,107 @@ async def match_candidates(
     }
 
 
+@api_router.post("/cv-search/ai-match")
+async def cv_search_ai_match(request: Request, current_user: User = Depends(get_current_recruiter)):
+    """
+    AI Match Score: Score a candidate against a specific recruiter job.
+    Available for Growth tier and above (same as CV Search access).
+    Cached to prevent duplicate LLM calls.
+    """
+    body = await request.json()
+    candidate_id = body.get("candidate_id")
+    job_id = body.get("job_id")
+
+    if not candidate_id or not job_id:
+        raise HTTPException(status_code=400, detail="candidate_id and job_id are required")
+
+    # Check CV Search access (Growth+ tier)
+    account = await db.accounts.find_one({"id": current_user.account_id})
+    if not account:
+        raise HTTPException(status_code=403, detail="Account not found")
+    tier_id = account.get("tier_id", "starter")
+    tier_config = get_tier_config(TierId(tier_id))
+    if not tier_config.get("cv_search_enabled", False):
+        raise HTTPException(status_code=403, detail="CV Search requires Growth tier or above")
+
+    # Check job belongs to recruiter's account
+    job = await db.jobs.find_one({"id": job_id, "account_id": current_user.account_id})
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found or not in your account")
+
+    # Check for cached result
+    cached = await db.recruiter_match_scores.find_one(
+        {"candidate_id": candidate_id, "job_id": job_id, "recruiter_id": current_user.id},
+        {"_id": 0}
+    )
+    if cached:
+        if isinstance(cached.get("created_at"), datetime):
+            cached["created_at"] = cached["created_at"].isoformat()
+        return {"success": True, "cached": True, "result": cached}
+
+    # Get candidate
+    candidate = await db.users.find_one({"id": candidate_id, "role": "job_seeker"})
+    if not candidate:
+        raise HTTPException(status_code=404, detail="Candidate not found")
+    if "_id" in candidate:
+        del candidate["_id"]
+    if "password_hash" in candidate:
+        del candidate["password_hash"]
+
+    # Remove _id from job too
+    if "_id" in job:
+        del job["_id"]
+
+    # Get AI match score
+    from services.ai_matching_service import get_ai_matching_service
+    matching_service = get_ai_matching_service(db)
+    match_result = await matching_service.get_match_score(job, candidate)
+
+    # Cache the result
+    import uuid
+    score_doc = {
+        "id": str(uuid.uuid4()),
+        "recruiter_id": current_user.id,
+        "account_id": current_user.account_id,
+        "candidate_id": candidate_id,
+        "candidate_name": f"{candidate.get('first_name', '')} {candidate.get('last_name', '')}",
+        "job_id": job_id,
+        "job_title": job.get("title", ""),
+        "score": match_result.get("score", 0),
+        "reasoning": match_result.get("reasoning", ""),
+        "method": match_result.get("method", "keyword"),
+        "breakdown": match_result.get("breakdown", {}),
+        "created_at": datetime.utcnow(),
+    }
+    await db.recruiter_match_scores.insert_one(score_doc)
+    score_doc.pop("_id", None)
+    score_doc["created_at"] = score_doc["created_at"].isoformat()
+
+    return {"success": True, "cached": False, "result": score_doc}
+
+
+@api_router.get("/cv-search/ai-match-scores")
+async def get_recruiter_match_scores(
+    candidate_id: str = None,
+    job_id: str = None,
+    current_user: User = Depends(get_current_recruiter)
+):
+    """Get cached AI match scores for the recruiter. Optionally filter by candidate or job."""
+    query = {"recruiter_id": current_user.id}
+    if candidate_id:
+        query["candidate_id"] = candidate_id
+    if job_id:
+        query["job_id"] = job_id
+
+    scores = []
+    async for doc in db.recruiter_match_scores.find(query, {"_id": 0}).sort("created_at", -1).limit(100):
+        if isinstance(doc.get("created_at"), datetime):
+            doc["created_at"] = doc["created_at"].isoformat()
+        scores.append(doc)
+
+    return {"scores": scores, "count": len(scores)}
+
+
 # ============================================
 # CV Database / Talent Pool Endpoints
 # ============================================
