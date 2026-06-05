@@ -35,6 +35,22 @@ def _extract_cv_text(cv_path: str, max_chars: int = 3000) -> str:
         logger.warning(f"CV text extraction failed for {cv_path}: {e}")
         return ""
 
+
+async def _get_cv_text_cached(db, user_id: str, cv_url: str) -> str:
+    """Get CV text, using cached version if available. Caches on first extraction."""
+    user = await db.users.find_one({"id": user_id}, {"_id": 0, "cv_text_cache": 1, "cv_text_cache_url": 1})
+    if user and user.get("cv_text_cache") and user.get("cv_text_cache_url") == cv_url:
+        return user["cv_text_cache"]
+
+    cv_text = _extract_cv_text(cv_url)
+    if cv_text:
+        await db.users.update_one(
+            {"id": user_id},
+            {"$set": {"cv_text_cache": cv_text, "cv_text_cache_url": cv_url}}
+        )
+        logger.info(f"Cached CV text for user {user_id} ({len(cv_text)} chars)")
+    return cv_text
+
 # Fixed pricing in ZAR
 AI_PRICING = {
     "match_score": 10.00,
@@ -135,10 +151,11 @@ async def log_ai_usage(db, user_id: str, action: str, cost: float, metadata: dic
     })
 
 
-def _build_candidate_profile(user: dict, profile: dict = None) -> str:
+def _build_candidate_profile(user: dict, profile: dict = None, cv_text: str = None) -> str:
     """Build a text summary of the candidate for AI prompts.
     Profile data may live in a separate collection OR directly on the user doc.
     Falls back to user doc when no separate profile exists.
+    cv_text is pre-fetched (cached) CV content.
     """
     # Use user doc as fallback if no separate profile
     if not profile:
@@ -199,10 +216,13 @@ def _build_candidate_profile(user: dict, profile: dict = None) -> str:
                 parts.append(f"Employment Preference: {prefs}")
         if profile.get("cv_text"):
             parts.append(f"CV Content:\n{profile['cv_text'][:3000]}")
+        elif cv_text:
+            parts.append(f"CV Content:\n{cv_text}")
         elif profile.get("cv_url"):
-            cv_text = _extract_cv_text(profile["cv_url"])
-            if cv_text:
-                parts.append(f"CV Content:\n{cv_text}")
+            # Synchronous fallback — only used if caller didn't pre-fetch
+            extracted = _extract_cv_text(profile["cv_url"])
+            if extracted:
+                parts.append(f"CV Content:\n{extracted}")
 
     return "\n".join(parts)
 
@@ -274,7 +294,13 @@ async def get_match_score(db, user_id: str, job_id: str) -> dict:
             await refund_wallet(db, user_id, wallet["cost"], "Job not found")
             return {"success": False, "error": "Job not found", "refunded": True}
 
-        candidate_text = _build_candidate_profile(user, profile)
+        # Pre-fetch cached CV text
+        cv_text = ""
+        cv_url = (profile or user or {}).get("cv_url") or (user or {}).get("cv_url")
+        if cv_url:
+            cv_text = await _get_cv_text_cached(db, user_id, cv_url)
+
+        candidate_text = _build_candidate_profile(user, profile, cv_text)
         job_text = _build_job_summary(job)
 
         # Call GPT-5.2
@@ -355,7 +381,11 @@ async def get_top_matches(db, user_id: str) -> dict:
     try:
         user = await db.users.find_one({"id": user_id}, {"_id": 0})
         profile = await db.job_seeker_profiles.find_one({"user_id": user_id}, {"_id": 0})
-        candidate_text = _build_candidate_profile(user, profile)
+        cv_text = ""
+        cv_url = (profile or user or {}).get("cv_url") or (user or {}).get("cv_url")
+        if cv_url:
+            cv_text = await _get_cv_text_cached(db, user_id, cv_url)
+        candidate_text = _build_candidate_profile(user, profile, cv_text)
 
         # Get all active jobs
         jobs = []
@@ -466,7 +496,11 @@ async def auto_apply_jobs(db, user_id: str, job_ids: list, min_match_score: int 
     try:
         user = await db.users.find_one({"id": user_id}, {"_id": 0})
         profile = await db.job_seeker_profiles.find_one({"user_id": user_id}, {"_id": 0})
-        candidate_text = _build_candidate_profile(user, profile)
+        cv_text = ""
+        cv_url = (profile or user or {}).get("cv_url") or (user or {}).get("cv_url")
+        if cv_url:
+            cv_text = await _get_cv_text_cached(db, user_id, cv_url)
+        candidate_text = _build_candidate_profile(user, profile, cv_text)
 
         results = []
         for job_id in job_ids[:10]:
@@ -582,7 +616,11 @@ async def enhance_cv_profile(db, user_id: str) -> dict:
     try:
         user = await db.users.find_one({"id": user_id}, {"_id": 0})
         profile = await db.job_seeker_profiles.find_one({"user_id": user_id}, {"_id": 0})
-        candidate_text = _build_candidate_profile(user, profile)
+        cv_text = ""
+        cv_url = (profile or user or {}).get("cv_url") or (user or {}).get("cv_url")
+        if cv_url:
+            cv_text = await _get_cv_text_cached(db, user_id, cv_url)
+        candidate_text = _build_candidate_profile(user, profile, cv_text)
 
         chat = _get_chat(
             session_id=f"cv-enhance-{user_id}-{uuid.uuid4().hex[:8]}",
