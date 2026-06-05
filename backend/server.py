@@ -6517,52 +6517,140 @@ async def ai_dashboard(current_user: User = Depends(get_current_user)):
 
 @api_router.get("/admin/ai/analytics")
 async def admin_ai_analytics(current_user: User = Depends(verify_admin_user)):
-    """Admin AI analytics — usage, revenue, per-feature breakdown"""
+    """Admin AI analytics — comprehensive usage, revenue, trends, top users"""
     from services.ai_service import AI_PRICING
 
+    ai_actions = list(AI_PRICING.keys())
+
     # Revenue by feature
-    revenue = {}
-    for action in AI_PRICING:
+    revenue_by_feature = {}
+    for action in ai_actions:
         pipeline = [
             {"$match": {"action": action}},
             {"$group": {"_id": None, "total": {"$sum": "$cost"}, "count": {"$sum": 1}}},
         ]
         result = await db.ai_usage_log.aggregate(pipeline).to_list(1)
         if result:
-            revenue[action] = {"total_revenue": result[0]["total"], "usage_count": result[0]["count"]}
+            revenue_by_feature[action] = {"total_revenue": result[0]["total"], "usage_count": result[0]["count"]}
         else:
-            revenue[action] = {"total_revenue": 0, "usage_count": 0}
+            revenue_by_feature[action] = {"total_revenue": 0, "usage_count": 0}
 
-    # Total revenue
-    total_revenue = sum(r["total_revenue"] for r in revenue.values())
+    total_revenue = sum(r["total_revenue"] for r in revenue_by_feature.values())
+    total_ai_actions = sum(r["usage_count"] for r in revenue_by_feature.values())
 
-    # Total unique users
-    unique_users = await db.ai_usage_log.distinct("user_id")
+    # Refunds
+    refund_pipeline = [
+        {"$match": {"action": "refund"}},
+        {"$group": {"_id": None, "total": {"$sum": "$amount"}, "count": {"$sum": 1}}},
+    ]
+    refund_result = await db.ai_usage_log.aggregate(refund_pipeline).to_list(1)
+    total_refunds = refund_result[0]["total"] if refund_result else 0
+    refund_count = refund_result[0]["count"] if refund_result else 0
 
-    # Recent transactions
+    # Topups
+    topup_pipeline = [
+        {"$match": {"action": "topup"}},
+        {"$group": {"_id": None, "total": {"$sum": "$amount"}, "count": {"$sum": 1}}},
+    ]
+    topup_result = await db.ai_usage_log.aggregate(topup_pipeline).to_list(1)
+    total_topups = topup_result[0]["total"] if topup_result else 0
+    topup_count = topup_result[0]["count"] if topup_result else 0
+
+    # Auto topups
+    auto_topup_pipeline = [
+        {"$match": {"action": "auto_topup"}},
+        {"$group": {"_id": None, "total": {"$sum": "$amount"}, "count": {"$sum": 1}}},
+    ]
+    auto_topup_result = await db.ai_usage_log.aggregate(auto_topup_pipeline).to_list(1)
+    total_auto_topups = auto_topup_result[0]["total"] if auto_topup_result else 0
+    auto_topup_count = auto_topup_result[0]["count"] if auto_topup_result else 0
+
+    # Unique AI users
+    unique_users = await db.ai_usage_log.distinct("user_id", {"action": {"$in": ai_actions}})
+
+    # Users with auto top-up enabled
+    auto_topup_users = await db.users.count_documents({"wallet_auto_topup.enabled": True})
+    saved_card_users = await db.users.count_documents({"wallet_payfast_token": {"$exists": True, "$ne": None}})
+
+    # Daily revenue trend (last 30 days)
+    from datetime import timedelta
+    thirty_days_ago = datetime.utcnow() - timedelta(days=30)
+    daily_pipeline = [
+        {"$match": {"action": {"$in": ai_actions}, "created_at": {"$gte": thirty_days_ago}}},
+        {"$group": {
+            "_id": {"$dateToString": {"format": "%Y-%m-%d", "date": "$created_at"}},
+            "revenue": {"$sum": "$cost"},
+            "actions": {"$sum": 1},
+        }},
+        {"$sort": {"_id": 1}},
+    ]
+    daily_data = await db.ai_usage_log.aggregate(daily_pipeline).to_list(31)
+    daily_trend = [{"date": d["_id"], "revenue": d["revenue"], "actions": d["actions"]} for d in daily_data]
+
+    # Top users by AI spend
+    top_users_pipeline = [
+        {"$match": {"action": {"$in": ai_actions}}},
+        {"$group": {"_id": "$user_id", "total_spent": {"$sum": "$cost"}, "action_count": {"$sum": 1}}},
+        {"$sort": {"total_spent": -1}},
+        {"$limit": 10},
+    ]
+    top_users_raw = await db.ai_usage_log.aggregate(top_users_pipeline).to_list(10)
+    top_users = []
+    for u in top_users_raw:
+        user_doc = await db.users.find_one({"id": u["_id"]}, {"_id": 0, "email": 1, "first_name": 1, "last_name": 1})
+        top_users.append({
+            "user_id": u["_id"],
+            "email": user_doc.get("email", "Unknown") if user_doc else "Unknown",
+            "name": f"{user_doc.get('first_name', '')} {user_doc.get('last_name', '')}" if user_doc else "Unknown",
+            "total_spent": u["total_spent"],
+            "action_count": u["action_count"],
+        })
+
+    # Wallet balance distribution
+    wallet_pipeline = [
+        {"$match": {"role": "job_seeker", "wallet_balance": {"$gt": 0}}},
+        {"$group": {"_id": None, "total_balance": {"$sum": "$wallet_balance"}, "count": {"$sum": 1}, "avg": {"$avg": "$wallet_balance"}}},
+    ]
+    wallet_result = await db.users.aggregate(wallet_pipeline).to_list(1)
+    wallet_stats = {
+        "total_balance_held": wallet_result[0]["total_balance"] if wallet_result else 0,
+        "users_with_balance": wallet_result[0]["count"] if wallet_result else 0,
+        "avg_balance": round(wallet_result[0]["avg"], 2) if wallet_result else 0,
+    }
+
+    # Recent transactions (last 50)
     recent = []
-    async for t in db.ai_usage_log.find({"action": {"$nin": ["topup", "refund"]}}, {"_id": 0}).sort("created_at", -1).limit(50):
+    async for t in db.ai_usage_log.find({}, {"_id": 0}).sort("created_at", -1).limit(50):
         if isinstance(t.get("created_at"), datetime):
             t["created_at"] = t["created_at"].isoformat()
-        user = await db.users.find_one({"id": t.get("user_id")}, {"_id": 0, "email": 1, "first_name": 1, "last_name": 1})
-        t["user_email"] = user.get("email", "Unknown") if user else "Unknown"
-        t["user_name"] = f"{user.get('first_name', '')} {user.get('last_name', '')}" if user else "Unknown"
+        user_doc = await db.users.find_one({"id": t.get("user_id")}, {"_id": 0, "email": 1, "first_name": 1, "last_name": 1})
+        t["user_email"] = user_doc.get("email", "Unknown") if user_doc else "Unknown"
+        t["user_name"] = f"{user_doc.get('first_name', '')} {user_doc.get('last_name', '')}" if user_doc else "Unknown"
         recent.append(t)
 
-    # Wallet transactions (topups)
-    topups = []
-    async for t in db.ai_usage_log.find({"action": "topup"}, {"_id": 0}).sort("created_at", -1).limit(50):
-        if isinstance(t.get("created_at"), datetime):
-            t["created_at"] = t["created_at"].isoformat()
-        topups.append(t)
-
     return {
-        "total_revenue": total_revenue,
-        "unique_users": len(unique_users),
-        "revenue_by_feature": revenue,
+        "summary": {
+            "total_revenue": total_revenue,
+            "total_refunds": total_refunds,
+            "net_revenue": total_revenue - total_refunds,
+            "total_ai_actions": total_ai_actions,
+            "unique_ai_users": len(unique_users),
+            "total_topups": total_topups,
+            "topup_count": topup_count,
+            "refund_count": refund_count,
+            "total_auto_topups": total_auto_topups,
+            "auto_topup_count": auto_topup_count,
+        },
+        "auto_topup_stats": {
+            "users_with_card": saved_card_users,
+            "users_auto_topup_enabled": auto_topup_users,
+        },
+        "wallet_stats": wallet_stats,
+        "revenue_by_feature": revenue_by_feature,
+        "daily_trend": daily_trend,
+        "top_users": top_users,
         "pricing": AI_PRICING,
         "recent_transactions": recent,
-        "recent_topups": topups,
     }
 
 

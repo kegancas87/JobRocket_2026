@@ -5,6 +5,7 @@ import { Input } from "./ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "./ui/card";
 import { Badge } from "./ui/badge";
 import { Separator } from "./ui/separator";
+import AdminAIInsights from "./AdminAIInsights";
 import { 
   Plus, 
   Edit2, 
@@ -30,7 +31,8 @@ import {
   AlertTriangle,
   ShieldOff,
   RefreshCw,
-  Activity
+  Activity,
+  Zap
 } from "lucide-react";
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
@@ -372,6 +374,15 @@ const AdminDashboard = ({ user, onLogout, onNavigateToJobs }) => {
           >
             <Activity className="w-4 h-4 mr-2" />
             Subscriptions
+          </Button>
+          <Button
+            variant={activeTab === 'ai-insights' ? 'default' : 'outline'}
+            onClick={() => setActiveTab('ai-insights')}
+            className={activeTab === 'ai-insights' ? 'bg-blue-600 text-white' : 'border-slate-600 text-slate-300'}
+            data-testid="admin-ai-insights-tab"
+          >
+            <Zap className="w-4 h-4 mr-2" />
+            AI Insights
           </Button>
         </div>
 
@@ -1002,6 +1013,11 @@ const AdminDashboard = ({ user, onLogout, onNavigateToJobs }) => {
               </Card>
             )}
           </div>
+        )}
+
+        {/* AI Insights Tab */}
+        {activeTab === 'ai-insights' && (
+          <AdminAIInsights />
         )}
       </div>
     </div>

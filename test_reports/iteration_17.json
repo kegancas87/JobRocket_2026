@@ -1,0 +1,86 @@
+{
+  "summary": "Tested Admin AI Insights Dashboard feature. All 12 backend tests passed (auth + data structure). Frontend verified: AI Insights tab visible ONLY for admin, shows 4 KPI cards, revenue by feature, top users, wallet stats, and recent transactions table with Show All toggle.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {
+        "endpoint": "/api/admin/ai/analytics",
+        "issue": "Returns 403 instead of 401 for unauthenticated requests (still secure, just different status code)",
+        "priority": "LOW"
+      }
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_admin_ai_analytics.py",
+    "/app/test_reports/pytest/pytest_admin_ai_analytics.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "Admin-only access correctly enforced via verify_admin_user dependency",
+    "Net revenue calculation correct: total_revenue - total_refunds",
+    "All 4 AI features tracked: match_score, top_matches, auto_apply, cv_enhance",
+    "Recent transactions limited to 50 entries with proper user name lookup",
+    "Daily trend aggregation uses last 30 days with proper date formatting",
+    "Top users leaderboard limited to 10 with proper sorting by total_spent",
+    "Frontend correctly uses data-testid attributes for all key elements",
+    "Role-based routing in App.js prevents non-admin access to AdminDashboard"
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_admin_ai_analytics.py"
+  ],
+  "success_rate": {
+    "backend": "100% (12/12 tests passed)",
+    "frontend": "100% (all UI elements verified)"
+  },
+  "test_credentials": {
+    "admin": "admin@jobrocket.co.za / admin123",
+    "job_seeker": "thabo.mthembu@gmail.com / demo123",
+    "recruiter": "hr@techcorp.co.za / demo123"
+  },
+  "seed_data_creation": "None - used existing AI usage log data (12 transactions)",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Admin AI Insights Dashboard fully tested. Key findings: 1) API endpoint /api/admin/ai/analytics returns comprehensive data for admin only (403 for job_seeker/recruiter). 2) Response includes: summary (net_revenue, total_ai_actions, unique_ai_users, topups, refunds), revenue_by_feature (4 AI features), daily_trend (30 days), top_users (top 10), wallet_stats, auto_topup_stats, recent_transactions (50 max), pricing. 3) Frontend AdminAIInsights component renders correctly with 4 KPI stat cards, revenue bars, mini chart, top users leaderboard, wallet stats, and transactions table. 4) Show All button toggles between 10 and all transactions. 5) Job seekers see their own dashboard (profile completion), recruiters see Recruiter Dashboard - neither can access Admin Dashboard or AI Insights tab.",
+  "features_tested": {
+    "backend": {
+      "GET /api/admin/ai/analytics (no auth)": "PASSED - Returns 403 (access denied)",
+      "GET /api/admin/ai/analytics (job_seeker)": "PASSED - Returns 403 Forbidden",
+      "GET /api/admin/ai/analytics (recruiter)": "PASSED - Returns 403 Forbidden",
+      "GET /api/admin/ai/analytics (admin)": "PASSED - Returns 200 with comprehensive data",
+      "Response has summary": "PASSED - Contains net_revenue, total_ai_actions, unique_ai_users, topups, refunds",
+      "Response has revenue_by_feature": "PASSED - Contains all 4 AI features with total_revenue and usage_count",
+      "Response has daily_trend": "PASSED - Contains date/revenue/actions for last 30 days",
+      "Response has top_users": "PASSED - Contains user_id, email, name, total_spent, action_count",
+      "Response has wallet_stats": "PASSED - Contains total_balance_held, users_with_balance, avg_balance",
+      "Response has auto_topup_stats": "PASSED - Contains users_with_card, users_auto_topup_enabled",
+      "Response has recent_transactions": "PASSED - Contains action, user_id, user_name, cost/amount",
+      "Response has pricing": "PASSED - Contains pricing for all 4 AI features"
+    },
+    "frontend": {
+      "AI Insights tab visible for admin": "PASSED - Tab with data-testid='admin-ai-insights-tab' found",
+      "AI Insights content loads": "PASSED - Container with data-testid='admin-ai-insights' found",
+      "4 KPI stat cards displayed": "PASSED - Net Revenue, AI Actions, Wallet Top-Ups, Refunds cards found",
+      "Revenue by Feature section": "PASSED - Shows 4 feature bars with revenue amounts",
+      "Top AI Users section": "PASSED - Shows user leaderboard with Thabo Mthembu at #1",
+      "Wallet & Auto Top-Up section": "PASSED - Shows balance held, avg balance, cards saved, auto top-up enabled",
+      "Recent Transactions table": "PASSED - Table with data-testid='ai-transactions-table' found",
+      "Show All button": "PASSED - Button toggles between 10 and 12 transactions",
+      "AI Insights NOT visible for job_seeker": "PASSED - Job seeker sees own profile dashboard",
+      "AI Insights NOT visible for recruiter": "PASSED - Recruiter sees Recruiter Dashboard"
+    }
+  },
+  "data_verified": {
+    "net_revenue": "R190.00 (R210.00 gross - R20.00 refunds)",
+    "total_ai_actions": 6,
+    "unique_ai_users": 1,
+    "wallet_topups": "R850.00 (4 manual + 0 auto)",
+    "refunds": "R20.00 (2 refunds)",
+    "total_transactions": 12,
+    "top_user": "Thabo Mthembu - R210.00 (6 actions)"
+  }
+}
