@@ -1,7 +1,7 @@
 # JobRocket - Product Requirements Document
 
-> **Last Updated**: June 4, 2026
-> **Version**: 2.13.0 (Wallet Auto Top-Up with PayFast Tokenization)
+> **Last Updated**: June 5, 2026
+> **Version**: 2.14.0 (Admin Bulk Upload)
 
 ---
 
@@ -120,6 +120,15 @@ JobRocket is a B2B SaaS recruitment platform targeting recruiters, businesses, a
 - [x] **Access Control** — Recruiter-only, Growth+ tier, job must belong to recruiter's account
 - [x] **Validation** — Can't enable without saved card, threshold 0-5000, amount 5-10000
 
+### Phase 26: Admin Bulk Upload (Jun 2026)
+- [x] **AdminBulkUploadService** — New service class for admin-specific flexible uploads
+- [x] **Column Mapping** — Job Link, Job Title, Company, Location, Salary, Description with smart header matching
+- [x] **Only Job Title Mandatory** — Empty fields auto-default to "TBC"
+- [x] **Job Link → application_url** — Maps to external apply URL for candidates
+- [x] **API Endpoints** — POST /api/admin/jobs/bulk (upload), GET /api/admin/jobs/bulk/template (CSV/XLSX template)
+- [x] **Admin-Only Auth** — Recruiters and job seekers get 403 Forbidden
+- [x] **Frontend Tab** — New "Bulk Upload" tab in Admin Dashboard with drag-drop, template download, results display
+
 ---
 
 ## Key API Endpoints
@@ -145,6 +154,10 @@ JobRocket is a B2B SaaS recruitment platform targeting recruiters, businesses, a
 - `POST /api/auth/change-password` - Change password
 - `POST /api/auth/forgot-password` - Request reset email
 - `POST /api/auth/reset-password` - Reset with token
+
+### Admin Bulk Upload
+- `POST /api/admin/jobs/bulk` - Upload CSV/Excel file (admin-only)
+- `GET /api/admin/jobs/bulk/template?format=csv|xlsx` - Download template
 
 ---
 
