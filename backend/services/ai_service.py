@@ -16,6 +16,25 @@ logger = logging.getLogger("ai_service")
 
 EMERGENT_LLM_KEY = os.environ.get("EMERGENT_LLM_KEY")
 
+
+def _extract_cv_text(cv_path: str, max_chars: int = 3000) -> str:
+    """Extract text from an uploaded CV PDF file."""
+    try:
+        full_path = os.path.join("/app/backend", cv_path.lstrip("/"))
+        if not os.path.exists(full_path):
+            return ""
+        from pypdf import PdfReader
+        reader = PdfReader(full_path)
+        text = ""
+        for page in reader.pages:
+            text += page.extract_text() or ""
+            if len(text) > max_chars:
+                break
+        return text[:max_chars].strip()
+    except Exception as e:
+        logger.warning(f"CV text extraction failed for {cv_path}: {e}")
+        return ""
+
 # Fixed pricing in ZAR
 AI_PRICING = {
     "match_score": 10.00,
@@ -167,10 +186,23 @@ def _build_candidate_profile(user: dict, profile: dict = None) -> str:
         desired = profile.get("desired_role") or profile.get("desired_job_title")
         if desired:
             parts.append(f"Desired Role: {desired}")
-        if profile.get("desired_salary"):
-            parts.append(f"Desired Salary: {profile['desired_salary']}")
+        desired_salary = profile.get("desired_salary") or profile.get("desired_salary_range") or profile.get("expected_salary")
+        if desired_salary:
+            parts.append(f"Desired Salary: R{desired_salary}")
+        if profile.get("years_of_experience"):
+            parts.append(f"Years of Experience: {profile['years_of_experience']}")
+        if profile.get("employment_type_preference"):
+            prefs = profile["employment_type_preference"]
+            if isinstance(prefs, list):
+                parts.append(f"Employment Preference: {', '.join(prefs)}")
+            else:
+                parts.append(f"Employment Preference: {prefs}")
         if profile.get("cv_text"):
             parts.append(f"CV Content:\n{profile['cv_text'][:3000]}")
+        elif profile.get("cv_url"):
+            cv_text = _extract_cv_text(profile["cv_url"])
+            if cv_text:
+                parts.append(f"CV Content:\n{cv_text}")
 
     return "\n".join(parts)
 
@@ -187,6 +219,15 @@ def _build_job_summary(job: dict) -> str:
     ]
     if job.get("salary"):
         parts.append(f"Salary: {job['salary']}")
+    elif job.get("salary_min") or job.get("salary_max"):
+        sal_min = job.get("salary_min", "")
+        sal_max = job.get("salary_max", "")
+        if sal_min and sal_max:
+            parts.append(f"Salary Range: R{sal_min} - R{sal_max}")
+        elif sal_min:
+            parts.append(f"Salary From: R{sal_min}")
+        elif sal_max:
+            parts.append(f"Salary Up To: R{sal_max}")
     if job.get("description"):
         parts.append(f"Description:\n{job['description'][:2000]}")
     if job.get("requirements"):
