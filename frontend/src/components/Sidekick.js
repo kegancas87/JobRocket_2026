@@ -156,20 +156,56 @@ const TopMatchesResult = ({ data, onAutoApply }) => {
 
 const AutoApplyResult = ({ data }) => {
   const apps = data.result?.applications || [];
+  const appliedCount = data.result?.applied_count || 0;
+  const alreadyCount = data.result?.already_applied_count || 0;
+  const allAlready = data.result?.all_already_applied;
+
   return (
     <div className="space-y-2" data-testid="auto-apply-result">
-      <div className="flex items-center gap-2 mb-2">
-        <CheckCircle className="w-5 h-5 text-emerald-400" />
-        <span className="text-sm font-semibold text-white">Applied to {data.result?.applied_count || 0} Jobs</span>
+      {/* Completion banner */}
+      <div className="bg-emerald-500/20 border border-emerald-500/30 rounded-lg p-3">
+        <div className="flex items-center gap-2 mb-1">
+          <CheckCircle className="w-5 h-5 text-emerald-400" />
+          <span className="text-sm font-semibold text-emerald-300">
+            {allAlready ? 'Already Applied!' : 'Auto-Apply Complete!'}
+          </span>
+        </div>
+        <p className="text-xs text-slate-300 ml-7">
+          {appliedCount > 0 && `Successfully applied to ${appliedCount} job${appliedCount > 1 ? 's' : ''}`}
+          {appliedCount > 0 && alreadyCount > 0 && '. '}
+          {alreadyCount > 0 && `${alreadyCount} already applied`}
+          {allAlready && 'You\'ve already applied to all these jobs. No charge applied.'}
+        </p>
       </div>
+
+      {/* Application list */}
       {apps.map((a, i) => (
-        <div key={i} className={`flex items-center gap-2 p-2 rounded-lg text-xs ${a.status === 'applied' ? 'bg-emerald-500/10 border border-emerald-500/30' : 'bg-slate-700/50 border border-slate-600'}`}>
-          {a.status === 'applied' ? <CheckCircle className="w-3 h-3 text-emerald-400" /> : <AlertCircle className="w-3 h-3 text-amber-400" />}
+        <div key={i} className={`flex items-center gap-2 p-2 rounded-lg text-xs ${
+          a.status === 'applied' ? 'bg-emerald-500/10 border border-emerald-500/30' : 
+          a.status === 'already_applied' ? 'bg-blue-500/10 border border-blue-500/30' :
+          'bg-slate-700/50 border border-slate-600'
+        }`}>
+          {a.status === 'applied' ? <CheckCircle className="w-3 h-3 text-emerald-400" /> : 
+           a.status === 'already_applied' ? <CheckCircle className="w-3 h-3 text-blue-400" /> :
+           <AlertCircle className="w-3 h-3 text-amber-400" />}
           <span className="text-slate-300 flex-1">{a.job_title || a.job_id} {a.company_name ? `at ${a.company_name}` : ''}</span>
-          <span className={`px-2 py-0.5 rounded-full ${a.status === 'applied' ? 'bg-emerald-500/20 text-emerald-400' : 'bg-amber-500/20 text-amber-400'}`}>{a.status}</span>
+          <span className={`px-2 py-0.5 rounded-full text-[10px] ${
+            a.status === 'applied' ? 'bg-emerald-500/20 text-emerald-400' : 
+            a.status === 'already_applied' ? 'bg-blue-500/20 text-blue-400' :
+            'bg-amber-500/20 text-amber-400'
+          }`}>{a.status === 'already_applied' ? 'applied' : a.status}</span>
         </div>
       ))}
-      <div className="text-xs text-slate-400 mt-2">View your applications under "My Applications"</div>
+
+      {/* Link to My Applications */}
+      <a
+        href="/profile?tab=applications"
+        className="flex items-center justify-center gap-2 mt-3 py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-lg transition-colors"
+        data-testid="view-applications-link"
+      >
+        <FileText className="w-4 h-4" />
+        View My Applications
+      </a>
     </div>
   );
 };

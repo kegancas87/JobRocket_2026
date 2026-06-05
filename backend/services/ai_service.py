@@ -489,6 +489,36 @@ Return top 10 matches as JSON."""
 
 async def auto_apply_jobs(db, user_id: str, job_ids: list, min_match_score: int = 70) -> dict:
     """Auto-apply to selected jobs with AI-generated cover letters."""
+    # First check if there are any jobs to actually apply to
+    new_jobs = []
+    already_applied = []
+    for job_id in job_ids[:10]:
+        existing = await db.job_applications.find_one({"applicant_id": user_id, "job_id": job_id})
+        if existing:
+            job = await db.jobs.find_one({"id": job_id}, {"_id": 0, "title": 1, "company_name": 1})
+            already_applied.append({
+                "job_id": job_id,
+                "job_title": job.get("title", "") if job else "",
+                "company_name": job.get("company_name", "") if job else "",
+                "status": "already_applied",
+            })
+        else:
+            new_jobs.append(job_id)
+
+    if not new_jobs:
+        # All jobs already applied — don't charge
+        return {
+            "success": True,
+            "result": {
+                "applied_count": 0,
+                "total_requested": len(job_ids),
+                "already_applied_count": len(already_applied),
+                "applications": already_applied,
+                "all_already_applied": True,
+            },
+            "new_balance": (await db.users.find_one({"id": user_id}, {"_id": 0, "wallet_balance": 1}) or {}).get("wallet_balance", 0),
+        }
+
     wallet = await check_and_deduct_wallet(db, user_id, "auto_apply")
     if not wallet["success"]:
         return wallet
@@ -502,13 +532,8 @@ async def auto_apply_jobs(db, user_id: str, job_ids: list, min_match_score: int 
             cv_text = await _get_cv_text_cached(db, user_id, cv_url)
         candidate_text = _build_candidate_profile(user, profile, cv_text)
 
-        results = []
-        for job_id in job_ids[:10]:
-            # Check if already applied
-            existing = await db.job_applications.find_one({"applicant_id": user_id, "job_id": job_id})
-            if existing:
-                results.append({"job_id": job_id, "status": "already_applied", "message": "Already applied to this job"})
-                continue
+        results = list(already_applied)  # Start with already-applied entries
+        for job_id in new_jobs:
 
             job = await db.jobs.find_one({"id": job_id, "is_active": {"$ne": False}}, {"_id": 0})
             if not job:
@@ -587,10 +612,12 @@ Return as JSON."""
         await log_ai_usage(db, user_id, "auto_apply", wallet["cost"], {"job_count": len(job_ids)})
 
         applied_count = sum(1 for r in results if r["status"] == "applied")
+        already_count = sum(1 for r in results if r["status"] == "already_applied")
         return {
             "success": True,
             "result": {
                 "applied_count": applied_count,
+                "already_applied_count": already_count,
                 "total_requested": len(job_ids),
                 "applications": results,
             },
