@@ -1,0 +1,87 @@
+{
+  "summary": "Tested AI Match Score feature for CV Search. All 12 backend tests passed. Frontend verified: AI Match Score button visible on candidate cards, job selector dropdown works, Score button triggers AI analysis, result displays inline with score percentage, reasoning, breakdown (Skills/Experience/Location), and skill tags. Close button returns to idle state. Job seekers correctly denied access to CV Search.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_ai_match_score.py",
+    "/app/test_reports/pytest/pytest_ai_match_score.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "AI Match endpoint correctly requires recruiter auth and CV Search tier access (Growth+)",
+    "Caching works correctly - returns cached=true for previously scored candidate/job pairs",
+    "ObjectId serialization handled properly (pop _id after insert_one)",
+    "Job selector dropdown correctly shows only recruiter's active jobs",
+    "Score button disabled until job is selected (good UX)",
+    "Loading state shows 'Analyzing match...' during AI processing",
+    "Result display includes all required elements: score %, reasoning, breakdown, skill tags",
+    "Close button properly resets state to idle",
+    "Job seekers correctly denied access - CV Search link hidden and direct URL redirects away",
+    "data-testid attributes present on all key elements for testing"
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_ai_match_score.py"
+  ],
+  "success_rate": {
+    "backend": "100% (12/12 tests passed)",
+    "frontend": "100% (all UI flows verified)"
+  },
+  "test_credentials": {
+    "recruiter_pro": "hr@techcorp.co.za / demo123 (Pro tier with CV Search)",
+    "job_seeker": "thabo.mthembu@gmail.com / demo123",
+    "test_candidate_id": "fcf943c6-9fc5-4695-9ca5-d31abeb673fe (Thabo Mthembu)",
+    "test_job_id_cached": "f0baba8f-f611-4884-94e0-47906669d2e7 (React Developer)",
+    "test_job_id_uncached": "8af394eb-118c-46e1-8357-1b71193f4067 (UX/UI Designer)"
+  },
+  "seed_data_creation": "None - used existing cached match score data",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "AI Match Score feature fully tested. Key findings: 1) POST /api/cv-search/ai-match requires recruiter auth + Growth+ tier, returns 400 without candidate_id/job_id, 404 for non-existent job, 403 for job seekers. 2) Caching works - second call returns cached=true. 3) GET /api/cv-search/ai-match-scores returns cached scores with optional candidate_id/job_id filters. 4) Frontend: AI Match Score button appears on candidate cards in CV Search, clicking shows job selector dropdown, selecting job enables Score button, clicking Score shows loading then result inline. Result shows score %, reasoning, breakdown (Skills/Experience/Location %), matching skills (green), missing skills (red outline). Close button returns to idle. 5) Job seekers cannot see CV Search link and are redirected if accessing directly.",
+  "features_tested": {
+    "backend": {
+      "POST /api/cv-search/ai-match (no auth)": "PASSED - Returns 403",
+      "POST /api/cv-search/ai-match (missing candidate_id)": "PASSED - Returns 400",
+      "POST /api/cv-search/ai-match (missing job_id)": "PASSED - Returns 400",
+      "POST /api/cv-search/ai-match (non-existent job)": "PASSED - Returns 404",
+      "POST /api/cv-search/ai-match (job seeker)": "PASSED - Returns 403 Forbidden",
+      "POST /api/cv-search/ai-match (recruiter, cached)": "PASSED - Returns 200 with cached=true",
+      "POST /api/cv-search/ai-match (result structure)": "PASSED - All fields present: id, recruiter_id, account_id, candidate_id, candidate_name, job_id, job_title, score, reasoning, method, breakdown, created_at",
+      "GET /api/cv-search/ai-match-scores (no auth)": "PASSED - Returns 403",
+      "GET /api/cv-search/ai-match-scores (job seeker)": "PASSED - Returns 403 Forbidden",
+      "GET /api/cv-search/ai-match-scores (recruiter)": "PASSED - Returns 200 with scores array",
+      "GET /api/cv-search/ai-match-scores?candidate_id=X": "PASSED - Filters by candidate",
+      "GET /api/cv-search/ai-match-scores?job_id=X": "PASSED - Filters by job"
+    },
+    "frontend": {
+      "CV Search page loads for recruiter": "PASSED - Shows 12 candidates, Pro Plan badge, 5000 reveals left",
+      "AI Match Score button visible on candidate cards": "PASSED - Button with data-testid='ai-match-btn-{id}' found",
+      "Clicking AI Match Score shows job selector": "PASSED - Dropdown with recruiter's jobs appears",
+      "Job selector has recruiter's jobs": "PASSED - 6 options including 'Select a job...' and 5 jobs",
+      "Score button disabled until job selected": "PASSED - Button enabled after selecting job",
+      "Clicking Score shows loading state": "PASSED - 'Analyzing match...' text displayed",
+      "Match result displays inline": "PASSED - Result with data-testid='ai-match-result-{id}' found",
+      "Result shows score percentage": "PASSED - 32% displayed in circular badge",
+      "Result shows match label": "PASSED - 'Partial Match' label displayed",
+      "Result shows reasoning": "PASSED - AI reasoning text displayed",
+      "Result shows breakdown": "PASSED - Skills/Experience/Location percentages shown",
+      "Result shows skill tags": "PASSED - Matching skills (green) and missing skills (red outline)",
+      "Close button works": "PASSED - Result closed, returns to idle state",
+      "Job seeker cannot see CV Search link": "PASSED - Link not in navigation",
+      "Job seeker redirected from /cv-search": "PASSED - Redirected to home page"
+    }
+  },
+  "ai_match_result_example": {
+    "score": 32,
+    "label": "Partial Match",
+    "job_title": "Test Toast Notification Job",
+    "reasoning": "Job is an onsite role in Test City with no specific skills or experience requirements listed. Candidate has relevant general software development skills and 5 years full-stack experience, but location does not match and onsite requirement likely implies relocation.",
+    "method": "ai (GPT-5.2)"
+  }
+}

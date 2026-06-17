@@ -1,0 +1,1295 @@
+import React, { useState, useEffect } from "react";
+import axios from "axios";
+import { Button } from "./ui/button";
+import { Input } from "./ui/input";
+import { Card, CardContent, CardHeader, CardTitle } from "./ui/card";
+import { Badge } from "./ui/badge";
+import { Separator } from "./ui/separator";
+import AdminAIInsights from "./AdminAIInsights";
+import { 
+  Plus, 
+  Edit2, 
+  Trash2, 
+  ToggleLeft, 
+  ToggleRight,
+  TrendingUp,
+  Users,
+  DollarSign,
+  ShoppingCart,
+  Calendar,
+  Settings,
+  BarChart3,
+  LogOut,
+  Check,
+  X,
+  Download,
+  FileSpreadsheet,
+  Loader2,
+  CalendarDays,
+  Hash,
+  CreditCard,
+  AlertTriangle,
+  ShieldOff,
+  RefreshCw,
+  Activity,
+  Zap,
+  Upload,
+  CheckCircle2,
+  XCircle,
+  AlertCircle
+} from "lucide-react";
+
+const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
+const API = `${BACKEND_URL}/api`;
+
+const AdminDashboard = ({ user, onLogout, onNavigateToJobs }) => {
+  const [activeTab, setActiveTab] = useState('discount-codes');
+  const [discountCodes, setDiscountCodes] = useState([]);
+  const [usageStats, setUsageStats] = useState({});
+  const [loading, setLoading] = useState(false);
+  const [exportLoading, setExportLoading] = useState(false);
+  const [showCreateForm, setShowCreateForm] = useState(false);
+  const [subscriptionOverview, setSubscriptionOverview] = useState(null);
+  const [editingCode, setEditingCode] = useState(null);
+  
+  // Bulk upload state
+  const [bulkFile, setBulkFile] = useState(null);
+  const [bulkUploading, setBulkUploading] = useState(false);
+  const [bulkResults, setBulkResults] = useState(null);
+  const [dragOver, setDragOver] = useState(false);
+  
+  // Export filter state
+  const [exportStartDate, setExportStartDate] = useState('');
+  const [exportEndDate, setExportEndDate] = useState('');
+  const [exportLimit, setExportLimit] = useState('');
+  const [formData, setFormData] = useState({
+    code: '',
+    name: '',
+    description: '',
+    discount_type: 'percentage',
+    discount_value: '',
+    minimum_amount: '',
+    maximum_discount: '',
+    usage_limit: '',
+    user_limit: '',
+    valid_until: '',
+    applicable_packages: []
+  });
+
+  const packageTypes = [
+    'two_listings',
+    'five_listings', 
+    'unlimited_listings',
+    'cv_search_10',
+    'cv_search_20',
+    'cv_search_unlimited'
+  ];
+
+  useEffect(() => {
+    if (activeTab === 'discount-codes') {
+      loadDiscountCodes();
+    } else if (activeTab === 'statistics') {
+      loadUsageStats();
+    } else if (activeTab === 'subscriptions') {
+      loadSubscriptionOverview();
+    }
+  }, [activeTab]);
+
+  const getAuthHeaders = () => ({
+    'Authorization': `Bearer ${localStorage.getItem('token')}`,
+    'Content-Type': 'application/json'
+  });
+
+  const handleBulkUpload = async () => {
+    if (!bulkFile) return;
+    setBulkUploading(true);
+    setBulkResults(null);
+    try {
+      const formData = new FormData();
+      formData.append('file', bulkFile);
+      const response = await axios.post(`${API}/admin/jobs/bulk`, formData, {
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('token')}`,
+          'Content-Type': 'multipart/form-data'
+        }
+      });
+      setBulkResults(response.data);
+      if (response.data.created > 0) setBulkFile(null);
+    } catch (error) {
+      setBulkResults({
+        success: false, total_rows: 0, created: 0, failed: 0,
+        errors: [{ row: 0, error: error.response?.data?.detail || 'Upload failed' }]
+      });
+    } finally {
+      setBulkUploading(false);
+    }
+  };
+
+  const downloadAdminTemplate = async (format) => {
+    try {
+      const response = await axios.get(`${API}/admin/jobs/bulk/template?format=${format}`, {
+        headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` },
+        responseType: 'blob'
+      });
+      const url = window.URL.createObjectURL(new Blob([response.data]));
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', `admin_job_upload_template.${format}`);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+    } catch (error) {
+      console.error('Template download failed:', error);
+    }
+  };
+
+  const loadDiscountCodes = async () => {
+    setLoading(true);
+    try {
+      const response = await axios.get(`${API}/admin/discount-codes`, {
+        headers: getAuthHeaders()
+      });
+      setDiscountCodes(response.data);
+    } catch (error) {
+      console.error('Error loading discount codes:', error);
+    }
+    setLoading(false);
+  };
+
+  const loadUsageStats = async () => {
+    setLoading(true);
+    try {
+      const response = await axios.get(`${API}/admin/discount-codes/stats/usage`, {
+        headers: getAuthHeaders()
+      });
+      setUsageStats(response.data);
+    } catch (error) {
+      console.error('Error loading usage stats:', error);
+    }
+    setLoading(false);
+  };
+
+  const handleExportJobs = async () => {
+    setExportLoading(true);
+    try {
+      const token = localStorage.getItem('token');
+      
+      // Build query params
+      const params = new URLSearchParams();
+      if (exportStartDate) {
+        params.append('start_date', new Date(exportStartDate).toISOString());
+      }
+      if (exportEndDate) {
+        params.append('end_date', new Date(exportEndDate).toISOString());
+      }
+      if (exportLimit && parseInt(exportLimit) > 0) {
+        params.append('limit', exportLimit);
+      }
+      
+      const queryString = params.toString();
+      const url = `${API}/admin/jobs/export${queryString ? '?' + queryString : ''}`;
+      
+      const response = await fetch(url, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+      
+      if (!response.ok) {
+        throw new Error('Export failed');
+      }
+      
+      // Get the blob and create download link
+      const blob = await response.blob();
+      const downloadUrl = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = downloadUrl;
+      a.download = `jobrocket_jobs_export_${new Date().toISOString().slice(0,10)}.csv`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(downloadUrl);
+      document.body.removeChild(a);
+    } catch (error) {
+      console.error('Error exporting jobs:', error);
+      alert('Failed to export jobs. Please try again.');
+    }
+    setExportLoading(false);
+  };
+
+  const resetForm = () => {
+    setFormData({
+      code: '',
+      name: '',
+      description: '',
+      discount_type: 'percentage',
+      discount_value: '',
+      minimum_amount: '',
+      maximum_discount: '',
+      usage_limit: '',
+      user_limit: '',
+      valid_until: '',
+      applicable_packages: []
+    });
+    setShowCreateForm(false);
+    setEditingCode(null);
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setLoading(true);
+    
+    try {
+      // Prepare data
+      const submitData = {
+        ...formData,
+        discount_value: parseFloat(formData.discount_value),
+        minimum_amount: formData.minimum_amount ? parseFloat(formData.minimum_amount) : null,
+        maximum_discount: formData.maximum_discount ? parseFloat(formData.maximum_discount) : null,
+        usage_limit: formData.usage_limit ? parseInt(formData.usage_limit) : null,
+        user_limit: formData.user_limit ? parseInt(formData.user_limit) : null,
+        valid_until: formData.valid_until ? new Date(formData.valid_until).toISOString() : null,
+        applicable_packages: formData.applicable_packages.length > 0 ? formData.applicable_packages : null
+      };
+
+      if (editingCode) {
+        // Update existing code
+        await axios.put(`${API}/admin/discount-codes/${editingCode.id}`, submitData, {
+          headers: getAuthHeaders()
+        });
+      } else {
+        // Create new code
+        await axios.post(`${API}/admin/discount-codes`, submitData, {
+          headers: getAuthHeaders()
+        });
+      }
+      
+      resetForm();
+      loadDiscountCodes();
+    } catch (error) {
+      console.error('Error saving discount code:', error);
+      alert(error.response?.data?.detail || 'Error saving discount code');
+    }
+    setLoading(false);
+  };
+
+  const handleEdit = (code) => {
+    setEditingCode(code);
+    setFormData({
+      code: code.code,
+      name: code.name,
+      description: code.description || '',
+      discount_type: code.discount_type,
+      discount_value: code.discount_value.toString(),
+      minimum_amount: code.minimum_amount?.toString() || '',
+      maximum_discount: code.maximum_discount?.toString() || '',
+      usage_limit: code.usage_limit?.toString() || '',
+      user_limit: code.user_limit?.toString() || '',
+      valid_until: code.valid_until ? new Date(code.valid_until).toISOString().split('T')[0] : '',
+      applicable_packages: code.applicable_packages || []
+    });
+    setShowCreateForm(true);
+  };
+
+  const handleDeactivate = async (codeId) => {
+    if (window.confirm('Are you sure you want to deactivate this discount code?')) {
+      try {
+        await axios.post(`${API}/admin/discount-codes/${codeId}/deactivate`, {}, {
+          headers: getAuthHeaders()
+        });
+        loadDiscountCodes();
+      } catch (error) {
+        console.error('Error deactivating discount code:', error);
+        alert('Error deactivating discount code');
+      }
+    }
+  };
+
+  const handleDelete = async (codeId) => {
+    if (window.confirm('Are you sure you want to delete this discount code? This action cannot be undone.')) {
+      try {
+        await axios.delete(`${API}/admin/discount-codes/${codeId}`, {
+          headers: getAuthHeaders()
+        });
+        loadDiscountCodes();
+      } catch (error) {
+        console.error('Error deleting discount code:', error);
+        alert('Error deleting discount code');
+      }
+    }
+  };
+
+  const formatDate = (dateString) => {
+    if (!dateString) return 'No expiry';
+    return new Date(dateString).toLocaleDateString();
+  };
+
+  const formatCurrency = (amount) => {
+    return new Intl.NumberFormat('en-ZA', {
+      style: 'currency',
+      currency: 'ZAR'
+    }).format(amount);
+  };
+
+  const loadSubscriptionOverview = async () => {
+    try {
+      setLoading(true);
+      const response = await axios.get(`${API}/admin/subscription-overview`, {
+        headers: getAuthHeaders()
+      });
+      setSubscriptionOverview(response.data);
+    } catch (error) {
+      console.error('Error loading subscription overview:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleReactivate = async (accountId) => {
+    if (!window.confirm('Are you sure you want to reactivate this account? This will grant 30 days of access.')) return;
+    try {
+      await axios.post(`${API}/admin/accounts/${accountId}/reactivate`, {}, {
+        headers: getAuthHeaders()
+      });
+      loadSubscriptionOverview();
+    } catch (error) {
+      console.error('Error reactivating account:', error);
+      alert(error.response?.data?.detail || 'Error reactivating account');
+    }
+  };
+
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900">
+      {/* Header */}
+      <div className="bg-slate-800/50 backdrop-blur border-b border-slate-700">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex justify-between items-center py-4">
+            <div className="flex items-center space-x-4">
+              <Settings className="w-8 h-8 text-blue-400" />
+              <div>
+                <h1 className="text-2xl font-bold text-white">Admin Dashboard</h1>
+                <p className="text-slate-400">Manage Job Rocket Platform</p>
+              </div>
+            </div>
+            <div className="flex items-center space-x-4">
+              <Button 
+                variant="outline" 
+                onClick={() => window.location.href = '/'}
+                className="border-slate-600 text-slate-300 hover:bg-slate-700"
+              >
+                🚀 View Job Platform
+              </Button>
+              <span className="text-slate-300">Welcome, {user.first_name}</span>
+              <Button 
+                variant="outline" 
+                onClick={onLogout}
+                className="border-slate-600 text-slate-300 hover:bg-slate-700"
+              >
+                <LogOut className="w-4 h-4 mr-2" />
+                Logout
+              </Button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {/* Navigation Tabs */}
+        <div className="flex space-x-1 mb-8">
+          <Button
+            variant={activeTab === 'discount-codes' ? 'default' : 'outline'}
+            onClick={() => setActiveTab('discount-codes')}
+            className={activeTab === 'discount-codes' ? 'bg-blue-600 text-white' : 'border-slate-600 text-slate-300'}
+          >
+            <ShoppingCart className="w-4 h-4 mr-2" />
+            Discount Codes
+          </Button>
+          <Button
+            variant={activeTab === 'statistics' ? 'default' : 'outline'}
+            onClick={() => setActiveTab('statistics')}
+            className={activeTab === 'statistics' ? 'bg-blue-600 text-white' : 'border-slate-600 text-slate-300'}
+          >
+            <BarChart3 className="w-4 h-4 mr-2" />
+            Statistics
+          </Button>
+          <Button
+            variant={activeTab === 'export-jobs' ? 'default' : 'outline'}
+            onClick={() => setActiveTab('export-jobs')}
+            className={activeTab === 'export-jobs' ? 'bg-blue-600 text-white' : 'border-slate-600 text-slate-300'}
+          >
+            <FileSpreadsheet className="w-4 h-4 mr-2" />
+            Export Jobs
+          </Button>
+          <Button
+            variant={activeTab === 'subscriptions' ? 'default' : 'outline'}
+            onClick={() => setActiveTab('subscriptions')}
+            className={activeTab === 'subscriptions' ? 'bg-blue-600 text-white' : 'border-slate-600 text-slate-300'}
+          >
+            <Activity className="w-4 h-4 mr-2" />
+            Subscriptions
+          </Button>
+          <Button
+            variant={activeTab === 'ai-insights' ? 'default' : 'outline'}
+            onClick={() => setActiveTab('ai-insights')}
+            className={activeTab === 'ai-insights' ? 'bg-blue-600 text-white' : 'border-slate-600 text-slate-300'}
+            data-testid="admin-ai-insights-tab"
+          >
+            <Zap className="w-4 h-4 mr-2" />
+            AI Insights
+          </Button>
+          <Button
+            variant={activeTab === 'bulk-upload' ? 'default' : 'outline'}
+            onClick={() => setActiveTab('bulk-upload')}
+            className={activeTab === 'bulk-upload' ? 'bg-blue-600 text-white' : 'border-slate-600 text-slate-300'}
+            data-testid="admin-bulk-upload-tab"
+          >
+            <Upload className="w-4 h-4 mr-2" />
+            Bulk Upload
+          </Button>
+        </div>
+
+        {/* Discount Codes Tab */}
+        {activeTab === 'discount-codes' && (
+          <div className="space-y-6">
+            {/* Create/Edit Form */}
+            {showCreateForm && (
+              <Card className="bg-slate-800/50 backdrop-blur border-slate-700">
+                <CardHeader>
+                  <CardTitle className="text-white flex items-center justify-between">
+                    {editingCode ? 'Edit Discount Code' : 'Create New Discount Code'}
+                    <Button 
+                      variant="outline" 
+                      onClick={resetForm}
+                      className="border-slate-600 text-slate-300"
+                    >
+                      <X className="w-4 h-4" />
+                    </Button>
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-slate-300 mb-2">Code *</label>
+                      <Input
+                        value={formData.code}
+                        onChange={(e) => setFormData({...formData, code: e.target.value.toUpperCase()})}
+                        placeholder="SAVE20"
+                        required
+                        disabled={editingCode}
+                        className="bg-slate-700/50 border-slate-600 text-white"
+                      />
+                    </div>
+                    
+                    <div>
+                      <label className="block text-sm font-medium text-slate-300 mb-2">Name *</label>
+                      <Input
+                        value={formData.name}
+                        onChange={(e) => setFormData({...formData, name: e.target.value})}
+                        placeholder="20% Off Discount"
+                        required
+                        className="bg-slate-700/50 border-slate-600 text-white"
+                      />
+                    </div>
+
+                    <div className="md:col-span-2">
+                      <label className="block text-sm font-medium text-slate-300 mb-2">Description</label>
+                      <Input
+                        value={formData.description}
+                        onChange={(e) => setFormData({...formData, description: e.target.value})}
+                        placeholder="Save 20% on all packages"
+                        className="bg-slate-700/50 border-slate-600 text-white"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-slate-300 mb-2">Discount Type *</label>
+                      <select
+                        value={formData.discount_type}
+                        onChange={(e) => setFormData({...formData, discount_type: e.target.value})}
+                        className="w-full px-3 py-2 bg-slate-700/50 border border-slate-600 rounded-md text-white"
+                        required
+                      >
+                        <option value="percentage">Percentage</option>
+                        <option value="fixed_amount">Fixed Amount (ZAR)</option>
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-slate-300 mb-2">
+                        Discount Value * {formData.discount_type === 'percentage' ? '(%)' : '(ZAR)'}
+                      </label>
+                      <Input
+                        type="number"
+                        step="0.01"
+                        value={formData.discount_value}
+                        onChange={(e) => setFormData({...formData, discount_value: e.target.value})}
+                        placeholder={formData.discount_type === 'percentage' ? '20' : '500'}
+                        required
+                        className="bg-slate-700/50 border-slate-600 text-white"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-slate-300 mb-2">Minimum Amount (ZAR)</label>
+                      <Input
+                        type="number"
+                        step="0.01"
+                        value={formData.minimum_amount}
+                        onChange={(e) => setFormData({...formData, minimum_amount: e.target.value})}
+                        placeholder="1000"
+                        className="bg-slate-700/50 border-slate-600 text-white"
+                      />
+                    </div>
+
+                    {formData.discount_type === 'percentage' && (
+                      <div>
+                        <label className="block text-sm font-medium text-slate-300 mb-2">Maximum Discount (ZAR)</label>
+                        <Input
+                          type="number"
+                          step="0.01"
+                          value={formData.maximum_discount}
+                          onChange={(e) => setFormData({...formData, maximum_discount: e.target.value})}
+                          placeholder="1000"
+                          className="bg-slate-700/50 border-slate-600 text-white"
+                        />
+                      </div>
+                    )}
+
+                    <div>
+                      <label className="block text-sm font-medium text-slate-300 mb-2">Usage Limit</label>
+                      <Input
+                        type="number"
+                        value={formData.usage_limit}
+                        onChange={(e) => setFormData({...formData, usage_limit: e.target.value})}
+                        placeholder="100"
+                        className="bg-slate-700/50 border-slate-600 text-white"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-slate-300 mb-2">User Limit</label>
+                      <Input
+                        type="number"
+                        value={formData.user_limit}
+                        onChange={(e) => setFormData({...formData, user_limit: e.target.value})}
+                        placeholder="1"
+                        className="bg-slate-700/50 border-slate-600 text-white"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-slate-300 mb-2">Valid Until</label>
+                      <Input
+                        type="date"
+                        value={formData.valid_until}
+                        onChange={(e) => setFormData({...formData, valid_until: e.target.value})}
+                        className="bg-slate-700/50 border-slate-600 text-white"
+                      />
+                    </div>
+
+                    <div className="md:col-span-2 flex justify-end space-x-4">
+                      <Button 
+                        type="button" 
+                        variant="outline" 
+                        onClick={resetForm}
+                        className="border-slate-600 text-slate-300"
+                      >
+                        Cancel
+                      </Button>
+                      <Button 
+                        type="submit" 
+                        disabled={loading}
+                        className="bg-blue-600 hover:bg-blue-700 text-white"
+                      >
+                        <Check className="w-4 h-4 mr-2" />
+                        {editingCode ? 'Update' : 'Create'} Discount Code
+                      </Button>
+                    </div>
+                  </form>
+                </CardContent>
+              </Card>
+            )}
+
+            {/* Discount Codes List */}
+            <Card className="bg-slate-800/50 backdrop-blur border-slate-700">
+              <CardHeader>
+                <CardTitle className="text-white flex items-center justify-between">
+                  <span>Discount Codes</span>
+                  <Button 
+                    onClick={() => setShowCreateForm(true)}
+                    className="bg-green-600 hover:bg-green-700 text-white"
+                  >
+                    <Plus className="w-4 h-4 mr-2" />
+                    New Code
+                  </Button>
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                {loading ? (
+                  <div className="text-center text-slate-400 py-8">Loading...</div>
+                ) : discountCodes.length === 0 ? (
+                  <div className="text-center text-slate-400 py-8">No discount codes created yet</div>
+                ) : (
+                  <div className="space-y-4">
+                    {discountCodes.map((code) => (
+                      <div key={code.id} className="bg-slate-700/30 rounded-lg p-4 border border-slate-600">
+                        <div className="flex items-start justify-between">
+                          <div className="flex-1">
+                            <div className="flex items-center space-x-3 mb-2">
+                              <Badge 
+                                variant={code.status === 'active' ? 'default' : 'secondary'}
+                                className={code.status === 'active' ? 'bg-green-600 text-white' : 'bg-slate-500 text-white'}
+                              >
+                                {code.code}
+                              </Badge>
+                              <span className="text-white font-medium">{code.name}</span>
+                              <Badge variant="outline" className="border-slate-500 text-slate-300">
+                                {code.status}
+                              </Badge>
+                            </div>
+                            
+                            {code.description && (
+                              <p className="text-slate-400 text-sm mb-2">{code.description}</p>
+                            )}
+                            
+                            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                              <div>
+                                <span className="text-slate-500">Discount:</span>
+                                <div className="text-slate-300">
+                                  {code.discount_type === 'percentage' 
+                                    ? `${code.discount_value}%` 
+                                    : formatCurrency(code.discount_value)
+                                  }
+                                </div>
+                              </div>
+                              
+                              <div>
+                                <span className="text-slate-500">Usage:</span>
+                                <div className="text-slate-300">
+                                  {code.usage_count} / {code.usage_limit || '∞'}
+                                </div>
+                              </div>
+                              
+                              <div>
+                                <span className="text-slate-500">Valid Until:</span>
+                                <div className="text-slate-300">{formatDate(code.valid_until)}</div>
+                              </div>
+                              
+                              <div>
+                                <span className="text-slate-500">Minimum:</span>
+                                <div className="text-slate-300">
+                                  {code.minimum_amount ? formatCurrency(code.minimum_amount) : 'None'}
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                          
+                          <div className="flex items-center space-x-2 ml-4">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => handleEdit(code)}
+                              className="border-slate-600 text-slate-300 hover:bg-slate-700"
+                            >
+                              <Edit2 className="w-4 h-4" />
+                            </Button>
+                            
+                            {code.status === 'active' && (
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => handleDeactivate(code.id)}
+                                className="border-yellow-600 text-yellow-400 hover:bg-yellow-600 hover:text-white"
+                              >
+                                <ToggleLeft className="w-4 h-4" />
+                              </Button>
+                            )}
+                            
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => handleDelete(code.id)}
+                              className="border-red-600 text-red-400 hover:bg-red-600 hover:text-white"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </Button>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </div>
+        )}
+
+        {/* Statistics Tab */}
+        {activeTab === 'statistics' && (
+          <div className="space-y-6">
+            {/* Overview Stats */}
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+              <Card className="bg-slate-800/50 backdrop-blur border-slate-700">
+                <CardContent className="p-6">
+                  <div className="flex items-center">
+                    <ShoppingCart className="w-8 h-8 text-blue-400" />
+                    <div className="ml-4">
+                      <p className="text-sm font-medium text-slate-400">Total Codes</p>
+                      <p className="text-2xl font-bold text-white">{usageStats.total_codes || 0}</p>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card className="bg-slate-800/50 backdrop-blur border-slate-700">
+                <CardContent className="p-6">
+                  <div className="flex items-center">
+                    <TrendingUp className="w-8 h-8 text-green-400" />
+                    <div className="ml-4">
+                      <p className="text-sm font-medium text-slate-400">Active Codes</p>
+                      <p className="text-2xl font-bold text-white">{usageStats.active_codes || 0}</p>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card className="bg-slate-800/50 backdrop-blur border-slate-700">
+                <CardContent className="p-6">
+                  <div className="flex items-center">
+                    <Users className="w-8 h-8 text-purple-400" />
+                    <div className="ml-4">
+                      <p className="text-sm font-medium text-slate-400">Total Uses</p>
+                      <p className="text-2xl font-bold text-white">{usageStats.total_transactions_with_discounts || 0}</p>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card className="bg-slate-800/50 backdrop-blur border-slate-700">
+                <CardContent className="p-6">
+                  <div className="flex items-center">
+                    <DollarSign className="w-8 h-8 text-yellow-400" />
+                    <div className="ml-4">
+                      <p className="text-sm font-medium text-slate-400">Total Savings</p>
+                      <p className="text-2xl font-bold text-white">
+                        {formatCurrency(usageStats.total_savings || 0)}
+                      </p>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+
+            {/* Usage Details */}
+            {usageStats.code_usage && usageStats.code_usage.length > 0 && (
+              <Card className="bg-slate-800/50 backdrop-blur border-slate-700">
+                <CardHeader>
+                  <CardTitle className="text-white">Code Usage Details</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-4">
+                    {usageStats.code_usage.map((usage, index) => (
+                      <div key={index} className="bg-slate-700/30 rounded-lg p-4 border border-slate-600">
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                          <div>
+                            <span className="text-slate-500">Code:</span>
+                            <div className="text-white font-medium">{usage._id}</div>
+                          </div>
+                          <div>
+                            <span className="text-slate-500">Uses:</span>
+                            <div className="text-slate-300">{usage.usage_count}</div>
+                          </div>
+                          <div>
+                            <span className="text-slate-500">Total Savings:</span>
+                            <div className="text-green-400">{formatCurrency(usage.total_discount_amount)}</div>
+                          </div>
+                          <div>
+                            <span className="text-slate-500">Revenue Impact:</span>
+                            <div className="text-slate-300">{formatCurrency(usage.total_final_amount)}</div>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+          </div>
+        )}
+
+        {/* Export Jobs Tab */}
+        {activeTab === 'export-jobs' && (
+          <div className="space-y-6">
+            <Card className="bg-slate-800/50 backdrop-blur border-slate-700">
+              <CardHeader>
+                <CardTitle className="text-white flex items-center">
+                  <FileSpreadsheet className="w-5 h-5 mr-2" />
+                  Bulk Job Export
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                <div className="bg-slate-700/30 rounded-lg p-6 border border-slate-600">
+                  <h3 className="text-lg font-semibold text-white mb-4">Export Job Listings</h3>
+                  <p className="text-slate-400 mb-6">
+                    Download a CSV file containing job listings. Use the filters below to customize your export.
+                  </p>
+                  
+                  {/* Export Filters */}
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+                    {/* Date Range - Start */}
+                    <div>
+                      <label className="block text-sm font-medium text-slate-300 mb-2">
+                        <CalendarDays className="w-4 h-4 inline mr-1" />
+                        From Date
+                      </label>
+                      <Input
+                        type="date"
+                        value={exportStartDate}
+                        onChange={(e) => setExportStartDate(e.target.value)}
+                        className="bg-slate-700 border-slate-600 text-white"
+                      />
+                    </div>
+                    
+                    {/* Date Range - End */}
+                    <div>
+                      <label className="block text-sm font-medium text-slate-300 mb-2">
+                        <CalendarDays className="w-4 h-4 inline mr-1" />
+                        To Date
+                      </label>
+                      <Input
+                        type="date"
+                        value={exportEndDate}
+                        onChange={(e) => setExportEndDate(e.target.value)}
+                        className="bg-slate-700 border-slate-600 text-white"
+                      />
+                    </div>
+                    
+                    {/* Limit */}
+                    <div>
+                      <label className="block text-sm font-medium text-slate-300 mb-2">
+                        <Hash className="w-4 h-4 inline mr-1" />
+                        Number of Jobs (Latest First)
+                      </label>
+                      <Input
+                        type="number"
+                        value={exportLimit}
+                        onChange={(e) => setExportLimit(e.target.value)}
+                        placeholder="e.g., 1000 (leave empty for all)"
+                        min="1"
+                        className="bg-slate-700 border-slate-600 text-white placeholder-slate-500"
+                      />
+                    </div>
+                  </div>
+                  
+                  {/* Filter Summary */}
+                  <div className="bg-slate-800 rounded-lg p-4 mb-6">
+                    <h4 className="text-sm font-medium text-slate-300 mb-2">Export Summary:</h4>
+                    <p className="text-slate-400 text-sm">
+                      {exportStartDate || exportEndDate || exportLimit ? (
+                        <>
+                          Exporting {exportLimit ? `up to ${exportLimit}` : 'all'} jobs
+                          {exportStartDate && ` from ${exportStartDate}`}
+                          {exportEndDate && ` to ${exportEndDate}`}
+                          {exportLimit && ', sorted by latest first'}
+                        </>
+                      ) : (
+                        'Exporting all jobs (no filters applied)'
+                      )}
+                    </p>
+                  </div>
+                  
+                  {/* CSV Columns Info */}
+                  <div className="bg-slate-800 rounded-lg p-4 mb-6">
+                    <h4 className="text-sm font-medium text-slate-300 mb-3">CSV Columns:</h4>
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                      {[
+                        'Job Title',
+                        'Location',
+                        'Salary',
+                        'Description',
+                        'Role Type',
+                        'Work Type',
+                        'Industry',
+                        'Link to Job Listing',
+                        'Job Listing ID',
+                        'Posted Date'
+                      ].map((col, idx) => (
+                        <div key={idx} className="flex items-center text-sm">
+                          <Check className="w-4 h-4 text-green-400 mr-2" />
+                          <span className="text-slate-300">{col}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="flex space-x-3">
+                    <Button
+                      onClick={handleExportJobs}
+                      disabled={exportLoading}
+                      className="bg-green-600 hover:bg-green-700 text-white"
+                    >
+                      {exportLoading ? (
+                        <>
+                          <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                          Generating Export...
+                        </>
+                      ) : (
+                        <>
+                          <Download className="w-4 h-4 mr-2" />
+                          Download Jobs CSV
+                        </>
+                      )}
+                    </Button>
+                    
+                    {(exportStartDate || exportEndDate || exportLimit) && (
+                      <Button
+                        onClick={() => {
+                          setExportStartDate('');
+                          setExportEndDate('');
+                          setExportLimit('');
+                        }}
+                        variant="outline"
+                        className="border-slate-600 text-slate-300 hover:bg-slate-700"
+                      >
+                        <X className="w-4 h-4 mr-2" />
+                        Clear Filters
+                      </Button>
+                    )}
+                  </div>
+                </div>
+
+                <div className="text-sm text-slate-500">
+                  <p>Note: The export may take a moment if there are many job listings. The file will automatically download once ready.</p>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        )}
+
+        {/* Subscriptions Overview Tab */}
+        {activeTab === 'subscriptions' && (
+          <div className="space-y-6">
+            {/* Status Cards */}
+            {subscriptionOverview && (
+              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+                {[
+                  { label: 'Active', count: subscriptionOverview.status_counts.active, color: 'emerald', icon: Check },
+                  { label: 'Trial', count: subscriptionOverview.status_counts.trial, color: 'blue', icon: CreditCard },
+                  { label: 'Grace Period', count: subscriptionOverview.status_counts.past_due, color: 'amber', icon: AlertTriangle },
+                  { label: 'Suspended', count: subscriptionOverview.status_counts.inactive, color: 'red', icon: ShieldOff },
+                  { label: 'Free / No Plan', count: subscriptionOverview.status_counts.free, color: 'slate', icon: Users },
+                  { label: 'Pending', count: subscriptionOverview.status_counts.pending, color: 'purple', icon: Activity },
+                ].map(item => (
+                  <Card key={item.label} className="bg-slate-800/50 border-slate-700">
+                    <CardContent className="p-4 text-center">
+                      <item.icon className={`w-6 h-6 text-${item.color}-400 mx-auto mb-2`} />
+                      <p className={`text-3xl font-bold text-${item.color}-400`}>{item.count}</p>
+                      <p className="text-xs text-slate-400 mt-1">{item.label}</p>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            )}
+
+            {/* Grace Period Accounts */}
+            {subscriptionOverview?.grace_period_accounts?.length > 0 && (
+              <Card className="bg-slate-800/50 border-slate-700">
+                <CardHeader>
+                  <CardTitle className="text-white flex items-center">
+                    <AlertTriangle className="w-5 h-5 text-amber-400 mr-2" />
+                    Accounts in Grace Period
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-3">
+                    {subscriptionOverview.grace_period_accounts.map(acc => (
+                      <div key={acc.id} className="flex items-center justify-between p-3 bg-slate-900/50 rounded-lg border border-amber-500/20">
+                        <div>
+                          <p className="text-white font-medium">{acc.name}</p>
+                          <p className="text-sm text-slate-400">Tier: {acc.tier_id} | {acc.grace_days_remaining} day{acc.grace_days_remaining !== 1 ? 's' : ''} remaining</p>
+                        </div>
+                        <Button
+                          size="sm"
+                          onClick={() => handleReactivate(acc.id)}
+                          className="bg-emerald-600 hover:bg-emerald-700 text-white"
+                        >
+                          <RefreshCw className="w-4 h-4 mr-1" />
+                          Reactivate
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
+            {/* Suspended Accounts */}
+            {subscriptionOverview?.suspended_accounts?.length > 0 && (
+              <Card className="bg-slate-800/50 border-slate-700">
+                <CardHeader>
+                  <CardTitle className="text-white flex items-center">
+                    <ShieldOff className="w-5 h-5 text-red-400 mr-2" />
+                    Suspended Accounts
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-3">
+                    {subscriptionOverview.suspended_accounts.map(acc => (
+                      <div key={acc.id} className="flex items-center justify-between p-3 bg-slate-900/50 rounded-lg border border-red-500/20">
+                        <div>
+                          <p className="text-white font-medium">{acc.name}</p>
+                          <p className="text-sm text-slate-400">
+                            Tier: {acc.tier_id} | Suspended: {acc.deactivated_at ? new Date(acc.deactivated_at).toLocaleDateString() : 'Unknown'}
+                            {acc.deactivation_reason === 'grace_period_expired' && ' (Payment overdue)'}
+                          </p>
+                        </div>
+                        <Button
+                          size="sm"
+                          onClick={() => handleReactivate(acc.id)}
+                          className="bg-emerald-600 hover:bg-emerald-700 text-white"
+                        >
+                          <RefreshCw className="w-4 h-4 mr-1" />
+                          Reactivate
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
+            {loading && (
+              <div className="text-center py-12">
+                <Loader2 className="w-8 h-8 text-blue-400 animate-spin mx-auto mb-2" />
+                <p className="text-slate-400">Loading subscription data...</p>
+              </div>
+            )}
+
+            {!loading && subscriptionOverview && subscriptionOverview.grace_period_accounts?.length === 0 && subscriptionOverview.suspended_accounts?.length === 0 && (
+              <Card className="bg-slate-800/50 border-slate-700">
+                <CardContent className="p-8 text-center">
+                  <Check className="w-12 h-12 text-emerald-400 mx-auto mb-3" />
+                  <p className="text-white font-medium text-lg">All accounts in good standing</p>
+                  <p className="text-slate-400 text-sm mt-1">No accounts are currently in grace period or suspended</p>
+                </CardContent>
+              </Card>
+            )}
+          </div>
+        )}
+
+        {/* AI Insights Tab */}
+        {activeTab === 'ai-insights' && (
+          <AdminAIInsights />
+        )}
+
+        {/* Bulk Upload Tab */}
+        {activeTab === 'bulk-upload' && (
+          <div className="space-y-6">
+            {/* Template Download */}
+            <Card className="bg-slate-800/50 backdrop-blur border-slate-700">
+              <CardHeader>
+                <CardTitle className="text-white flex items-center">
+                  <Download className="w-5 h-5 text-blue-400 mr-2" />
+                  Download Template
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="text-slate-400 text-sm mb-4">
+                  Download the template with the correct column headers. Only <strong className="text-white">Job Title</strong> is mandatory — all other empty fields will be set to "TBC".
+                </p>
+                <p className="text-slate-500 text-xs mb-4">
+                  Columns: Job Link, Job Title, Company, Location, Salary, Description
+                </p>
+                <div className="flex gap-3">
+                  <Button
+                    variant="outline"
+                    onClick={() => downloadAdminTemplate('csv')}
+                    className="border-slate-600 text-slate-300 hover:bg-slate-700"
+                    data-testid="admin-download-csv-template"
+                  >
+                    <FileSpreadsheet className="w-4 h-4 mr-2" />
+                    CSV Template
+                  </Button>
+                  <Button
+                    variant="outline"
+                    onClick={() => downloadAdminTemplate('xlsx')}
+                    className="border-slate-600 text-slate-300 hover:bg-slate-700"
+                    data-testid="admin-download-xlsx-template"
+                  >
+                    <FileSpreadsheet className="w-4 h-4 mr-2" />
+                    Excel Template
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Upload Area */}
+            <Card className="bg-slate-800/50 backdrop-blur border-slate-700">
+              <CardHeader>
+                <CardTitle className="text-white flex items-center">
+                  <Upload className="w-5 h-5 text-emerald-400 mr-2" />
+                  Upload Jobs
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div
+                  className={`border-2 border-dashed rounded-xl p-8 text-center transition-colors cursor-pointer ${
+                    dragOver
+                      ? 'border-blue-400 bg-blue-500/10'
+                      : bulkFile
+                      ? 'border-emerald-500 bg-emerald-500/5'
+                      : 'border-slate-600 hover:border-slate-500'
+                  }`}
+                  onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
+                  onDragLeave={() => setDragOver(false)}
+                  onDrop={(e) => {
+                    e.preventDefault();
+                    setDragOver(false);
+                    const file = e.dataTransfer.files[0];
+                    if (file && (file.name.endsWith('.csv') || file.name.endsWith('.xlsx') || file.name.endsWith('.xls'))) {
+                      setBulkFile(file);
+                      setBulkResults(null);
+                    }
+                  }}
+                  onClick={() => document.getElementById('admin-bulk-file-input').click()}
+                  data-testid="admin-bulk-upload-dropzone"
+                >
+                  <input
+                    id="admin-bulk-file-input"
+                    type="file"
+                    accept=".csv,.xlsx,.xls"
+                    className="hidden"
+                    onChange={(e) => {
+                      if (e.target.files[0]) {
+                        setBulkFile(e.target.files[0]);
+                        setBulkResults(null);
+                      }
+                    }}
+                    data-testid="admin-bulk-file-input"
+                  />
+                  {bulkFile ? (
+                    <div>
+                      <CheckCircle2 className="w-10 h-10 text-emerald-400 mx-auto mb-3" />
+                      <p className="text-white font-medium">{bulkFile.name}</p>
+                      <p className="text-slate-400 text-sm mt-1">
+                        {(bulkFile.size / 1024).toFixed(1)} KB — Click to change file
+                      </p>
+                    </div>
+                  ) : (
+                    <div>
+                      <Upload className="w-10 h-10 text-slate-500 mx-auto mb-3" />
+                      <p className="text-slate-300 font-medium">
+                        Drop your CSV or Excel file here
+                      </p>
+                      <p className="text-slate-500 text-sm mt-1">or click to browse</p>
+                    </div>
+                  )}
+                </div>
+
+                <div className="mt-4 flex items-center gap-3">
+                  <Button
+                    onClick={handleBulkUpload}
+                    disabled={!bulkFile || bulkUploading}
+                    className="bg-blue-600 hover:bg-blue-700 text-white"
+                    data-testid="admin-bulk-upload-btn"
+                  >
+                    {bulkUploading ? (
+                      <>
+                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                        Uploading...
+                      </>
+                    ) : (
+                      <>
+                        <Upload className="w-4 h-4 mr-2" />
+                        Upload Jobs
+                      </>
+                    )}
+                  </Button>
+                  {bulkFile && !bulkUploading && (
+                    <Button
+                      variant="ghost"
+                      onClick={() => { setBulkFile(null); setBulkResults(null); }}
+                      className="text-slate-400 hover:text-white"
+                    >
+                      <X className="w-4 h-4 mr-1" />
+                      Clear
+                    </Button>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Results */}
+            {bulkResults && (
+              <Card className={`backdrop-blur border ${bulkResults.success ? 'bg-emerald-900/20 border-emerald-700' : 'bg-slate-800/50 border-slate-700'}`}>
+                <CardHeader>
+                  <CardTitle className="text-white flex items-center">
+                    {bulkResults.created > 0 ? (
+                      <CheckCircle2 className="w-5 h-5 text-emerald-400 mr-2" />
+                    ) : (
+                      <AlertCircle className="w-5 h-5 text-amber-400 mr-2" />
+                    )}
+                    Upload Results
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="grid grid-cols-3 gap-4 mb-4">
+                    <div className="bg-slate-900/50 rounded-lg p-4 text-center">
+                      <p className="text-3xl font-bold text-blue-400">{bulkResults.total_rows}</p>
+                      <p className="text-xs text-slate-400 mt-1">Total Rows</p>
+                    </div>
+                    <div className="bg-slate-900/50 rounded-lg p-4 text-center">
+                      <p className="text-3xl font-bold text-emerald-400">{bulkResults.created}</p>
+                      <p className="text-xs text-slate-400 mt-1">Jobs Created</p>
+                    </div>
+                    <div className="bg-slate-900/50 rounded-lg p-4 text-center">
+                      <p className="text-3xl font-bold text-red-400">{bulkResults.failed}</p>
+                      <p className="text-xs text-slate-400 mt-1">Failed</p>
+                    </div>
+                  </div>
+
+                  {bulkResults.errors && bulkResults.errors.length > 0 && (
+                    <div className="space-y-2">
+                      <p className="text-sm text-slate-300 font-medium">Errors:</p>
+                      <div className="max-h-48 overflow-y-auto space-y-1">
+                        {bulkResults.errors.map((err, i) => (
+                          <div key={i} className="flex items-start gap-2 text-sm bg-red-900/20 border border-red-800/30 rounded-lg px-3 py-2">
+                            <XCircle className="w-4 h-4 text-red-400 mt-0.5 shrink-0" />
+                            <span className="text-slate-300">
+                              {err.row > 0 && <span className="text-red-400 font-mono">Row {err.row}: </span>}
+                              {err.error}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            )}
+
+            {/* Help Info */}
+            <Card className="bg-slate-800/30 border-slate-700/50">
+              <CardContent className="p-5">
+                <h4 className="text-slate-300 font-medium mb-2 flex items-center">
+                  <AlertCircle className="w-4 h-4 mr-2 text-blue-400" />
+                  Upload Guide
+                </h4>
+                <ul className="text-sm text-slate-400 space-y-1.5 ml-6 list-disc">
+                  <li>Accepted formats: <strong className="text-slate-300">.csv</strong> and <strong className="text-slate-300">.xlsx</strong></li>
+                  <li>Only <strong className="text-slate-300">Job Title</strong> is mandatory — rows without a title will be skipped</li>
+                  <li>Empty fields are automatically set to <strong className="text-slate-300">"TBC"</strong> (To Be Confirmed)</li>
+                  <li><strong className="text-slate-300">Job Link</strong> maps to the external Application URL where candidates apply</li>
+                  <li>Jobs are posted immediately and visible to all job seekers</li>
+                </ul>
+              </CardContent>
+            </Card>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
+
+export default AdminDashboard;
