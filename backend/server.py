@@ -1,89 +1,6897 @@
-from fastapi import FastAPI, APIRouter
+"""
+JobRocket API - Main Server
+Refactored for multi-tenant SaaS architecture
+"""
+
+from fastapi import FastAPI, APIRouter, HTTPException, Query, Depends, status, UploadFile, File, Form, Request
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import Response
 from dotenv import load_dotenv
 from starlette.middleware.cors import CORSMiddleware
 from motor.motor_asyncio import AsyncIOMotorClient
 import os
 import logging
 from pathlib import Path
-from pydantic import BaseModel, Field, ConfigDict
-from typing import List
+from typing import List, Optional
 import uuid
-from datetime import datetime, timezone
+from datetime import datetime, timedelta
+import jwt
+from passlib.context import CryptContext
+import secrets
+import hashlib
+import urllib.parse
 
+# Import models
+from models import (
+    UserRole, AccountRole, SubscriptionStatus, BillingCycle,
+    TierId, FeatureId, AddonId,
+    JobType, WorkType, ApplicationStatus,
+    PaymentStatus, PaymentProvider, InvitationStatus,
+    Account, AccountCreate, AccountUpdate,
+    User, UserRegister, UserLogin, Token, UserProfileUpdate,
+    TeamInvitation, TeamInvitationCreate,
+    Job, JobCreate, JobApplication, JobApplicationCreate,
+    Payment, SubscriptionPaymentRequest, AddonPaymentRequest,
+    DiscountCode, DiscountCodeCreate,
+    get_tier_config, get_all_tiers, get_addon_config, tier_has_feature,
+    TIER_CONFIG, ADDON_CONFIG
+)
 
+# Import services
+from services import (
+    FeatureAccessService, create_feature_service,
+    AccountService, create_account_service
+)
+from services.email_service import email_service, EmailType, EmailTemplates
+
+# Setup
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
+
+# Logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
+# Security
+JWT_SECRET = os.environ.get('JWT_SECRET', secrets.token_urlsafe(32))
+JWT_ALGORITHM = "HS256"
+ACCESS_TOKEN_EXPIRE_MINUTES = 30 * 24 * 60  # 30 days
+
+pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+security = HTTPBearer()
+
+# Payment Configuration
+PAYFAST_MERCHANT_ID = os.environ.get('PAYFAST_MERCHANT_ID')
+PAYFAST_MERCHANT_KEY = os.environ.get('PAYFAST_MERCHANT_KEY')
+PAYFAST_PASSPHRASE = os.environ.get('PAYFAST_PASSPHRASE')
+PAYFAST_SANDBOX = os.environ.get('PAYFAST_SANDBOX', 'True').lower() == 'true'
+
+# Production Configuration
+BASE_URL = os.environ.get('BASE_URL', 'https://jobrocket.co.za')
+UPLOAD_PATH = os.environ.get('UPLOAD_PATH', str(ROOT_DIR / 'uploads'))
+MAX_FILE_SIZE = int(os.environ.get('MAX_FILE_SIZE', '10485760'))
+
+# Google OAuth Configuration
+GOOGLE_CLIENT_ID = os.environ.get('GOOGLE_CLIENT_ID')
+GOOGLE_CLIENT_SECRET = os.environ.get('GOOGLE_CLIENT_SECRET')
 
 # MongoDB connection
 mongo_url = os.environ['MONGO_URL']
 client = AsyncIOMotorClient(mongo_url)
 db = client[os.environ['DB_NAME']]
 
-# Create the main app without a prefix
-app = FastAPI()
+# Create services
+feature_service = create_feature_service(db)
+account_service = create_account_service(db)
 
-# Create a router with the /api prefix
+# Create app
+app = FastAPI(title="JobRocket API", version="2.0.0")
+
+# Create router with /api prefix
 api_router = APIRouter(prefix="/api")
 
-
-# Define Models
-class StatusCheck(BaseModel):
-    model_config = ConfigDict(extra="ignore")  # Ignore MongoDB's _id field
-    
-    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
-    client_name: str
-    timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
-
-class StatusCheckCreate(BaseModel):
-    client_name: str
-
-# Add your routes to the router instead of directly to app
-@api_router.get("/")
-async def root():
-    return {"message": "Hello World"}
-
-@api_router.post("/status", response_model=StatusCheck)
-async def create_status_check(input: StatusCheckCreate):
-    status_dict = input.model_dump()
-    status_obj = StatusCheck(**status_dict)
-    
-    # Convert to dict and serialize datetime to ISO string for MongoDB
-    doc = status_obj.model_dump()
-    doc['timestamp'] = doc['timestamp'].isoformat()
-    
-    _ = await db.status_checks.insert_one(doc)
-    return status_obj
-
-@api_router.get("/status", response_model=List[StatusCheck])
-async def get_status_checks():
-    # Exclude MongoDB's _id field from the query results
-    status_checks = await db.status_checks.find({}, {"_id": 0}).to_list(1000)
-    
-    # Convert ISO string timestamps back to datetime objects
-    for check in status_checks:
-        if isinstance(check['timestamp'], str):
-            check['timestamp'] = datetime.fromisoformat(check['timestamp'])
-    
-    return status_checks
-
-# Include the router in the main app
-app.include_router(api_router)
+# CORS Configuration - Production ready
+CORS_ORIGINS = os.environ.get('CORS_ORIGINS', 'https://jobrocket.co.za,https://www.jobrocket.co.za')
+allowed_origins = [origin.strip() for origin in CORS_ORIGINS.split(',')]
 
 app.add_middleware(
     CORSMiddleware,
+    allow_origins=allowed_origins,
     allow_credentials=True,
-    allow_origins=os.environ.get('CORS_ORIGINS', '*').split(','),
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],
+    allow_headers=["Authorization", "Content-Type", "Accept", "Origin", "X-Requested-With"],
 )
 
-# Configure logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-)
-logger = logging.getLogger(__name__)
+# Ensure upload directory exists
+Path(UPLOAD_PATH).mkdir(parents=True, exist_ok=True)
+for subdir in ["cvs", "profile_pictures", "documents", "images", "videos"]:
+    (Path(UPLOAD_PATH) / subdir).mkdir(parents=True, exist_ok=True)
 
-@app.on_event("shutdown")
-async def shutdown_db_client():
-    client.close()
+# NOTE: Static files mount is done AFTER router include to avoid shadowing upload POST endpoints
+# See end of file for static file mount
+
+
+# ============================================
+# Authentication Helpers
+# ============================================
+
+def verify_password(plain_password: str, hashed_password: str) -> bool:
+    return pwd_context.verify(plain_password, hashed_password)
+
+
+def get_password_hash(password: str) -> str:
+    return pwd_context.hash(password)
+
+
+def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -> str:
+    to_encode = data.copy()
+    expire = datetime.utcnow() + (expires_delta or timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES))
+    to_encode.update({"exp": expire})
+    return jwt.encode(to_encode, JWT_SECRET, algorithm=JWT_ALGORITHM)
+
+
+async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(security)) -> User:
+    """Get the current authenticated user"""
+    credentials_exception = HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail="Could not validate credentials",
+        headers={"WWW-Authenticate": "Bearer"},
+    )
+    try:
+        payload = jwt.decode(credentials.credentials, JWT_SECRET, algorithms=[JWT_ALGORITHM])
+        user_id: str = payload.get("sub")
+        if user_id is None:
+            raise credentials_exception
+    except jwt.PyJWTError:
+        raise credentials_exception
+    
+    user = await db.users.find_one({"id": user_id})
+    if user is None:
+        raise credentials_exception
+    
+    if "_id" in user:
+        del user["_id"]
+    
+    return User(**user)
+
+
+async def get_current_recruiter(current_user: User = Depends(get_current_user)) -> User:
+    """Ensure current user is a recruiter with an active account"""
+    if current_user.role != UserRole.RECRUITER:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only recruiters can access this resource"
+        )
+    
+    if not current_user.account_id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="No account associated with this user"
+        )
+    
+    # Check subscription status
+    account = await db.accounts.find_one({"id": current_user.account_id})
+    if account:
+        subscription_status = account.get("subscription_status", "inactive")
+        subscription_end = account.get("subscription_end_date")
+        now = datetime.utcnow()
+        
+        # Auto-transition: if active but subscription_end_date has passed, start grace period
+        if subscription_status == "active" and subscription_end and now > subscription_end:
+            await db.accounts.update_one(
+                {"id": current_user.account_id},
+                {"$set": {
+                    "subscription_status": "past_due",
+                    "grace_period_start": subscription_end
+                }}
+            )
+            subscription_status = "past_due"
+            account["grace_period_start"] = subscription_end
+        
+        # Allow active and trial status
+        if subscription_status not in ["active", "trial", "past_due"]:
+            raise HTTPException(
+                status_code=status.HTTP_402_PAYMENT_REQUIRED,
+                detail="Subscription inactive. Please make a payment to continue using JobRocket."
+            )
+        
+        # For past_due, check if still in grace period
+        if subscription_status == "past_due":
+            grace_period_start = account.get("grace_period_start")
+            if grace_period_start:
+                if isinstance(grace_period_start, str):
+                    grace_period_start = datetime.fromisoformat(grace_period_start)
+                grace_end = grace_period_start + timedelta(days=7)
+                if now > grace_end:
+                    # Grace period expired — suspend account
+                    await db.accounts.update_one(
+                        {"id": current_user.account_id},
+                        {"$set": {
+                            "subscription_status": "inactive",
+                            "deactivated_at": now,
+                            "deactivation_reason": "grace_period_expired"
+                        }}
+                    )
+                    raise HTTPException(
+                        status_code=status.HTTP_402_PAYMENT_REQUIRED,
+                        detail="Grace period expired. Please make a payment to reactivate your account."
+                    )
+    
+    # Check if user is an extra seat user with inactive seat
+    extra_seat = await db.extra_seats.find_one({"user_id": current_user.id})
+    if extra_seat:
+        if not extra_seat.get("is_active") or extra_seat.get("payment_status") != "paid":
+            raise HTTPException(
+                status_code=status.HTTP_402_PAYMENT_REQUIRED,
+                detail="Your user seat is inactive. Please contact your account owner to make a payment."
+            )
+    
+    return current_user
+
+
+async def get_recruiter_for_billing(current_user: User = Depends(get_current_user)) -> User:
+    """
+    Get recruiter for billing-related read endpoints.
+    Allows pending/free tier users to access billing info so they can see 'No Active Package' card.
+    """
+    if current_user.role != UserRole.RECRUITER:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only recruiters can access this resource"
+        )
+    
+    if not current_user.account_id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="No account associated with this user"
+        )
+    
+    return current_user
+
+
+async def get_recruiter_read_only(current_user: User = Depends(get_current_user)) -> tuple:
+    """
+    Get recruiter with read-only flag for users with inactive seats.
+    Returns (user, is_read_only) tuple.
+    """
+    if current_user.role != UserRole.RECRUITER:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only recruiters can access this resource"
+        )
+    
+    if not current_user.account_id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="No account associated with this user"
+        )
+    
+    is_read_only = False
+    
+    # Check subscription status
+    account = await db.accounts.find_one({"id": current_user.account_id})
+    if account:
+        subscription_status = account.get("subscription_status", "inactive")
+        
+        # Inactive subscription blocks access completely
+        if subscription_status not in ["active", "trial", "past_due"]:
+            raise HTTPException(
+                status_code=status.HTTP_402_PAYMENT_REQUIRED,
+                detail="Subscription inactive. Please make a payment to continue using JobRocket."
+            )
+    
+    # Check if user is an extra seat user with inactive seat - give read-only access
+    extra_seat = await db.extra_seats.find_one({"user_id": current_user.id})
+    if extra_seat:
+        if not extra_seat.get("is_active") or extra_seat.get("payment_status") != "paid":
+            is_read_only = True
+    
+    return current_user, is_read_only
+
+
+async def verify_admin_user(current_user: User = Depends(get_current_user)) -> User:
+    """Ensure current user is an admin"""
+    if current_user.role != UserRole.ADMIN:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Admin access required"
+        )
+    return current_user
+
+
+async def check_feature(
+    current_user: User,
+    feature_id: FeatureId
+) -> bool:
+    """Check if user's account has access to a feature"""
+    if not current_user.account_id:
+        return False
+    
+    has_access, error = await feature_service.check_feature_access(
+        current_user.account_id, 
+        feature_id
+    )
+    
+    if not has_access:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=error or "Feature not available on your current plan"
+        )
+    
+    return True
+
+
+# ============================================
+# Auth Endpoints
+# ============================================
+
+@api_router.post("/auth/register", response_model=Token)
+async def register(user_data: UserRegister):
+    """Register a new user. For recruiters, an account is auto-created."""
+    
+    # Check if email exists
+    existing_user = await db.users.find_one({"email": user_data.email})
+    if existing_user:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Email already registered"
+        )
+    
+    # Create user
+    user_dict = {
+        "id": str(uuid.uuid4()),
+        "email": user_data.email,
+        "password_hash": get_password_hash(user_data.password),
+        "first_name": user_data.first_name,
+        "last_name": user_data.last_name,
+        "role": user_data.role,
+        "account_id": None,
+        "account_role": None,
+        "created_at": datetime.utcnow(),
+        "updated_at": datetime.utcnow(),
+    }
+    
+    await db.users.insert_one(user_dict)
+    
+    # For recruiters, auto-create an account
+    if user_data.role == UserRole.RECRUITER:
+        company_name = user_data.company_name or f"{user_data.first_name}'s Company"
+        account = await account_service.create_account_for_user(
+            user_id=user_dict["id"],
+            company_name=company_name
+        )
+        user_dict["account_id"] = account.id
+        user_dict["account_role"] = AccountRole.OWNER
+    
+    # Create token
+    access_token = create_access_token(data={"sub": user_dict["id"]})
+    
+    # Prepare user response (remove sensitive data)
+    user_response = {k: v for k, v in user_dict.items() if k != "password_hash"}
+    if "_id" in user_response:
+        del user_response["_id"]
+    
+    return Token(
+        access_token=access_token,
+        token_type="bearer",
+        user=user_response
+    )
+
+
+@api_router.post("/auth/login", response_model=Token)
+async def login(login_data: UserLogin):
+    """Login with email and password"""
+    
+    user = await db.users.find_one({"email": login_data.email})
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid email or password"
+        )
+    
+    if not verify_password(login_data.password, user["password_hash"]):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid email or password"
+        )
+    
+    # Update last login
+    await db.users.update_one(
+        {"id": user["id"]},
+        {"$set": {"last_login": datetime.utcnow()}}
+    )
+    
+    # Create token
+    access_token = create_access_token(data={"sub": user["id"]})
+    
+    # Prepare user response
+    if "_id" in user:
+        del user["_id"]
+    if "password_hash" in user:
+        del user["password_hash"]
+    
+    return Token(
+        access_token=access_token,
+        token_type="bearer",
+        user=user
+    )
+
+
+@api_router.post("/auth/forgot-password")
+async def forgot_password(request: Request):
+    """Send a password reset email"""
+    from services.email_service import email_service, EmailType, EmailTemplates
+    
+    body = await request.json()
+    email = body.get("email", "").strip().lower()
+    
+    if not email:
+        raise HTTPException(status_code=400, detail="Email is required")
+    
+    # Always return success to prevent email enumeration
+    user = await db.users.find_one({"email": email})
+    if not user:
+        return {"message": "If an account with that email exists, a password reset link has been sent."}
+    
+    # Generate a short-lived reset token (1 hour)
+    reset_token = secrets.token_urlsafe(32)
+    expires_at = datetime.utcnow() + timedelta(hours=1)
+    
+    # Store token in DB
+    await db.password_resets.delete_many({"user_id": user["id"]})  # Remove old tokens
+    await db.password_resets.insert_one({
+        "user_id": user["id"],
+        "email": email,
+        "token": reset_token,
+        "expires_at": expires_at,
+        "created_at": datetime.utcnow(),
+        "used": False
+    })
+    
+    # Build reset URL
+    frontend_url = os.environ.get("FRONTEND_URL", "https://jobrocket.co.za")
+    reset_url = f"{frontend_url}/reset-password/{reset_token}"
+    
+    # Send email
+    try:
+        user_name = user.get("first_name", "there")
+        email_content = EmailTemplates.password_reset(
+            user_name=user_name,
+            reset_url=reset_url
+        )
+        result = email_service.send_email(
+            email_type=EmailType.JOB_ALERTS,
+            to_email=email,
+            subject="Reset your Job Rocket password",
+            html_content=email_content["html"],
+            plain_content=email_content["plain"]
+        )
+        if result.get("success"):
+            logger.info(f"Password reset email sent to {email}")
+        else:
+            logger.error(f"Password reset email FAILED for {email}: {result.get('error')}")
+    except Exception as e:
+        logger.error(f"Failed to send password reset email: {e}")
+    
+    return {"message": "If an account with that email exists, a password reset link has been sent."}
+
+
+@api_router.post("/auth/reset-password")
+async def reset_password(request: Request):
+    """Reset password using a valid token"""
+    body = await request.json()
+    token = body.get("token", "").strip()
+    new_password = body.get("new_password", "").strip()
+    
+    if not token or not new_password:
+        raise HTTPException(status_code=400, detail="Token and new password are required")
+    
+    if len(new_password) < 6:
+        raise HTTPException(status_code=400, detail="Password must be at least 6 characters")
+    
+    # Find and validate token
+    reset_record = await db.password_resets.find_one({"token": token, "used": False})
+    if not reset_record:
+        raise HTTPException(status_code=400, detail="Invalid or expired reset link. Please request a new one.")
+    
+    if datetime.utcnow() > reset_record["expires_at"]:
+        await db.password_resets.update_one({"token": token}, {"$set": {"used": True}})
+        raise HTTPException(status_code=400, detail="This reset link has expired. Please request a new one.")
+    
+    # Update user password
+    new_hash = get_password_hash(new_password)
+    await db.users.update_one(
+        {"id": reset_record["user_id"]},
+        {"$set": {"password_hash": new_hash, "updated_at": datetime.utcnow()}}
+    )
+    
+    # Mark token as used
+    await db.password_resets.update_one({"token": token}, {"$set": {"used": True}})
+    
+    logger.info(f"Password reset completed for user {reset_record['user_id']}")
+    return {"message": "Password has been reset successfully. You can now log in with your new password."}
+
+
+@api_router.post("/auth/change-password")
+async def change_password(request: Request, current_user: User = Depends(get_current_user)):
+    """Change password for logged-in users. Requires current password."""
+    body = await request.json()
+    current_password = body.get("current_password", "").strip()
+    new_password = body.get("new_password", "").strip()
+
+    if not current_password or not new_password:
+        raise HTTPException(status_code=400, detail="Current password and new password are required")
+    if len(new_password) < 6:
+        raise HTTPException(status_code=400, detail="New password must be at least 6 characters")
+    if current_password == new_password:
+        raise HTTPException(status_code=400, detail="New password must be different from current password")
+
+    user_doc = await db.users.find_one({"id": current_user.id})
+    if not user_doc:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    stored_hash = user_doc.get("password_hash", "")
+    if not stored_hash or not verify_password(current_password, stored_hash):
+        raise HTTPException(status_code=400, detail="Current password is incorrect")
+
+    new_hash = get_password_hash(new_password)
+    await db.users.update_one(
+        {"id": current_user.id},
+        {"$set": {"password_hash": new_hash, "updated_at": datetime.utcnow()}}
+    )
+
+    logger.info(f"Password changed for user {current_user.id}")
+    return {"message": "Password changed successfully"}
+
+async def google_auth(request: Request):
+    """Authenticate or register via Google OAuth"""
+    from google.oauth2 import id_token
+    from google.auth.transport import requests as google_requests
+    
+    body = await request.json()
+    credential = body.get("credential")
+    role = body.get("role", "job_seeker")
+    company_name = body.get("company_name")
+    
+    if not credential:
+        raise HTTPException(status_code=400, detail="Missing Google credential")
+    
+    # REMINDER: DO NOT HARDCODE THE URL, OR ADD ANY FALLBACKS OR REDIRECT URLS, THIS BREAKS THE AUTH
+    try:
+        idinfo = id_token.verify_oauth2_token(credential, google_requests.Request(), GOOGLE_CLIENT_ID)
+    except Exception as e:
+        logger.error(f"Google token verification failed: {e}")
+        raise HTTPException(status_code=401, detail="Invalid Google token")
+    
+    google_email = idinfo.get("email")
+    if not google_email:
+        raise HTTPException(status_code=400, detail="Google account has no email")
+    
+    # Check if user exists
+    existing_user = await db.users.find_one({"email": google_email})
+    
+    if existing_user:
+        # Login existing user
+        await db.users.update_one(
+            {"id": existing_user["id"]},
+            {"$set": {"last_login": datetime.utcnow(), "profile_picture_url": existing_user.get("profile_picture_url") or idinfo.get("picture")}}
+        )
+        access_token = create_access_token(data={"sub": existing_user["id"]})
+        if "_id" in existing_user:
+            del existing_user["_id"]
+        if "password_hash" in existing_user:
+            del existing_user["password_hash"]
+        return Token(access_token=access_token, token_type="bearer", user=existing_user)
+    
+    # Register new user
+    first_name = idinfo.get("given_name", google_email.split("@")[0])
+    last_name = idinfo.get("family_name", "")
+    picture_url = idinfo.get("picture")
+    
+    # Create a random password hash for Google users (they won't use password login)
+    random_password_hash = get_password_hash(secrets.token_urlsafe(32))
+    
+    new_user = User(
+        email=google_email,
+        password_hash=random_password_hash,
+        first_name=first_name,
+        last_name=last_name,
+        role=UserRole(role) if role in [r.value for r in UserRole] else UserRole.JOB_SEEKER,
+        profile_picture_url=picture_url,
+        created_at=datetime.utcnow(),
+        updated_at=datetime.utcnow(),
+        last_login=datetime.utcnow(),
+    )
+    
+    user_dict = new_user.dict()
+    user_dict["google_id"] = idinfo.get("sub")
+    user_dict["auth_provider"] = "google"
+    
+    # For recruiters, create account
+    if new_user.role == UserRole.RECRUITER:
+        account_name = company_name or f"{first_name}'s Company"
+        new_account = Account(
+            name=account_name,
+            owner_user_id=new_user.id,
+            tier_id=TierId.STARTER,
+            subscription_status=SubscriptionStatus.ACTIVE,
+            subscription_start_date=datetime.utcnow(),
+            subscription_end_date=datetime.utcnow() + timedelta(days=30),
+        )
+        await db.accounts.insert_one(new_account.dict())
+        user_dict["account_id"] = new_account.id
+        user_dict["account_role"] = AccountRole.OWNER.value
+    
+    await db.users.insert_one(user_dict)
+    
+    access_token = create_access_token(data={"sub": new_user.id})
+    
+    # Clean response
+    if "_id" in user_dict:
+        del user_dict["_id"]
+    if "password_hash" in user_dict:
+        del user_dict["password_hash"]
+    
+    return Token(access_token=access_token, token_type="bearer", user=user_dict)
+
+
+@api_router.get("/auth/me")
+async def get_me(current_user: User = Depends(get_current_user)):
+    """Get current user profile with account details"""
+    
+    # Fetch fresh user data from DB to get all fields including arrays
+    user_data = await db.users.find_one({"id": current_user.id})
+    if user_data and "_id" in user_data:
+        del user_data["_id"]
+    
+    user_dict = user_data if user_data else current_user.dict()
+    user_dict.pop("password_hash", None)
+    
+    # Add account details for recruiters
+    if current_user.account_id:
+        account = await account_service.get_account(current_user.account_id)
+        if account:
+            tier_config = get_tier_config(TierId(account["tier_id"]))
+            features, active_addons = await feature_service.get_account_features(current_user.account_id)
+            
+            user_dict["account"] = {
+                "id": account["id"],
+                "name": account["name"],
+                "tier_id": account["tier_id"],
+                "tier_name": tier_config["name"],
+                "subscription_status": account["subscription_status"],
+                "subscription_end_date": account.get("subscription_end_date"),
+                "company_logo_url": account.get("company_logo_url"),
+                "company_cover_image_url": account.get("company_cover_image_url"),
+                "company_description": account.get("company_description"),
+                "company_website": account.get("company_website"),
+                "company_linkedin": account.get("company_linkedin"),
+                "company_size": account.get("company_size"),
+                "company_industry": account.get("company_industry"),
+                "company_location": account.get("company_location"),
+                "included_users": tier_config["included_users"],
+                "current_user_count": account.get("current_user_count", 1),
+                "features": [f.value if hasattr(f, 'value') else f for f in features],
+                "active_addons": [a.value if hasattr(a, 'value') else a for a in active_addons],
+            }
+            
+            # Add billing status info for frontend banners
+            sub_status = account.get("subscription_status", "pending")
+            user_dict["account"]["subscription_status"] = sub_status
+            
+            if sub_status == "past_due":
+                gp_start = account.get("grace_period_start")
+                if gp_start:
+                    if isinstance(gp_start, str):
+                        gp_start = datetime.fromisoformat(gp_start)
+                    grace_end = gp_start + timedelta(days=7)
+                    days_remaining = max(0, (grace_end - datetime.utcnow()).days)
+                    user_dict["account"]["grace_days_remaining"] = days_remaining
+                    user_dict["account"]["grace_period_end"] = grace_end.isoformat()
+            
+            sub_end = account.get("subscription_end_date")
+            if sub_end:
+                user_dict["account"]["subscription_end_date"] = sub_end.isoformat() if isinstance(sub_end, datetime) else sub_end
+            
+            # Calculate recruiter profile progress from account data
+            rp = {}
+            total = 0
+            if account.get("company_industry"):
+                rp["company_industry"] = True
+                total += 20
+            if account.get("company_size"):
+                rp["company_size"] = True
+                total += 10
+            desc = account.get("company_description") or ""
+            if len(desc) >= 100:
+                rp["company_description"] = True
+                total += 30
+            if account.get("company_logo_url"):
+                rp["company_logo"] = True
+                total += 15
+            if account.get("company_cover_image_url"):
+                rp["company_cover"] = True
+                total += 10
+            if account.get("company_website"):
+                rp["company_website"] = True
+                total += 10
+            if account.get("company_linkedin"):
+                rp["company_linkedin"] = True
+                total += 5
+            # Check if recruiter has posted any jobs
+            jobs_count = await db.jobs.count_documents({"account_id": current_user.account_id})
+            if jobs_count > 0:
+                rp["first_job_posted"] = True
+            rp["total_points"] = total
+            user_dict["recruiter_progress"] = rp
+    
+    return user_dict
+
+
+# ============================================
+# Account Endpoints
+# ============================================
+
+@api_router.get("/account")
+async def get_account(current_user: User = Depends(get_current_recruiter)):
+    """Get current user's account details"""
+    
+    account = await account_service.get_account(current_user.account_id)
+    if not account:
+        raise HTTPException(status_code=404, detail="Account not found")
+    
+    tier_config = get_tier_config(TierId(account["tier_id"]))
+    features, active_addons = await feature_service.get_account_features(current_user.account_id)
+    available_addons = await feature_service.get_available_addons(current_user.account_id)
+    
+    return {
+        **account,
+        "tier_name": tier_config["name"],
+        "tier_price": tier_config["price_monthly"],
+        "included_users": tier_config["included_users"],
+        "extra_user_price": tier_config["extra_user_price"],
+        "max_users": tier_config["included_users"] + account.get("extra_users_count", 0),
+        "features": [f.value if hasattr(f, 'value') else f for f in features],
+        "active_addons": [a.value if hasattr(a, 'value') else a for a in active_addons],
+        "available_addons": available_addons,
+        "company_profile_level": tier_config["company_profile_level"].value,
+    }
+
+
+@api_router.put("/account")
+async def update_account(
+    update_data: AccountUpdate,
+    current_user: User = Depends(get_current_recruiter)
+):
+    """Update account details (company branding, etc.)"""
+    
+    # Check permission
+    if current_user.account_role not in [AccountRole.OWNER, AccountRole.ADMIN]:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only account owner or admin can update account details"
+        )
+    
+    update_dict = {k: v for k, v in update_data.dict().items() if v is not None}
+    updated = await account_service.update_account(current_user.account_id, update_dict)
+    
+    return updated
+
+
+@api_router.get("/account/users")
+async def get_account_users(current_user: User = Depends(get_current_recruiter)):
+    """Get all users in the current account"""
+    
+    users = await account_service.get_account_users(current_user.account_id)
+    return users
+
+
+@api_router.post("/account/invite")
+async def invite_user(
+    invitation_data: TeamInvitationCreate,
+    current_user: User = Depends(get_current_recruiter)
+):
+    """Invite a new user to the account"""
+    
+    # Check permission
+    if current_user.account_role not in [AccountRole.OWNER, AccountRole.ADMIN]:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only account owner or admin can invite users"
+        )
+    
+    # Check if can add user
+    can_add, error = await feature_service.can_add_user(current_user.account_id)
+    if not can_add:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=error)
+    
+    invitation, error = await account_service.create_invitation(
+        account_id=current_user.account_id,
+        inviter_user_id=current_user.id,
+        email=invitation_data.email,
+        first_name=invitation_data.first_name,
+        last_name=invitation_data.last_name,
+        account_role=invitation_data.account_role
+    )
+    
+    if error:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=error)
+    
+    # Send invitation email
+    try:
+        base_url = os.environ.get("FRONTEND_URL", "https://jobrocket.co.za")
+        accept_url = f"{base_url}/invitations/{invitation.invitation_token}/accept"
+        
+        account = await db.accounts.find_one({"id": current_user.account_id})
+        company_name = account.get("name", "Your Company") if account else "Your Company"
+        inviter_name = f"{current_user.first_name} {current_user.last_name}"
+        invitee_name = invitation_data.first_name or "there"
+        role = invitation_data.account_role.value if hasattr(invitation_data.account_role, 'value') else str(invitation_data.account_role)
+        
+        email_content = EmailTemplates.team_invitation(
+            invitee_name=invitee_name,
+            inviter_name=inviter_name,
+            company_name=company_name,
+            role=role,
+            accept_url=accept_url
+        )
+        result = email_service.send_email(
+            email_type=EmailType.JOB_ALERTS,
+            to_email=invitation_data.email,
+            subject=f"You're invited to join {company_name} on Job Rocket",
+            html_content=email_content["html"],
+            plain_content=email_content["plain"]
+        )
+        if result.get("success"):
+            logger.info(f"Invitation email sent to {invitation_data.email}")
+        else:
+            logger.warning(f"Failed to send invitation email: {result.get('error')}")
+    except Exception as e:
+        logger.error(f"Invitation email error: {str(e)}")
+    
+    return {
+        "message": "Invitation sent successfully",
+        "invitation_token": invitation.invitation_token,
+    }
+
+
+@api_router.get("/account/invitations")
+async def get_invitations(current_user: User = Depends(get_current_recruiter)):
+    """Get pending invitations for the account"""
+    
+    invitations = await account_service.get_pending_invitations(current_user.account_id)
+    return invitations
+
+
+@api_router.post("/invitations/{token}/accept")
+async def accept_invitation(
+    token: str,
+    current_user: User = Depends(get_current_user)
+):
+    """Accept a team invitation"""
+    
+    success, error = await account_service.accept_invitation(token, current_user.id)
+    
+    if not success:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=error)
+    
+    return {"message": "Invitation accepted successfully"}
+
+
+@api_router.delete("/account/users/{user_id}")
+async def remove_user(
+    user_id: str,
+    current_user: User = Depends(get_current_recruiter)
+):
+    """Remove a user from the account"""
+    
+    success, error = await account_service.remove_user_from_account(
+        current_user.account_id,
+        user_id,
+        current_user.id
+    )
+    
+    if not success:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=error)
+    
+    return {"message": "User removed successfully"}
+
+
+# ============================================
+# Tier Endpoints
+# ============================================
+
+@api_router.get("/tiers")
+async def get_tiers():
+    """Get all available subscription tiers"""
+    
+    tiers = []
+    for tier in get_all_tiers():
+        tiers.append({
+            "id": tier["id"].value,
+            "name": tier["name"],
+            "price_monthly": tier["price_monthly"],
+            "currency": tier["currency"],
+            "included_users": tier["included_users"],
+            "extra_user_price": tier["extra_user_price"],
+            "multi_user_access": tier["multi_user_access"],
+            "job_post_limit": tier.get("job_post_limit"),
+            "company_profile_level": tier["company_profile_level"].value,
+            "features": [f.value for f in tier["features"]],
+            "available_addons": [a.value for a in tier["available_addons"]],
+        })
+    
+    return tiers
+
+
+@api_router.get("/tiers/{tier_id}")
+async def get_tier(tier_id: str):
+    """Get details for a specific tier"""
+    
+    try:
+        tier = get_tier_config(TierId(tier_id))
+    except ValueError:
+        raise HTTPException(status_code=404, detail="Tier not found")
+    
+    return {
+        "id": tier["id"].value,
+        "name": tier["name"],
+        "price_monthly": tier["price_monthly"],
+        "currency": tier["currency"],
+        "included_users": tier["included_users"],
+        "extra_user_price": tier["extra_user_price"],
+        "multi_user_access": tier["multi_user_access"],
+        "company_profile_level": tier["company_profile_level"].value,
+        "features": [f.value for f in tier["features"]],
+        "available_addons": [a.value for a in tier["available_addons"]],
+    }
+
+
+@api_router.get("/addons")
+async def get_addons(current_user: User = Depends(get_current_recruiter)):
+    """Get add-ons available for purchase by current account"""
+    
+    addons = await feature_service.get_available_addons(current_user.account_id)
+    return addons
+
+
+# ============================================
+# Job Endpoints
+# ============================================
+
+@api_router.post("/jobs", response_model=dict)
+async def create_job(
+    job_data: JobCreate,
+    current_user: User = Depends(get_current_recruiter)
+):
+    """Create a new job listing"""
+    
+    # Get account for company details
+    account = await account_service.get_account(current_user.account_id)
+    if not account:
+        raise HTTPException(status_code=404, detail="Account not found")
+    
+    # Check subscription status
+    if account.get("subscription_status") not in [SubscriptionStatus.ACTIVE.value, SubscriptionStatus.TRIAL.value, "active", "trial"]:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Active subscription required to post jobs"
+        )
+    
+    # Check job post limit for Starter tier
+    tier_config = get_tier_config(TierId(account.get("tier_id", "starter")))
+    job_post_limit = tier_config.get("job_post_limit")
+    if job_post_limit:
+        thirty_days_ago = datetime.utcnow() - timedelta(days=30)
+        job_count = await db.jobs.count_documents({
+            "account_id": current_user.account_id,
+            "posted_date": {"$gte": thirty_days_ago}
+        })
+        if job_count >= job_post_limit:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=f"Job posting limit reached ({job_post_limit} posts/month). Upgrade to Growth for unlimited posting."
+            )
+    
+    job_dict = {
+        "id": str(uuid.uuid4()),
+        "account_id": current_user.account_id,
+        "posted_by": current_user.id,
+        "company_name": account["name"],
+        "logo_url": account.get("company_logo_url"),
+        "posted_date": datetime.utcnow(),
+        "created_at": datetime.utcnow(),
+        "expiry_date": datetime.utcnow() + timedelta(days=35),
+        "is_active": True,
+        **job_data.dict()
+    }
+    
+    # Also store employment_type for alert matching (based on job_type)
+    job_dict["employment_type"] = job_dict.get("job_type", "")
+    
+    await db.jobs.insert_one(job_dict)
+    
+    if "_id" in job_dict:
+        del job_dict["_id"]
+    
+    # Trigger job alert notifications (async background task simulation)
+    await check_and_send_job_alerts(job_dict)
+    
+    return job_dict
+
+
+async def check_and_send_job_alerts(job: dict):
+    """Check job alerts and send email notifications for matching alerts"""
+    try:
+        base_url = os.environ.get("BASE_URL", "https://jobrocket.co.za")
+        
+        # Find all active job alerts that might match this job
+        cursor = db.job_alerts.find({"is_active": True})
+        
+        async for alert in cursor:
+            # Check if all criteria match (strict matching)
+            
+            # 1. Job Title Match
+            job_title_match = alert.get("job_title", "").lower() in job.get("title", "").lower() or \
+                              job.get("title", "").lower() in alert.get("job_title", "").lower()
+            
+            # 2. Location Match
+            location_match = alert.get("location", "").lower() in job.get("location", "").lower() or \
+                             job.get("location", "").lower() in alert.get("location", "").lower()
+            
+            # 3. Employment Type matching (Permanent/Contract) - OR logic within selected types
+            job_employment_type = job.get("employment_type", "").lower()
+            alert_employment_types = [et.lower() for et in alert.get("employment_types", [])]
+            employment_type_match = False
+            for alert_et in alert_employment_types:
+                if alert_et in job_employment_type or \
+                   (alert_et == "permanent" and ("full" in job_employment_type or "permanent" in job_employment_type)) or \
+                   (alert_et == "contract" and "contract" in job_employment_type):
+                    employment_type_match = True
+                    break
+            
+            # 4. Work Type matching (In Office/Hybrid/Remote) - OR logic within selected types
+            job_work_type = job.get("work_type", "").lower()
+            alert_work_types = [wt.lower() for wt in alert.get("work_types", [])]
+            work_type_match = False
+            for alert_wt in alert_work_types:
+                if (alert_wt == "in office" and ("onsite" in job_work_type or "office" in job_work_type)) or \
+                   (alert_wt == "hybrid" and "hybrid" in job_work_type) or \
+                   (alert_wt == "remote" and "remote" in job_work_type):
+                    work_type_match = True
+                    break
+            
+            # All criteria must match (but within employment_types and work_types, it's OR)
+            if job_title_match and location_match and employment_type_match and work_type_match:
+                # Get user name for personalization
+                user = await db.users.find_one({"id": alert["user_id"]})
+                user_name = f"{user.get('first_name', '')} {user.get('last_name', '')}".strip() if user else "Job Seeker"
+                
+                # Create notification record
+                notification = {
+                    "id": str(uuid.uuid4()),
+                    "alert_id": alert["id"],
+                    "user_id": alert["user_id"],
+                    "user_email": alert["user_email"],
+                    "job_id": job["id"],
+                    "job_title": job.get("title"),
+                    "company_name": job.get("company_name"),
+                    "location": job.get("location"),
+                    "work_type": job.get("work_type"),
+                    "employment_type": job.get("employment_type"),
+                    "status": "pending",
+                    "created_at": datetime.utcnow()
+                }
+                
+                # Generate email content
+                job_url = f"{base_url}/jobs/{job['id']}"
+                email_content = EmailTemplates.job_alert_notification(
+                    user_name=user_name,
+                    job_title=job.get("title", ""),
+                    company_name=job.get("company_name", ""),
+                    location=job.get("location", ""),
+                    work_type=job.get("work_type", ""),
+                    salary_range=job.get("salary_range", ""),
+                    job_url=job_url,
+                    alert_name=alert.get("job_title", "Job Alert")
+                )
+                
+                # Send email
+                result = email_service.send_email(
+                    email_type=EmailType.JOB_ALERTS,
+                    to_email=alert["user_email"],
+                    subject=f"🎯 New Job Match: {job.get('title')} at {job.get('company_name')}",
+                    html_content=email_content["html"],
+                    plain_content=email_content["plain"]
+                )
+                
+                # Update notification status based on email result
+                notification["status"] = "sent" if result["success"] else "failed"
+                notification["email_result"] = result
+                notification["sent_at"] = datetime.utcnow() if result["success"] else None
+                
+                await db.job_alert_notifications.insert_one(notification)
+                
+                # Log the result
+                if result["success"]:
+                    print(f"Job alert email sent: {alert['job_title']} -> {job['title']} to {alert['user_email']}")
+                else:
+                    print(f"Job alert email failed: {alert['user_email']} - {result.get('error', 'Unknown error')}")
+                    
+    except Exception as e:
+        print(f"Error checking job alerts: {e}")
+
+
+@api_router.get("/jobs")
+async def get_jobs(
+    current_user: User = Depends(get_current_recruiter),
+    skip: int = 0,
+    limit: int = 150000,
+    include_archived: bool = False
+):
+    """Get jobs for current account"""
+    
+    query = {"account_id": current_user.account_id}
+    
+    # Filter out inactive/deleted jobs unless include_archived is True
+    if not include_archived:
+        query["is_active"] = True
+    
+    jobs = []
+    cursor = db.jobs.find(query).sort("posted_date", -1).skip(skip).limit(limit)
+    
+    async for job in cursor:
+        if "_id" in job:
+            del job["_id"]
+        jobs.append(job)
+    
+    return jobs
+
+
+@api_router.get("/jobs/archived")
+async def get_archived_jobs(
+    current_user: User = Depends(get_current_recruiter),
+    skip: int = 0,
+    limit: int = 150000
+):
+    """Get archived/deleted jobs for current account"""
+    
+    jobs = []
+    cursor = db.jobs.find({
+        "account_id": current_user.account_id,
+        "is_active": False
+    }).sort("posted_date", -1).skip(skip).limit(limit)
+    
+    async for job in cursor:
+        if "_id" in job:
+            del job["_id"]
+        jobs.append(job)
+    
+    return jobs
+
+
+@api_router.get("/public/jobs")
+async def get_public_jobs(
+    skip: int = 0,
+    limit: int = 150000,
+    location: Optional[str] = None,
+    job_type: Optional[str] = None,
+    work_type: Optional[str] = None
+):
+    """Get all active public job listings"""
+    
+    query = {
+        "is_active": True,
+        "expiry_date": {"$gt": datetime.utcnow()}
+    }
+    
+    if location:
+        query["location"] = {"$regex": location, "$options": "i"}
+    if job_type:
+        query["job_type"] = job_type
+    if work_type:
+        query["work_type"] = work_type
+    
+    jobs = []
+    cursor = db.jobs.find(query).sort("posted_date", -1).skip(skip).limit(limit)
+    
+    async for job in cursor:
+        if "_id" in job:
+            del job["_id"]
+        jobs.append(job)
+    
+    total = await db.jobs.count_documents(query)
+    
+    return {"jobs": jobs, "total": total}
+
+
+@api_router.get("/public/jobs/{job_id}")
+async def get_public_job(job_id: str):
+    """Get a specific job listing"""
+    
+    job = await db.jobs.find_one({"id": job_id, "is_active": True})
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found")
+    
+    if "_id" in job:
+        del job["_id"]
+    
+    # Get account info for company page link
+    account = await db.accounts.find_one({"id": job["account_id"]})
+    if account:
+        job["company"] = {
+            "id": account["id"],
+            "name": account["name"],
+            "logo_url": account.get("company_logo_url"),
+            "industry": account.get("company_industry"),
+            "location": account.get("company_location"),
+        }
+    
+    return job
+
+
+@api_router.put("/jobs/{job_id}")
+async def update_job(
+    job_id: str,
+    job_data: JobCreate,
+    current_user: User = Depends(get_current_recruiter)
+):
+    """Update a job listing"""
+    
+    job = await db.jobs.find_one({
+        "id": job_id,
+        "account_id": current_user.account_id
+    })
+    
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found")
+    
+    update_dict = job_data.dict()
+    update_dict["updated_at"] = datetime.utcnow()
+    
+    await db.jobs.update_one(
+        {"id": job_id},
+        {"$set": update_dict}
+    )
+    
+    return {"message": "Job updated successfully"}
+
+
+@api_router.delete("/jobs/{job_id}")
+async def delete_job(
+    job_id: str,
+    current_user: User = Depends(get_current_recruiter)
+):
+    """Deactivate a job listing"""
+    
+    result = await db.jobs.update_one(
+        {"id": job_id, "account_id": current_user.account_id},
+        {"$set": {"is_active": False}}
+    )
+    
+    if result.matched_count == 0:
+        raise HTTPException(status_code=404, detail="Job not found")
+    
+    return {"message": "Job deleted successfully"}
+
+
+# ============================================
+# Jobs Dashboard Endpoints
+# ============================================
+
+@api_router.get("/jobs/dashboard")
+async def get_jobs_dashboard(
+    current_user: User = Depends(get_current_recruiter),
+    include_expired: bool = False,
+    search: str = None,
+    sort_by: str = "newest"
+):
+    """Get jobs dashboard data with stats and activity indicators"""
+    
+    now = datetime.utcnow()
+    
+    # Build query based on filters
+    base_query = {"account_id": current_user.account_id}
+    
+    if not include_expired:
+        # Only show active jobs that haven't expired
+        base_query["is_active"] = True
+        base_query["expiry_date"] = {"$gt": now}
+    
+    if search:
+        base_query["$or"] = [
+            {"title": {"$regex": search, "$options": "i"}},
+            {"location": {"$regex": search, "$options": "i"}},
+            {"description": {"$regex": search, "$options": "i"}}
+        ]
+    
+    # Determine sort order
+    sort_field = "posted_date"
+    sort_direction = -1  # Descending (newest first)
+    
+    if sort_by == "expiring_soon":
+        sort_field = "expiry_date"
+        sort_direction = 1  # Ascending (soonest expiring first)
+    elif sort_by == "most_applications":
+        sort_field = "application_count"  # Will be calculated
+        sort_direction = -1
+    elif sort_by == "posted_date":
+        sort_field = "posted_date"
+        sort_direction = -1
+    
+    # Fetch jobs
+    jobs_cursor = db.jobs.find(base_query).sort(sort_field, sort_direction)
+    jobs = []
+    
+    async for job in jobs_cursor:
+        if "_id" in job:
+            del job["_id"]
+        
+        job_id = job["id"]
+        
+        # Get application stats for this job
+        application_stats = await db.job_applications.aggregate([
+            {"$match": {"job_id": job_id}},
+            {"$group": {
+                "_id": "$status",
+                "count": {"$sum": 1}
+            }}
+        ]).to_list(None)
+        
+        # Process stats
+        total_applications = 0
+        shortlisted = 0
+        interviewed = 0
+        offered = 0
+        pending = 0
+        
+        for stat in application_stats:
+            count = stat["count"]
+            total_applications += count
+            if stat["_id"] == "shortlisted":
+                shortlisted = count
+            elif stat["_id"] == "interviewed":
+                interviewed = count
+            elif stat["_id"] == "offered":
+                offered = count
+            elif stat["_id"] == "pending":
+                pending = count
+        
+        # Calculate days until expiry
+        expiry_date = job.get("expiry_date", now)
+        days_until_expiry = (expiry_date - now).days
+        is_expired = days_until_expiry < 0
+        is_expiring_soon = 0 <= days_until_expiry <= 7
+        
+        job["stats"] = {
+            "total_applications": total_applications,
+            "pending": pending,
+            "shortlisted": shortlisted,
+            "interviewed": interviewed,
+            "offered": offered
+        }
+        job["days_until_expiry"] = days_until_expiry
+        job["is_expired"] = is_expired
+        job["is_expiring_soon"] = is_expiring_soon
+        
+        jobs.append(job)
+    
+    # Sort by application count if requested (need to do it after fetching)
+    if sort_by == "most_applications":
+        jobs.sort(key=lambda x: x["stats"]["total_applications"], reverse=True)
+    
+    # Calculate overall dashboard stats
+    total_active_jobs = await db.jobs.count_documents({
+        "account_id": current_user.account_id,
+        "is_active": True,
+        "expiry_date": {"$gt": now}
+    })
+    
+    total_expired_jobs = await db.jobs.count_documents({
+        "account_id": current_user.account_id,
+        "$or": [
+            {"is_active": False},
+            {"expiry_date": {"$lte": now}}
+        ]
+    })
+    
+    # Get application counts for this month
+    start_of_month = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+    
+    total_applications_this_month = await db.job_applications.count_documents({
+        "account_id": current_user.account_id,
+        "applied_date": {"$gte": start_of_month}
+    })
+    
+    # Get total interviews scheduled (applications with interviewed status)
+    total_interviews = await db.job_applications.count_documents({
+        "account_id": current_user.account_id,
+        "status": "interviewed"
+    })
+    
+    return {
+        "jobs": jobs,
+        "dashboard_stats": {
+            "total_active_jobs": total_active_jobs,
+            "total_expired_jobs": total_expired_jobs,
+            "total_applications_this_month": total_applications_this_month,
+            "total_interviews": total_interviews
+        }
+    }
+
+
+@api_router.put("/jobs/{job_id}/notes")
+async def update_job_notes(
+    job_id: str,
+    request: Request,
+    current_user: User = Depends(get_current_recruiter)
+):
+    """Update notes for a job"""
+    
+    body = await request.json()
+    notes = body.get("notes", "")
+    
+    result = await db.jobs.update_one(
+        {"id": job_id, "account_id": current_user.account_id},
+        {"$set": {
+            "recruiter_notes": notes,
+            "notes_updated_at": datetime.utcnow()
+        }}
+    )
+    
+    if result.matched_count == 0:
+        raise HTTPException(status_code=404, detail="Job not found")
+    
+    return {"message": "Notes updated successfully", "notes": notes}
+
+
+@api_router.put("/jobs/{job_id}/reactivate")
+async def reactivate_job(
+    job_id: str,
+    request: Request,
+    current_user: User = Depends(get_current_recruiter)
+):
+    """Reactivate an expired job with a new expiry date"""
+    
+    body = await request.json()
+    extension_days = body.get("extension_days", 35)  # Default to 35 days
+    
+    # Find the job
+    job = await db.jobs.find_one({
+        "id": job_id,
+        "account_id": current_user.account_id
+    })
+    
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found")
+    
+    # Set new expiry date from today
+    new_expiry_date = datetime.utcnow() + timedelta(days=extension_days)
+    
+    await db.jobs.update_one(
+        {"id": job_id},
+        {"$set": {
+            "is_active": True,
+            "expiry_date": new_expiry_date,
+            "reactivated_at": datetime.utcnow(),
+            "updated_at": datetime.utcnow()
+        }}
+    )
+    
+    return {
+        "message": "Job reactivated successfully",
+        "new_expiry_date": new_expiry_date.isoformat()
+    }
+
+
+@api_router.get("/jobs/{job_id}/applicants")
+async def get_job_applicants(
+    job_id: str,
+    current_user: User = Depends(get_current_recruiter),
+    status_filter: str = None
+):
+    """Get all applicants for a specific job with full profile info"""
+    
+    # Verify job belongs to account
+    job = await db.jobs.find_one({
+        "id": job_id,
+        "account_id": current_user.account_id
+    })
+    
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found")
+    
+    if "_id" in job:
+        del job["_id"]
+    
+    # Build application query
+    app_query = {"job_id": job_id}
+    if status_filter and status_filter != "all":
+        app_query["status"] = status_filter
+    
+    # Fetch applications
+    applications = []
+    cursor = db.job_applications.find(app_query).sort("applied_date", -1)
+    
+    async for app in cursor:
+        if "_id" in app:
+            del app["_id"]
+        
+        # Get full applicant profile
+        applicant = await db.users.find_one({"id": app["applicant_id"]})
+        if applicant:
+            if "_id" in applicant:
+                del applicant["_id"]
+            # Remove sensitive data
+            applicant.pop("password_hash", None)
+            app["applicant_profile"] = applicant
+        
+        applications.append(app)
+    
+    return {
+        "job": job,
+        "applications": applications,
+        "total_count": len(applications)
+    }
+
+
+
+
+# ============================================
+# Job Applications Endpoints
+# ============================================
+
+@api_router.post("/applications")
+async def apply_to_job(
+    application_data: JobApplicationCreate,
+    current_user: User = Depends(get_current_user)
+):
+    """Apply to a job (job seekers only)"""
+    
+    if current_user.role != UserRole.JOB_SEEKER:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only job seekers can apply to jobs"
+        )
+    
+    # Get job
+    job = await db.jobs.find_one({"id": application_data.job_id, "is_active": True})
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found")
+    
+    # Check if already applied
+    existing = await db.job_applications.find_one({
+        "job_id": application_data.job_id,
+        "applicant_id": current_user.id
+    })
+    if existing:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="You have already applied to this job"
+        )
+    
+    # Create application snapshot
+    applicant_snapshot = {
+        "first_name": current_user.first_name,
+        "last_name": current_user.last_name,
+        "email": current_user.email,
+        "skills": current_user.skills,
+        "location": current_user.location,
+        "about_me": current_user.about_me,
+    }
+    
+    application_dict = {
+        "id": str(uuid.uuid4()),
+        "job_id": application_data.job_id,
+        "applicant_id": current_user.id,
+        "account_id": job["account_id"],
+        "status": ApplicationStatus.PENDING,
+        "cover_letter": application_data.cover_letter,
+        "resume_url": application_data.resume_url,
+        "additional_info": application_data.additional_info,
+        "applicant_snapshot": applicant_snapshot,
+        "applied_date": datetime.utcnow(),
+        "last_updated": datetime.utcnow(),
+    }
+    
+    await db.job_applications.insert_one(application_dict)
+    
+    if "_id" in application_dict:
+        del application_dict["_id"]
+    
+    # Send email notifications (non-blocking)
+    try:
+        base_url = os.environ.get("FRONTEND_URL", "https://jobrocket.co.za")
+        applicant_name = f"{current_user.first_name} {current_user.last_name}"
+        job_title = job.get("title", "Position")
+        company_name = job.get("company_name", "Company")
+        
+        # 1. Email to Job Seeker - Application Confirmation
+        seeker_email_content = EmailTemplates.application_submitted_confirmation(
+            applicant_name=current_user.first_name,
+            job_title=job_title,
+            company_name=company_name,
+            job_url=f"{base_url}/jobs"
+        )
+        email_service.send_email(
+            email_type=EmailType.JOB_ALERTS,
+            to_email=current_user.email,
+            subject=f"Application Submitted - {job_title} at {company_name}",
+            html_content=seeker_email_content["html"],
+            plain_content=seeker_email_content["plain"]
+        )
+        
+        # 2. Email to Recruiter - New Application Notification
+        account = await db.accounts.find_one({"id": job["account_id"]})
+        if account:
+            owner = await db.users.find_one({"id": account.get("owner_id")})
+            if owner and owner.get("email"):
+                recruiter_email_content = EmailTemplates.job_application_received(
+                    recruiter_name=owner.get("first_name", "Hiring Manager"),
+                    applicant_name=applicant_name,
+                    job_title=job_title,
+                    application_url=f"{base_url}/jobs-dashboard"
+                )
+                email_service.send_email(
+                    email_type=EmailType.JOB_ALERTS,
+                    to_email=owner["email"],
+                    subject=f"New Application - {applicant_name} applied for {job_title}",
+                    html_content=recruiter_email_content["html"],
+                    plain_content=recruiter_email_content["plain"]
+                )
+    except Exception as e:
+        print(f"Email notification error: {str(e)}")
+    
+    return application_dict
+
+
+@api_router.get("/jobs/{job_id}/application-status")
+async def check_job_application_status(
+    job_id: str,
+    current_user: User = Depends(get_current_user)
+):
+    """Check if current user has already applied to a specific job"""
+    
+    # Find existing application
+    application = await db.job_applications.find_one({
+        "job_id": job_id,
+        "applicant_id": current_user.id
+    })
+    
+    if application:
+        return {
+            "has_applied": True,
+            "applied_date": application.get("applied_date", application.get("created_at")),
+            "status": application.get("status", "pending"),
+            "application_id": application.get("id")
+        }
+    
+    return {
+        "has_applied": False,
+        "applied_date": None,
+        "status": None,
+        "application_id": None
+    }
+
+
+@api_router.post("/jobs/{job_id}/apply")
+async def apply_to_job_by_id(
+    job_id: str,
+    application_data: dict,
+    current_user: User = Depends(get_current_user)
+):
+    """Apply to a specific job (job seekers only) - Alternative endpoint"""
+    
+    if current_user.role != UserRole.JOB_SEEKER:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only job seekers can apply to jobs"
+        )
+    
+    # Get job
+    job = await db.jobs.find_one({"id": job_id, "is_active": True})
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found")
+    
+    # Check if already applied
+    existing = await db.job_applications.find_one({
+        "job_id": job_id,
+        "applicant_id": current_user.id
+    })
+    if existing:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="You have already applied to this job"
+        )
+    
+    # Create application snapshot
+    applicant_snapshot = {
+        "first_name": current_user.first_name,
+        "last_name": current_user.last_name,
+        "email": current_user.email,
+        "skills": current_user.skills,
+        "location": current_user.location,
+        "about_me": current_user.about_me,
+    }
+    
+    application_dict = {
+        "id": str(uuid.uuid4()),
+        "job_id": job_id,
+        "applicant_id": current_user.id,
+        "account_id": job["account_id"],
+        "status": ApplicationStatus.PENDING,
+        "cover_letter": application_data.get("cover_letter", ""),
+        "resume_url": application_data.get("resume_url", ""),
+        "additional_info": application_data.get("additional_info", ""),
+        "applicant_snapshot": applicant_snapshot,
+        "applied_date": datetime.utcnow(),
+        "last_updated": datetime.utcnow(),
+    }
+    
+    await db.job_applications.insert_one(application_dict)
+    
+    if "_id" in application_dict:
+        del application_dict["_id"]
+    
+    # Send email notifications (non-blocking)
+    try:
+        base_url = os.environ.get("FRONTEND_URL", "https://jobrocket.co.za")
+        applicant_name = f"{current_user.first_name} {current_user.last_name}"
+        job_title = job.get("title", "Position")
+        company_name = job.get("company_name", "Company")
+        
+        # 1. Email to Job Seeker - Application Confirmation
+        seeker_email_content = EmailTemplates.application_submitted_confirmation(
+            applicant_name=current_user.first_name,
+            job_title=job_title,
+            company_name=company_name,
+            job_url=f"{base_url}/jobs"
+        )
+        email_service.send_email(
+            email_type=EmailType.JOB_ALERTS,  # Using job alerts email for all notifications
+            to_email=current_user.email,
+            subject=f"Application Submitted - {job_title} at {company_name}",
+            html_content=seeker_email_content["html"],
+            plain_content=seeker_email_content["plain"]
+        )
+        
+        # 2. Email to Recruiter - New Application Notification
+        # Get recruiter/account owner email
+        account = await db.accounts.find_one({"id": job["account_id"]})
+        if account:
+            owner = await db.users.find_one({"id": account.get("owner_id")})
+            if owner and owner.get("email"):
+                recruiter_email_content = EmailTemplates.job_application_received(
+                    recruiter_name=owner.get("first_name", "Hiring Manager"),
+                    applicant_name=applicant_name,
+                    job_title=job_title,
+                    application_url=f"{base_url}/jobs-dashboard"
+                )
+                email_service.send_email(
+                    email_type=EmailType.JOB_ALERTS,
+                    to_email=owner["email"],
+                    subject=f"New Application - {applicant_name} applied for {job_title}",
+                    html_content=recruiter_email_content["html"],
+                    plain_content=recruiter_email_content["plain"]
+                )
+    except Exception as e:
+        # Log error but don't fail the application
+        print(f"Email notification error: {str(e)}")
+    
+    return application_dict
+
+
+@api_router.get("/applications")
+async def get_my_applications(current_user: User = Depends(get_current_user)):
+    """Get applications for current user (job seekers see their applications, recruiters see applications to their jobs)"""
+    
+    if current_user.role == UserRole.JOB_SEEKER:
+        query = {"applicant_id": current_user.id}
+    else:
+        query = {"account_id": current_user.account_id}
+    
+    applications = []
+    cursor = db.job_applications.find(query).sort("applied_date", -1)
+    
+    async for app in cursor:
+        if "_id" in app:
+            del app["_id"]
+        
+        # Add job details
+        job_details = None
+        job = await db.jobs.find_one({"id": app["job_id"]})
+        if job:
+            job_details = {
+                "id": job["id"],
+                "title": job["title"],
+                "company_name": job["company_name"],
+                "location": job.get("location", ""),
+                "salary_range": job.get("salary_range", ""),
+                "employment_type": job.get("employment_type", ""),
+            }
+        
+        # Return in format expected by frontend: { application: {...}, job: {...} }
+        applications.append({
+            "application": app,
+            "job": job_details
+        })
+    
+    return applications
+
+
+@api_router.get("/jobs/{job_id}/applications")
+async def get_job_applications(
+    job_id: str,
+    current_user: User = Depends(get_current_recruiter)
+):
+    """Get applications for a specific job"""
+    
+    # Verify job belongs to account
+    job = await db.jobs.find_one({
+        "id": job_id,
+        "account_id": current_user.account_id
+    })
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found")
+    
+    applications = []
+    cursor = db.job_applications.find({"job_id": job_id}).sort("applied_date", -1)
+    
+    async for app in cursor:
+        if "_id" in app:
+            del app["_id"]
+        applications.append(app)
+    
+    return applications
+
+
+@api_router.put("/applications/{application_id}/status")
+async def update_application_status(
+    application_id: str,
+    status: ApplicationStatus,
+    notes: Optional[str] = None,
+    current_user: User = Depends(get_current_recruiter)
+):
+    """Update application status (recruiters only)"""
+    
+    # Check feature access for status tracking
+    await check_feature(current_user, FeatureId.CANDIDATE_STATUS_TRACKING)
+    
+    # Get the application first to have applicant info for email
+    application = await db.job_applications.find_one({
+        "id": application_id, 
+        "account_id": current_user.account_id
+    })
+    
+    if not application:
+        raise HTTPException(status_code=404, detail="Application not found")
+    
+    result = await db.job_applications.update_one(
+        {"id": application_id, "account_id": current_user.account_id},
+        {"$set": {
+            "status": status,
+            "notes": notes,
+            "reviewed_by": current_user.id,
+            "last_updated": datetime.utcnow()
+        }}
+    )
+    
+    # Send rejection email if status is rejected
+    if status == ApplicationStatus.REJECTED:
+        try:
+            base_url = os.environ.get("FRONTEND_URL", "https://jobrocket.co.za")
+            
+            # Get applicant details
+            applicant_snapshot = application.get("applicant_snapshot", {})
+            applicant_email = applicant_snapshot.get("email")
+            applicant_first_name = applicant_snapshot.get("first_name", "Candidate")
+            
+            # If no snapshot email, try to get from user record
+            if not applicant_email:
+                applicant = await db.users.find_one({"id": application["applicant_id"]})
+                if applicant:
+                    applicant_email = applicant.get("email")
+                    applicant_first_name = applicant.get("first_name", "Candidate")
+            
+            if applicant_email:
+                # Get job details
+                job = await db.jobs.find_one({"id": application["job_id"]})
+                job_title = job.get("title", "Position") if job else "Position"
+                company_name = job.get("company_name", "Company") if job else "Company"
+                
+                rejection_email_content = EmailTemplates.application_rejected(
+                    applicant_name=applicant_first_name,
+                    job_title=job_title,
+                    company_name=company_name,
+                    jobs_url=f"{base_url}/jobs"
+                )
+                
+                email_service.send_email(
+                    email_type=EmailType.JOB_ALERTS,
+                    to_email=applicant_email,
+                    subject=f"Update on your application - {job_title} at {company_name}",
+                    html_content=rejection_email_content["html"],
+                    plain_content=rejection_email_content["plain"]
+                )
+        except Exception as e:
+            # Log error but don't fail the status update
+            print(f"Rejection email error: {str(e)}")
+    
+    return {"message": "Application status updated"}
+
+
+@api_router.put("/applications/{application_id}/withdraw")
+async def withdraw_application(
+    application_id: str,
+    current_user: User = Depends(get_current_user)
+):
+    """Withdraw an application (job seekers only)"""
+    
+    if current_user.role != UserRole.JOB_SEEKER:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only job seekers can withdraw applications"
+        )
+    
+    # Find and verify the application belongs to this user
+    application = await db.job_applications.find_one({
+        "id": application_id,
+        "applicant_id": current_user.id
+    })
+    
+    if not application:
+        raise HTTPException(status_code=404, detail="Application not found")
+    
+    # Check if already withdrawn or in final state
+    if application.get("status") in ["withdrawn", "rejected", "offered"]:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Cannot withdraw application that is already {application.get('status')}"
+        )
+    
+    # Update status to withdrawn
+    result = await db.job_applications.update_one(
+        {"id": application_id},
+        {"$set": {
+            "status": "withdrawn",
+            "withdrawn_at": datetime.utcnow(),
+            "last_updated": datetime.utcnow()
+        }}
+    )
+    
+    return {"message": "Application withdrawn successfully"}
+
+
+# ============================================
+# Public Company Profile Endpoints
+# ============================================
+
+@api_router.get("/public/company/{account_id}")
+async def get_public_company(account_id: str):
+    """Get public company profile"""
+    
+    account = await db.accounts.find_one({"id": account_id})
+    if not account:
+        raise HTTPException(status_code=404, detail="Company not found")
+    
+    # Return only public information
+    return {
+        "id": account["id"],
+        "name": account["name"],
+        "company_logo_url": account.get("company_logo_url"),
+        "company_cover_image_url": account.get("company_cover_image_url"),
+        "company_description": account.get("company_description"),
+        "company_website": account.get("company_website"),
+        "company_linkedin": account.get("company_linkedin"),
+        "company_industry": account.get("company_industry"),
+        "company_size": account.get("company_size"),
+        "company_location": account.get("company_location"),
+    }
+
+
+@api_router.get("/public/company/{account_id}/jobs")
+async def get_company_jobs(account_id: str):
+    """Get active jobs for a company"""
+    
+    jobs = []
+    cursor = db.jobs.find({
+        "account_id": account_id,
+        "is_active": True,
+        "expiry_date": {"$gt": datetime.utcnow()}
+    }).sort("posted_date", -1)
+    
+    async for job in cursor:
+        if "_id" in job:
+            del job["_id"]
+        jobs.append(job)
+    
+    return jobs
+
+
+# ============================================
+# User Profile Endpoints
+# ============================================
+
+async def calculate_profile_progress(user_id: str):
+    """Calculate and update job seeker profile completion points"""
+    user = await db.users.find_one({"id": user_id})
+    if not user or user.get("role") != "job_seeker":
+        return
+    
+    progress = user.get("profile_progress", {})
+    total_points = 0
+    
+    # Profile picture: 5 points
+    if user.get("profile_picture_url"):
+        progress["profile_picture"] = True
+        total_points += 5
+    
+    # About me (50+ chars): 10 points
+    about_me = user.get("about_me", "")
+    if about_me and len(about_me) >= 50:
+        progress["about_me"] = True
+        total_points += 10
+    
+    # Work experience: 10 points
+    if user.get("work_experience") and len(user.get("work_experience", [])) > 0:
+        progress["work_history"] = True
+        total_points += 10
+    
+    # 5+ skills: 15 points
+    if user.get("skills") and len(user.get("skills", [])) >= 5:
+        progress["skills"] = True
+        total_points += 15
+    
+    # Education: 10 points
+    if user.get("education") and len(user.get("education", [])) > 0:
+        progress["education"] = True
+        total_points += 10
+    
+    # Achievements: 10 points
+    if user.get("achievements") and len(user.get("achievements", [])) > 0:
+        progress["achievements"] = True
+        total_points += 10
+    
+    # Intro video: 25 points (higher value to encourage video uploads)
+    if user.get("video_intro_url"):
+        progress["intro_video"] = True
+        progress["media"] = True
+        total_points += 25
+    
+    # Job applications (5+): 5 points
+    applications_count = await db.applications.count_documents({"user_id": user_id})
+    if applications_count >= 5:
+        progress["job_applications"] = applications_count
+        total_points += 5
+    else:
+        progress["job_applications"] = applications_count
+    
+    # Email alerts: 10 points (higher value to encourage alerts setup)
+    job_alerts = await db.job_alerts.count_documents({"user_id": user_id})
+    if job_alerts > 0 or user.get("email_alerts_enabled") or progress.get("email_alerts"):
+        progress["email_alerts"] = True
+        total_points += 10
+    
+    # Update progress with total points
+    progress["total_points"] = total_points
+    
+    await db.users.update_one(
+        {"id": user_id},
+        {"$set": {"profile_progress": progress, "updated_at": datetime.utcnow()}}
+    )
+    
+    return progress
+
+
+@api_router.put("/profile")
+async def update_profile(
+    profile_data: UserProfileUpdate,
+    current_user: User = Depends(get_current_user)
+):
+    """Update user profile"""
+    
+    update_dict = {k: v for k, v in profile_data.dict().items() if v is not None}
+    update_dict["updated_at"] = datetime.utcnow()
+    
+    await db.users.update_one(
+        {"id": current_user.id},
+        {"$set": update_dict}
+    )
+    
+    # Recalculate profile progress for job seekers
+    if current_user.role == "job_seeker":
+        await calculate_profile_progress(current_user.id)
+    
+    return {"message": "Profile updated successfully"}
+
+
+@api_router.post("/profile/work-experience")
+async def add_work_experience(
+    request: Request,
+    current_user: User = Depends(get_current_user)
+):
+    """Add work experience to user profile"""
+    body = await request.json()
+    
+    work_entry = {
+        "id": str(uuid.uuid4()),
+        "company": body.get("company", ""),
+        "position": body.get("position", ""),
+        "location": body.get("location", ""),
+        "start_date": body.get("start_date"),
+        "end_date": body.get("end_date"),
+        "current": body.get("current", False),
+        "description": body.get("description", ""),
+        "created_at": datetime.utcnow().isoformat()
+    }
+    
+    await db.users.update_one(
+        {"id": current_user.id},
+        {
+            "$push": {"work_experience": work_entry},
+            "$set": {
+                "updated_at": datetime.utcnow(),
+                "profile_progress.work_history": True
+            }
+        }
+    )
+    
+    # Recalculate profile progress
+    if current_user.role == "job_seeker":
+        await calculate_profile_progress(current_user.id)
+    
+    return {"message": "Work experience added successfully", "work_experience": work_entry}
+
+
+@api_router.delete("/profile/work-experience/{experience_id}")
+async def delete_work_experience(
+    experience_id: str,
+    current_user: User = Depends(get_current_user)
+):
+    """Delete work experience entry from user profile"""
+    await db.users.update_one(
+        {"id": current_user.id},
+        {"$pull": {"work_experience": {"id": experience_id}}}
+    )
+    # Recalculate progress after deletion
+    if current_user.role == "job_seeker":
+        await calculate_profile_progress(current_user.id)
+    return {"message": "Work experience deleted successfully"}
+
+
+@api_router.put("/profile/work-experience/{experience_id}")
+async def update_work_experience(
+    experience_id: str,
+    request: Request,
+    current_user: User = Depends(get_current_user)
+):
+    """Update work experience entry"""
+    body = await request.json()
+    
+    # Build update dict
+    update_fields = {}
+    for field in ["company", "position", "location", "start_date", "end_date", "current", "description"]:
+        if field in body:
+            update_fields[f"work_experience.$.{field}"] = body[field]
+    
+    update_fields["work_experience.$.updated_at"] = datetime.utcnow().isoformat()
+    update_fields["updated_at"] = datetime.utcnow()
+    
+    await db.users.update_one(
+        {"id": current_user.id, "work_experience.id": experience_id},
+        {"$set": update_fields}
+    )
+    return {"message": "Work experience updated successfully"}
+
+
+@api_router.post("/profile/education")
+async def add_education(
+    request: Request,
+    current_user: User = Depends(get_current_user)
+):
+    """Add education to user profile"""
+    body = await request.json()
+    
+    education_entry = {
+        "id": str(uuid.uuid4()),
+        "institution": body.get("institution", ""),
+        "degree": body.get("degree", ""),
+        "field_of_study": body.get("field_of_study", ""),
+        "level": body.get("level", "Bachelors"),
+        "start_date": body.get("start_date"),
+        "end_date": body.get("end_date"),
+        "current": body.get("current", False),
+        "grade": body.get("grade", ""),
+        "created_at": datetime.utcnow().isoformat()
+    }
+    
+    await db.users.update_one(
+        {"id": current_user.id},
+        {
+            "$push": {"education": education_entry},
+            "$set": {
+                "updated_at": datetime.utcnow(),
+                "profile_progress.education": True
+            }
+        }
+    )
+    
+    # Recalculate profile progress
+    if current_user.role == "job_seeker":
+        await calculate_profile_progress(current_user.id)
+    
+    return {"message": "Education added successfully", "education": education_entry}
+
+
+@api_router.delete("/profile/education/{education_id}")
+async def delete_education(
+    education_id: str,
+    current_user: User = Depends(get_current_user)
+):
+    """Delete education entry from user profile"""
+    await db.users.update_one(
+        {"id": current_user.id},
+        {"$pull": {"education": {"id": education_id}}}
+    )
+    # Recalculate progress after deletion
+    if current_user.role == "job_seeker":
+        await calculate_profile_progress(current_user.id)
+    return {"message": "Education deleted successfully"}
+
+
+@api_router.put("/profile/education/{education_id}")
+async def update_education(
+    education_id: str,
+    request: Request,
+    current_user: User = Depends(get_current_user)
+):
+    """Update education entry"""
+    body = await request.json()
+    
+    # Build update dict
+    update_fields = {}
+    for field in ["institution", "degree", "field_of_study", "level", "start_date", "end_date", "current", "grade"]:
+        if field in body:
+            update_fields[f"education.$.{field}"] = body[field]
+    
+    update_fields["education.$.updated_at"] = datetime.utcnow().isoformat()
+    update_fields["updated_at"] = datetime.utcnow()
+    
+    await db.users.update_one(
+        {"id": current_user.id, "education.id": education_id},
+        {"$set": update_fields}
+    )
+    return {"message": "Education updated successfully"}
+
+
+@api_router.post("/profile/achievement")
+async def add_achievement(
+    request: Request,
+    current_user: User = Depends(get_current_user)
+):
+    """Add achievement to user profile"""
+    body = await request.json()
+    
+    achievement_entry = {
+        "id": str(uuid.uuid4()),
+        "title": body.get("title", ""),
+        "description": body.get("description", ""),
+        "date_achieved": body.get("date_achieved"),
+        "issuer": body.get("issuer", ""),
+        "credential_url": body.get("credential_url", ""),
+        "created_at": datetime.utcnow().isoformat()
+    }
+    
+    await db.users.update_one(
+        {"id": current_user.id},
+        {
+            "$push": {"achievements": achievement_entry},
+            "$set": {
+                "updated_at": datetime.utcnow(),
+                "profile_progress.achievements": True
+            }
+        }
+    )
+    
+    # Recalculate profile progress
+    if current_user.role == "job_seeker":
+        await calculate_profile_progress(current_user.id)
+    
+    return {"message": "Achievement added successfully", "achievement": achievement_entry}
+
+
+@api_router.delete("/profile/achievement/{achievement_id}")
+async def delete_achievement(
+    achievement_id: str,
+    current_user: User = Depends(get_current_user)
+):
+    """Delete achievement entry from user profile"""
+    await db.users.update_one(
+        {"id": current_user.id},
+        {"$pull": {"achievements": {"id": achievement_id}}}
+    )
+    # Recalculate progress after deletion
+    if current_user.role == "job_seeker":
+        await calculate_profile_progress(current_user.id)
+    return {"message": "Achievement deleted successfully"}
+
+
+@api_router.put("/profile/achievement/{achievement_id}")
+async def update_achievement(
+    achievement_id: str,
+    request: Request,
+    current_user: User = Depends(get_current_user)
+):
+    """Update achievement entry"""
+    body = await request.json()
+    
+    # Build update dict
+    update_fields = {}
+    for field in ["title", "description", "date_achieved", "issuer", "credential_url"]:
+        if field in body:
+            update_fields[f"achievements.$.{field}"] = body[field]
+    
+    update_fields["achievements.$.updated_at"] = datetime.utcnow().isoformat()
+    update_fields["updated_at"] = datetime.utcnow()
+    
+    await db.users.update_one(
+        {"id": current_user.id, "achievements.id": achievement_id},
+        {"$set": update_fields}
+    )
+    return {"message": "Achievement updated successfully"}
+
+
+@api_router.post("/profile/email-alerts")
+async def setup_email_alerts(
+    current_user: User = Depends(get_current_user)
+):
+    """Enable email alerts for job seeker"""
+    await db.users.update_one(
+        {"id": current_user.id},
+        {
+            "$set": {
+                "email_alerts_enabled": True,
+                "updated_at": datetime.utcnow(),
+                "profile_progress.email_alerts": True
+            }
+        }
+    )
+    return {"message": "Email alerts enabled successfully"}
+
+
+@api_router.put("/profile/email-alerts")
+async def update_email_alerts(
+    request: Request,
+    current_user: User = Depends(get_current_user)
+):
+    """Update email alert preferences"""
+    body = await request.json()
+    
+    await db.users.update_one(
+        {"id": current_user.id},
+        {
+            "$set": {
+                "email_alerts_enabled": body.get("enabled", True),
+                "email_alert_preferences": body.get("preferences", {}),
+                "updated_at": datetime.utcnow(),
+                "profile_progress.email_alerts": True
+            }
+        }
+    )
+    return {"message": "Email alert preferences updated successfully"}
+
+
+# ============================================
+# Job Alerts Endpoints
+# ============================================
+
+@api_router.get("/profile/job-alerts")
+async def get_job_alerts(current_user: User = Depends(get_current_user)):
+    """Get all job alerts for current user"""
+    alerts = []
+    cursor = db.job_alerts.find({"user_id": current_user.id}).sort("created_at", -1)
+    async for alert in cursor:
+        if "_id" in alert:
+            del alert["_id"]
+        alerts.append(alert)
+    return alerts
+
+
+@api_router.post("/profile/job-alerts")
+async def create_job_alert(
+    request: Request,
+    current_user: User = Depends(get_current_user)
+):
+    """Create a new job alert"""
+    body = await request.json()
+    
+    alert = {
+        "id": str(uuid.uuid4()),
+        "user_id": current_user.id,
+        "user_email": current_user.email,
+        "job_title": body.get("job_title", ""),
+        "location": body.get("location", ""),
+        "employment_types": body.get("employment_types", []),
+        "work_types": body.get("work_types", []),
+        "salary_range": body.get("salary_range", ""),
+        "is_active": True,
+        "created_at": datetime.utcnow(),
+        "updated_at": datetime.utcnow()
+    }
+    
+    await db.job_alerts.insert_one(alert)
+    
+    # Update profile progress
+    await db.users.update_one(
+        {"id": current_user.id},
+        {"$set": {"profile_progress.email_alerts": True, "updated_at": datetime.utcnow()}}
+    )
+    
+    if "_id" in alert:
+        del alert["_id"]
+    
+    return {"message": "Job alert created successfully", "alert": alert}
+
+
+@api_router.delete("/profile/job-alerts/{alert_id}")
+async def delete_job_alert(
+    alert_id: str,
+    current_user: User = Depends(get_current_user)
+):
+    """Delete a job alert"""
+    result = await db.job_alerts.delete_one({
+        "id": alert_id,
+        "user_id": current_user.id
+    })
+    
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Job alert not found")
+    
+    return {"message": "Job alert deleted successfully"}
+
+
+# ============================================
+# Onboarding Endpoints
+# ============================================
+
+ONBOARDING_STEP_PROGRESS = {0: 0, 1: 15, 2: 35, 3: 55, 4: 75, 5: 90, 6: 100}
+RECRUITER_STEP_PROGRESS = {0: 0, 1: 20, 2: 40, 3: 60, 4: 80, 5: 90, 6: 100}
+ONBOARDING_BADGES = {2: "profile_started", 5: "almost_there", 6: "profile_complete"}
+RECRUITER_BADGES = {1: "company_live", 3: "sourcing_ready", 6: "ready_to_hire"}
+
+@api_router.get("/onboarding/status")
+async def get_onboarding_status(current_user: User = Depends(get_current_user)):
+    """Get current onboarding status"""
+    return {
+        "onboarding_completed": current_user.onboarding_completed,
+        "onboarding_step": current_user.onboarding_step,
+        "onboarding_progress": current_user.onboarding_progress,
+        "badges": getattr(current_user, 'badges', []),
+    }
+
+@api_router.put("/onboarding/step/{step}")
+async def save_onboarding_step(
+    step: int,
+    request: Request,
+    current_user: User = Depends(get_current_user)
+):
+    """Save data for a specific onboarding step"""
+    if step < 0 or step > 6:
+        raise HTTPException(status_code=400, detail="Invalid step number")
+    
+    body = await request.json()
+    is_recruiter = current_user.role == UserRole.RECRUITER
+    step_progress = RECRUITER_STEP_PROGRESS if is_recruiter else ONBOARDING_STEP_PROGRESS
+    step_badges = RECRUITER_BADGES if is_recruiter else ONBOARDING_BADGES
+    progress = step_progress.get(step, 0)
+    
+    update_data = {
+        "onboarding_step": max(step, current_user.onboarding_step),
+        "onboarding_progress": max(progress, current_user.onboarding_progress),
+        "updated_at": datetime.utcnow(),
+    }
+    
+    # Add badge if applicable
+    current_badges = list(getattr(current_user, 'badges', []))
+    badge = step_badges.get(step)
+    if badge and badge not in current_badges:
+        current_badges.append(badge)
+        update_data["badges"] = current_badges
+    
+    # Account update data (for recruiter company fields)
+    account_update = {}
+    
+    if is_recruiter:
+        # Recruiter step field mappings
+        if step == 1:
+            # Company basics - update account
+            for field in ["company_size", "company_industry", "company_location"]:
+                if field in body:
+                    account_update[field] = body[field]
+            if "company_name" in body:
+                account_update["name"] = body["company_name"]
+        elif step == 2:
+            # Hiring preferences - store on user
+            for field in ["hiring_roles", "hiring_locations", "hiring_employment_types", "hiring_volume"]:
+                if field in body:
+                    update_data[field] = body[field]
+        elif step == 3:
+            # Candidate access setup
+            for field in ["sourcing_methods", "alerts_enabled", "match_preferences"]:
+                if field in body:
+                    update_data[field] = body[field]
+        elif step == 4:
+            # Post first job or browse - just record the action taken
+            if "action_taken" in body:
+                update_data["onboarding_action_step4"] = body["action_taken"]
+        elif step == 5:
+            # Distribution & visibility
+            for field in ["distribution_email", "distribution_whatsapp", "distribution_social"]:
+                if field in body:
+                    update_data[field] = body[field]
+        elif step == 6:
+            update_data["onboarding_completed"] = True
+            update_data["onboarding_progress"] = 100
+    else:
+        # Job seeker step field mappings
+        if step == 1:
+            if "location" in body:
+                update_data["location"] = body["location"]
+        elif step == 2:
+            for field in ["desired_job_title", "years_of_experience", "industry_preference", "employment_type_preference"]:
+                if field in body:
+                    update_data[field] = body[field]
+        elif step == 3:
+            for field in ["skills", "seniority_level", "key_strengths"]:
+                if field in body:
+                    update_data[field] = body[field]
+        elif step == 4:
+            for field in ["resume_url", "linkedin_url", "desired_salary_range"]:
+                if field in body:
+                    update_data[field] = body[field]
+        elif step == 5:
+            for field in ["work_experience", "availability", "notice_period"]:
+                if field in body:
+                    update_data[field] = body[field]
+        elif step == 6:
+            for field in ["profile_picture_url", "about_me", "open_to_opportunities", "additional_documents"]:
+                if field in body:
+                    update_data[field] = body[field]
+            update_data["onboarding_completed"] = True
+            update_data["onboarding_progress"] = 100
+    
+    await db.users.update_one({"id": current_user.id}, {"$set": update_data})
+    
+    # Update account if needed (recruiter company info)
+    if account_update and current_user.account_id:
+        account_update["updated_at"] = datetime.utcnow()
+        await db.accounts.update_one({"id": current_user.account_id}, {"$set": account_update})
+    
+    return {
+        "success": True,
+        "step": step,
+        "progress": update_data.get("onboarding_progress", progress),
+        "badges": update_data.get("badges", current_badges),
+    }
+
+@api_router.post("/onboarding/skip")
+async def skip_onboarding(current_user: User = Depends(get_current_user)):
+    """Mark onboarding as skipped"""
+    await db.users.update_one(
+        {"id": current_user.id},
+        {"$set": {"onboarding_completed": True, "updated_at": datetime.utcnow()}}
+    )
+    return {"success": True}
+
+@api_router.post("/uploads/cv")
+async def upload_cv(
+    file: UploadFile = File(...),
+    current_user: User = Depends(get_current_user)
+):
+    """Upload a CV file"""
+    if not file.filename.lower().endswith(('.pdf', '.doc', '.docx')):
+        raise HTTPException(status_code=400, detail="Only PDF, DOC, and DOCX files are allowed")
+    
+    content = await file.read()
+    if len(content) > MAX_FILE_SIZE:
+        raise HTTPException(status_code=400, detail="File too large (max 10MB)")
+    
+    cv_dir = Path(UPLOAD_PATH) / "cvs"
+    cv_dir.mkdir(parents=True, exist_ok=True)
+    
+    ext = Path(file.filename).suffix
+    filename = f"{current_user.id}_cv_{uuid.uuid4().hex[:8]}{ext}"
+    filepath = cv_dir / filename
+    
+    with open(filepath, "wb") as f:
+        f.write(content)
+    
+    file_url = f"/api/uploads/cvs/{filename}"
+    await db.users.update_one({"id": current_user.id}, {"$set": {"resume_url": file_url, "updated_at": datetime.utcnow()}})
+    
+    return {"url": file_url, "filename": file.filename}
+
+@api_router.post("/uploads/profile-picture")
+async def upload_profile_picture(
+    file: UploadFile = File(...),
+    current_user: User = Depends(get_current_user)
+):
+    """Upload a profile picture"""
+    if not file.filename.lower().endswith(('.jpg', '.jpeg', '.png', '.webp')):
+        raise HTTPException(status_code=400, detail="Only JPG, PNG, and WebP images are allowed")
+    
+    content = await file.read()
+    if len(content) > 5 * 1024 * 1024:
+        raise HTTPException(status_code=400, detail="File too large (max 5MB)")
+    
+    pic_dir = Path(UPLOAD_PATH) / "profile_pictures"
+    pic_dir.mkdir(parents=True, exist_ok=True)
+    
+    ext = Path(file.filename).suffix
+    filename = f"{current_user.id}_avatar_{uuid.uuid4().hex[:8]}{ext}"
+    filepath = pic_dir / filename
+    
+    with open(filepath, "wb") as f:
+        f.write(content)
+    
+    file_url = f"/api/uploads/profile_pictures/{filename}"
+    await db.users.update_one({"id": current_user.id}, {"$set": {"profile_picture_url": file_url, "updated_at": datetime.utcnow()}})
+    
+    # Recalculate profile progress
+    if current_user.role == "job_seeker":
+        await calculate_profile_progress(current_user.id)
+    
+    return {"url": file_url, "filename": file.filename}
+
+@api_router.post("/uploads/video")
+async def upload_video(
+    file: UploadFile = File(...),
+    current_user: User = Depends(get_current_user)
+):
+    """Upload a video introduction (max 60 seconds)"""
+    if not file.filename.lower().endswith(('.mp4', '.mov', '.avi', '.webm')):
+        raise HTTPException(status_code=400, detail="Unsupported video format. Use MP4, MOV, AVI, or WebM")
+    
+    content = await file.read()
+    # 50MB limit for video files
+    video_max_size = 50 * 1024 * 1024
+    if len(content) > video_max_size:
+        raise HTTPException(status_code=400, detail="Video too large (max 50MB)")
+    
+    video_dir = Path(UPLOAD_PATH) / "videos"
+    video_dir.mkdir(parents=True, exist_ok=True)
+    
+    ext = Path(file.filename).suffix
+    filename = f"{current_user.id}_video_{uuid.uuid4().hex[:8]}{ext}"
+    filepath = video_dir / filename
+    
+    # Write file temporarily to check duration
+    with open(filepath, "wb") as f:
+        f.write(content)
+    
+    # Validate video duration using ffprobe (max 60 seconds)
+    try:
+        import subprocess
+        result = subprocess.run(
+            ['ffprobe', '-v', 'error', '-show_entries', 'format=duration', '-of', 'default=noprint_wrappers=1:nokey=1', str(filepath)],
+            capture_output=True,
+            text=True,
+            timeout=30
+        )
+        if result.returncode == 0 and result.stdout.strip():
+            duration = float(result.stdout.strip())
+            if duration > 60:
+                # Delete the file and return error
+                filepath.unlink()
+                raise HTTPException(
+                    status_code=400, 
+                    detail=f"Video is {int(duration)} seconds. Maximum allowed is 60 seconds."
+                )
+    except subprocess.TimeoutExpired:
+        # If ffprobe times out, allow the upload but log warning
+        print(f"Warning: ffprobe timeout for video {filename}")
+    except HTTPException:
+        raise
+    except Exception as e:
+        # If ffprobe fails for other reasons, allow upload but log warning
+        print(f"Warning: Could not validate video duration: {e}")
+    
+    file_url = f"/api/uploads/videos/{filename}"
+    
+    # Update user profile with video URL and update profile progress
+    await db.users.update_one(
+        {"id": current_user.id}, 
+        {
+            "$set": {
+                "video_intro_url": file_url, 
+                "updated_at": datetime.utcnow(),
+                "profile_progress.media": True,
+                "profile_progress.intro_video": True
+            }
+        }
+    )
+    
+    # Recalculate profile progress
+    if current_user.role == "job_seeker":
+        await calculate_profile_progress(current_user.id)
+    
+    return {"url": file_url, "filename": file.filename}
+
+@api_router.post("/uploads/document")
+async def upload_document(
+    file: UploadFile = File(...),
+    current_user: User = Depends(get_current_user)
+):
+    """Upload an additional document (certificate, award, etc.)"""
+    if not file.filename.lower().endswith(('.pdf', '.doc', '.docx', '.jpg', '.jpeg', '.png')):
+        raise HTTPException(status_code=400, detail="Unsupported file type")
+    
+    content = await file.read()
+    if len(content) > MAX_FILE_SIZE:
+        raise HTTPException(status_code=400, detail="File too large (max 10MB)")
+    
+    doc_dir = Path(UPLOAD_PATH) / "documents"
+    doc_dir.mkdir(parents=True, exist_ok=True)
+    
+    ext = Path(file.filename).suffix
+    filename = f"{current_user.id}_doc_{uuid.uuid4().hex[:8]}{ext}"
+    filepath = doc_dir / filename
+    
+    with open(filepath, "wb") as f:
+        f.write(content)
+    
+    file_url = f"/api/uploads/documents/{filename}"
+    return {"url": file_url, "filename": file.filename}
+
+
+# ============================================
+# Company Branding Uploads (Logo & Cover)
+# ============================================
+
+@api_router.post("/uploads/company-logo")
+async def upload_company_logo(
+    file: UploadFile = File(...),
+    current_user: User = Depends(get_current_recruiter)
+):
+    """Upload a company logo image"""
+    if not file.content_type.startswith('image/'):
+        raise HTTPException(status_code=400, detail="File must be an image")
+    
+    content = await file.read()
+    # 5MB limit for logo
+    if len(content) > 5 * 1024 * 1024:
+        raise HTTPException(status_code=400, detail="Logo must be smaller than 5MB")
+    
+    logo_dir = Path(UPLOAD_PATH) / "company_logos"
+    logo_dir.mkdir(parents=True, exist_ok=True)
+    
+    ext = Path(file.filename).suffix or '.png'
+    filename = f"{current_user.account_id}_logo_{uuid.uuid4().hex[:8]}{ext}"
+    filepath = logo_dir / filename
+    
+    with open(filepath, "wb") as f:
+        f.write(content)
+    
+    file_url = f"/api/uploads/company_logos/{filename}"
+    
+    # Update account with new logo URL
+    await db.accounts.update_one(
+        {"id": current_user.account_id},
+        {"$set": {"company_logo_url": file_url, "updated_at": datetime.utcnow()}}
+    )
+    
+    return {"url": file_url, "filename": file.filename}
+
+
+@api_router.post("/uploads/company-cover")
+async def upload_company_cover(
+    file: UploadFile = File(...),
+    current_user: User = Depends(get_current_recruiter)
+):
+    """Upload a company cover image"""
+    if not file.content_type.startswith('image/'):
+        raise HTTPException(status_code=400, detail="File must be an image")
+    
+    content = await file.read()
+    # 10MB limit for cover
+    if len(content) > 10 * 1024 * 1024:
+        raise HTTPException(status_code=400, detail="Cover image must be smaller than 10MB")
+    
+    cover_dir = Path(UPLOAD_PATH) / "company_covers"
+    cover_dir.mkdir(parents=True, exist_ok=True)
+    
+    ext = Path(file.filename).suffix or '.png'
+    filename = f"{current_user.account_id}_cover_{uuid.uuid4().hex[:8]}{ext}"
+    filepath = cover_dir / filename
+    
+    with open(filepath, "wb") as f:
+        f.write(content)
+    
+    file_url = f"/api/uploads/company_covers/{filename}"
+    
+    # Update account with new cover URL
+    await db.accounts.update_one(
+        {"id": current_user.account_id},
+        {"$set": {"company_cover_image_url": file_url, "updated_at": datetime.utcnow()}}
+    )
+    
+    return {"url": file_url, "filename": file.filename}
+
+
+# ============================================
+# Profile Documents Management
+# ============================================
+
+@api_router.post("/profile/documents")
+async def upload_profile_document(
+    file: UploadFile = File(...),
+    document_type: str = Form("other"),
+    current_user: User = Depends(get_current_user)
+):
+    """Upload a profile document (CV or additional document). Max 5 documents total (1 CV + 4 others)."""
+    
+    # Validate document type
+    valid_types = ["cv", "certificate", "portfolio", "reference", "other"]
+    if document_type not in valid_types:
+        raise HTTPException(status_code=400, detail=f"Invalid document type. Must be one of: {', '.join(valid_types)}")
+    
+    # Validate file type
+    allowed_extensions = ('.pdf', '.doc', '.docx')
+    if not file.filename.lower().endswith(allowed_extensions):
+        raise HTTPException(status_code=400, detail="Only PDF, DOC, and DOCX files are allowed")
+    
+    # Read and validate file size (10MB limit for high-definition PDFs)
+    content = await file.read()
+    if len(content) > MAX_FILE_SIZE:
+        raise HTTPException(status_code=400, detail="File too large. Maximum size is 10MB")
+    
+    # Get user's current documents
+    user = await db.users.find_one({"id": current_user.id})
+    current_docs = user.get("profile_documents", []) if user else []
+    
+    # Check document limits
+    cv_count = sum(1 for d in current_docs if d.get("document_type") == "cv")
+    other_count = sum(1 for d in current_docs if d.get("document_type") != "cv")
+    
+    if document_type == "cv":
+        if cv_count >= 1:
+            raise HTTPException(status_code=400, detail="You can only upload 1 CV. Please delete the existing one first.")
+    else:
+        if other_count >= 4:
+            raise HTTPException(status_code=400, detail="You can upload a maximum of 4 additional documents. Please delete one first.")
+    
+    # Create secure filename
+    doc_dir = Path(UPLOAD_PATH) / "profile_documents"
+    doc_dir.mkdir(parents=True, exist_ok=True)
+    
+    ext = Path(file.filename).suffix.lower()
+    safe_filename = f"{current_user.id}_{document_type}_{uuid.uuid4().hex[:12]}{ext}"
+    filepath = doc_dir / safe_filename
+    
+    # Write file securely
+    with open(filepath, "wb") as f:
+        f.write(content)
+    
+    # Create document record
+    doc_record = {
+        "id": uuid.uuid4().hex[:16],
+        "filename": safe_filename,
+        "original_name": file.filename,
+        "document_type": document_type,
+        "file_url": f"/api/uploads/profile_documents/{safe_filename}",
+        "file_size": len(content),
+        "uploaded_at": datetime.utcnow().isoformat(),
+        "content_type": file.content_type
+    }
+    
+    # Update user's profile documents
+    await db.users.update_one(
+        {"id": current_user.id},
+        {"$push": {"profile_documents": doc_record}}
+    )
+    
+    # Update profile completion if CV uploaded
+    if document_type == "cv":
+        await db.users.update_one(
+            {"id": current_user.id},
+            {"$set": {"cv_url": doc_record["file_url"]}}
+        )
+    
+    return {
+        "success": True,
+        "document": doc_record,
+        "message": f"Document uploaded successfully"
+    }
+
+
+@api_router.get("/profile/documents")
+async def get_profile_documents(current_user: User = Depends(get_current_user)):
+    """Get all profile documents for the current user"""
+    
+    user = await db.users.find_one({"id": current_user.id})
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    documents = user.get("profile_documents", [])
+    
+    # Separate CV and other documents
+    cv_doc = next((d for d in documents if d.get("document_type") == "cv"), None)
+    other_docs = [d for d in documents if d.get("document_type") != "cv"]
+    
+    return {
+        "cv": cv_doc,
+        "documents": other_docs,
+        "total_count": len(documents),
+        "can_upload_cv": cv_doc is None,
+        "can_upload_other": len(other_docs) < 4
+    }
+
+
+@api_router.delete("/profile/documents/{document_id}")
+async def delete_profile_document(
+    document_id: str,
+    current_user: User = Depends(get_current_user)
+):
+    """Delete a profile document"""
+    
+    user = await db.users.find_one({"id": current_user.id})
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    documents = user.get("profile_documents", [])
+    doc_to_delete = next((d for d in documents if d.get("id") == document_id), None)
+    
+    if not doc_to_delete:
+        raise HTTPException(status_code=404, detail="Document not found")
+    
+    # Delete the file from disk
+    try:
+        filepath = Path(UPLOAD_PATH) / "profile_documents" / doc_to_delete["filename"]
+        if filepath.exists():
+            filepath.unlink()
+    except Exception as e:
+        print(f"Warning: Could not delete file from disk: {e}")
+    
+    # Remove from user's documents
+    await db.users.update_one(
+        {"id": current_user.id},
+        {"$pull": {"profile_documents": {"id": document_id}}}
+    )
+    
+    # Clear cv_url if this was the CV
+    if doc_to_delete.get("document_type") == "cv":
+        await db.users.update_one(
+            {"id": current_user.id},
+            {"$set": {"cv_url": None}}
+        )
+    
+    return {"success": True, "message": "Document deleted successfully"}
+
+
+@api_router.get("/profile/documents/{document_id}/download")
+async def download_profile_document(
+    document_id: str,
+    current_user: User = Depends(get_current_user)
+):
+    """Download a profile document (for the owner)"""
+    from fastapi.responses import FileResponse
+    
+    user = await db.users.find_one({"id": current_user.id})
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    documents = user.get("profile_documents", [])
+    doc = next((d for d in documents if d.get("id") == document_id), None)
+    
+    if not doc:
+        raise HTTPException(status_code=404, detail="Document not found")
+    
+    filepath = Path(UPLOAD_PATH) / "profile_documents" / doc["filename"]
+    if not filepath.exists():
+        raise HTTPException(status_code=404, detail="File not found on server")
+    
+    return FileResponse(
+        path=filepath,
+        filename=doc["original_name"],
+        media_type=doc.get("content_type", "application/octet-stream")
+    )
+
+
+@api_router.get("/candidates/{user_id}/documents")
+async def get_candidate_documents(
+    user_id: str,
+    current_user: User = Depends(get_current_recruiter)
+):
+    """Get profile documents for a candidate (recruiter access for CV search/applications)"""
+    
+    candidate = await db.users.find_one({"id": user_id, "role": "job_seeker"})
+    if not candidate:
+        raise HTTPException(status_code=404, detail="Candidate not found")
+    
+    documents = candidate.get("profile_documents", [])
+    
+    # Return documents with download URLs for recruiters
+    return {
+        "documents": [
+            {
+                "id": d["id"],
+                "original_name": d["original_name"],
+                "document_type": d["document_type"],
+                "file_url": d["file_url"],
+                "file_size": d.get("file_size", 0),
+                "uploaded_at": d.get("uploaded_at")
+            }
+            for d in documents
+        ]
+    }
+
+
+# ============================================
+# Payment Endpoints (Payfast)
+# ============================================
+
+def generate_payfast_signature(data: dict, passphrase: str = None) -> str:
+    """Generate PayFast signature using insertion order (NOT alphabetical).
+    
+    Per PayFast docs: 'The pairs must be listed in the order in which they
+    appear in the attributes description. Do not use the API signature
+    format, which uses alphabetical ordering!'
+    Values are URL-encoded per the official PHP reference implementation.
+    """
+    # Build parameter string in insertion order, skipping blanks and 'signature'
+    pairs = []
+    for k, v in data.items():
+        if k == 'signature':
+            continue
+        val = str(v).strip()
+        if val != '':
+            pairs.append(f"{k}={urllib.parse.quote_plus(val)}")
+    
+    param_string = '&'.join(pairs)
+    
+    # Append passphrase (also URL-encoded)
+    if passphrase:
+        param_string += f"&passphrase={urllib.parse.quote_plus(passphrase.strip())}"
+    
+    # Generate MD5 hash
+    return hashlib.md5(param_string.encode('utf-8')).hexdigest()
+
+
+@api_router.post("/payments/subscription")
+async def initiate_subscription_payment(
+    payment_data: SubscriptionPaymentRequest,
+    current_user: User = Depends(get_recruiter_for_billing)
+):
+    """Initiate subscription payment via Payfast (allows free/inactive tier users to purchase)"""
+    
+    tier = get_tier_config(payment_data.tier_id)
+    original_amount = tier["price_monthly"]
+    final_amount = original_amount
+    discount_amount = 0
+    discount_code_data = None
+    
+    # Apply discount code if provided
+    if payment_data.discount_code:
+        code_str = payment_data.discount_code.upper()
+        code = await db.discount_codes.find_one({"code": code_str})
+        
+        if code and code.get("status") == "active":
+            now = datetime.utcnow()
+            valid_from = code.get("valid_from")
+            valid_until = code.get("valid_until")
+            usage_limit = code.get("usage_limit")
+            usage_count = code.get("usage_count", 0)
+            user_limit = code.get("user_limit")
+            minimum_amount = code.get("minimum_amount")
+            applicable_tiers = code.get("applicable_tiers")
+            
+            # Validate the code
+            is_valid = True
+            if valid_from and now < valid_from:
+                is_valid = False
+            if valid_until and now > valid_until:
+                is_valid = False
+            if usage_limit and usage_count >= usage_limit:
+                is_valid = False
+            if minimum_amount and original_amount < minimum_amount:
+                is_valid = False
+            if applicable_tiers and payment_data.tier_id.value not in applicable_tiers:
+                is_valid = False
+            
+            # Check user limit
+            if user_limit and is_valid:
+                user_usage = await db.payments.count_documents({
+                    "user_id": current_user.id,
+                    "discount_code": code_str,
+                    "status": {"$in": ["completed", "pending"]}
+                })
+                if user_usage >= user_limit:
+                    is_valid = False
+            
+            if is_valid:
+                discount_type = code.get("discount_type")
+                discount_value = code.get("discount_value", 0)
+                maximum_discount = code.get("maximum_discount")
+                
+                if discount_type == "percentage":
+                    discount_amount = original_amount * (discount_value / 100)
+                else:
+                    discount_amount = discount_value
+                
+                if maximum_discount and discount_amount > maximum_discount:
+                    discount_amount = maximum_discount
+                
+                if discount_amount > original_amount:
+                    discount_amount = original_amount
+                
+                final_amount = original_amount - discount_amount
+                discount_code_data = code_str
+                
+                # Increment usage count
+                await db.discount_codes.update_one(
+                    {"code": code_str},
+                    {"$inc": {"usage_count": 1}}
+                )
+    
+    # Create payment record
+    payment_id = str(uuid.uuid4())
+    payment_dict = {
+        "id": payment_id,
+        "account_id": current_user.account_id,
+        "user_id": current_user.id,
+        "payment_type": "subscription",
+        "tier_id": payment_data.tier_id,
+        "amount": original_amount,
+        "discount_code": discount_code_data,
+        "discount_amount": round(discount_amount, 2),
+        "final_amount": round(final_amount, 2),
+        "currency": "ZAR",
+        "provider": PaymentProvider.PAYFAST,
+        "status": PaymentStatus.PENDING,
+        "created_at": datetime.utcnow(),
+    }
+    
+    await db.payments.insert_one(payment_dict)
+    
+    # Generate Payfast data with the final (discounted) amount
+    # Field order MUST match PayFast documentation: merchant → customer → transaction → subscription
+    payfast_data = {
+        "merchant_id": PAYFAST_MERCHANT_ID,
+        "merchant_key": PAYFAST_MERCHANT_KEY,
+        "return_url": f"{BASE_URL}/payment/success?payment_id={payment_id}",
+        "cancel_url": f"{BASE_URL}/payment/cancel?payment_id={payment_id}",
+        "notify_url": f"{BASE_URL}/api/payments/webhook",
+        "name_first": current_user.first_name,
+        "name_last": current_user.last_name,
+        "email_address": current_user.email,
+        "m_payment_id": payment_id,
+        "amount": f"{final_amount:.2f}",
+        "item_name": f"JobRocket {tier['name']} Subscription",
+        "subscription_type": "1",
+        "recurring_amount": f"{final_amount:.2f}",
+        "frequency": "3",
+        "cycles": "0",
+    }
+    
+    payfast_data["signature"] = generate_payfast_signature(payfast_data, PAYFAST_PASSPHRASE)
+    
+    payfast_url = "https://sandbox.payfast.co.za/eng/process" if PAYFAST_SANDBOX else "https://www.payfast.co.za/eng/process"
+    
+    return {
+        "payment_id": payment_id,
+        "payfast_url": payfast_url,
+        "payfast_data": payfast_data,
+        "original_amount": original_amount,
+        "discount_amount": round(discount_amount, 2),
+        "final_amount": round(final_amount, 2),
+    }
+
+
+@api_router.post("/payments/webhook")
+async def payment_webhook(request: Request):
+    """Handle Payfast payment notification for all payment types (initial + recurring)"""
+    from services.payfast_subscription_service import create_payfast_subscription_service
+    
+    form_data = await request.form()
+    data = dict(form_data)
+    
+    payment_id = data.get("m_payment_id")
+    payment_status = data.get("payment_status")
+    token = data.get("token")
+    
+    logger.info(f"PayFast webhook received: payment_id={payment_id}, status={payment_status}, token={token}")
+    
+    # Try to find the payment by m_payment_id
+    payment = await db.payments.find_one({"id": payment_id}) if payment_id else None
+    
+    # If no payment found but we have a token, this is a RECURRING charge
+    if not payment and token:
+        account = await db.accounts.find_one({"payfast_token": token})
+        if account:
+            logger.info(f"Recurring ITN for account {account['id']} via token")
+            now = datetime.utcnow()
+            
+            if payment_status == "COMPLETE":
+                # Extend subscription by 30 days from now
+                next_billing = now + timedelta(days=30)
+                await db.accounts.update_one(
+                    {"id": account["id"]},
+                    {"$set": {
+                        "subscription_status": SubscriptionStatus.ACTIVE.value,
+                        "subscription_end_date": next_billing,
+                        "next_billing_date": next_billing,
+                        "last_payment_date": now,
+                        "grace_period_start": None,
+                        "payment_retry_count": 0,
+                        "updated_at": now
+                    }}
+                )
+                # Log the recurring payment
+                await db.payments.insert_one({
+                    "id": str(uuid.uuid4()),
+                    "account_id": account["id"],
+                    "payment_type": "subscription_recurring",
+                    "amount": int(float(data.get("amount_gross", 0)) * 100),
+                    "currency": "ZAR",
+                    "status": PaymentStatus.COMPLETED.value,
+                    "provider": "payfast",
+                    "pf_payment_id": data.get("pf_payment_id"),
+                    "created_at": now,
+                    "paid_at": now,
+                    "description": "Recurring subscription payment",
+                    "itn_data": data
+                })
+                logger.info(f"Recurring payment processed — account {account['id']} active until {next_billing}")
+            
+            elif payment_status == "FAILED":
+                # Start grace period
+                if account.get("subscription_status") != SubscriptionStatus.PAST_DUE.value:
+                    await db.accounts.update_one(
+                        {"id": account["id"]},
+                        {"$set": {
+                            "subscription_status": SubscriptionStatus.PAST_DUE.value,
+                            "grace_period_start": now,
+                            "last_failed_payment_date": now,
+                            "updated_at": now
+                        }}
+                    )
+                # Log the failed payment
+                await db.payments.insert_one({
+                    "id": str(uuid.uuid4()),
+                    "account_id": account["id"],
+                    "payment_type": "subscription_recurring",
+                    "amount": int(float(data.get("amount_gross", 0)) * 100),
+                    "currency": "ZAR",
+                    "status": PaymentStatus.FAILED.value,
+                    "provider": "payfast",
+                    "pf_payment_id": data.get("pf_payment_id"),
+                    "created_at": now,
+                    "failed_at": now,
+                    "description": "Recurring subscription payment failed",
+                    "itn_data": data
+                })
+                logger.info(f"Recurring payment FAILED — account {account['id']} entering grace period")
+            
+            return {"status": "ok"}
+        else:
+            logger.warning(f"No account found for token {token}")
+            return {"status": "error", "message": "Account not found for token"}
+    
+    if not payment:
+        logger.warning(f"Payment not found: {payment_id}")
+        return {"status": "error", "message": "Payment not found"}
+    
+    # Use the PayFast subscription service for initial payment handling
+    payfast_service = create_payfast_subscription_service(db)
+    result = await payfast_service.process_itn(data)
+    
+    if result.get("success"):
+        logger.info(f"Payment {payment_id} processed successfully: {payment_status}")
+    else:
+        logger.error(f"Payment {payment_id} processing failed: {result.get('error')}")
+    
+    return {"status": "ok"}
+
+
+@api_router.get("/subscription/status")
+async def get_subscription_status(current_user: User = Depends(get_current_user)):
+    """Check current subscription status for the user's account"""
+    from services.payfast_subscription_service import create_payfast_subscription_service
+    
+    if not current_user.account_id:
+        return {"status": "no_account", "needs_payment": True}
+    
+    payfast_service = create_payfast_subscription_service(db)
+    status = await payfast_service.check_subscription_status(current_user.account_id)
+    
+    return status
+
+
+@api_router.post("/subscription/reactivate")
+async def reactivate_subscription(
+    current_user: User = Depends(get_current_recruiter)
+):
+    """Initiate payment to reactivate a suspended subscription"""
+    from services.payfast_subscription_service import create_payfast_subscription_service
+    
+    account = await db.accounts.find_one({"id": current_user.account_id})
+    if not account:
+        raise HTTPException(status_code=404, detail="Account not found")
+    
+    tier_id = account.get("tier_id", "starter")
+    
+    payfast_service = create_payfast_subscription_service(db)
+    
+    result = await payfast_service.initiate_subscription(
+        account_id=current_user.account_id,
+        tier_id=tier_id,
+        user_email=current_user.email,
+        user_name=f"{current_user.first_name} {current_user.last_name}",
+        return_url=f"{BASE_URL}/billing?payment=success",
+        cancel_url=f"{BASE_URL}/billing?payment=cancelled",
+        notify_url=f"{BASE_URL}/api/payments/webhook"
+    )
+    
+    return result
+
+
+@api_router.post("/payments/extra-seat")
+async def initiate_extra_seat_payment(
+    seat_data: dict,
+    current_user: User = Depends(get_current_recruiter)
+):
+    """Initiate payment for an extra user seat"""
+    from services.payfast_subscription_service import create_payfast_subscription_service
+    from models.tiers import TIER_CONFIG
+    
+    # Get extra user price (R899/month)
+    extra_user_price = 89900  # In cents
+    
+    seat_id = seat_data.get("seat_id")
+    user_id = seat_data.get("user_id")
+    
+    payfast_service = create_payfast_subscription_service(db)
+    
+    result = await payfast_service.initiate_addon_payment(
+        account_id=current_user.account_id,
+        addon_type="extra_seat",
+        amount=extra_user_price,
+        description="Extra User Seat - Monthly",
+        user_email=current_user.email,
+        user_name=f"{current_user.first_name} {current_user.last_name}",
+        return_url=f"{BASE_URL}/billing?payment=success&type=seat",
+        cancel_url=f"{BASE_URL}/billing?payment=cancelled",
+        notify_url=f"{BASE_URL}/api/payments/webhook",
+        extra_data={"seat_id": seat_id, "user_id": user_id}
+    )
+    
+    return result
+
+
+@api_router.get("/seat/status")
+async def get_seat_status(current_user: User = Depends(get_current_user)):
+    """Check if current user's seat is active (for extra seat users)"""
+    from services.payfast_subscription_service import create_payfast_subscription_service
+    
+    payfast_service = create_payfast_subscription_service(db)
+    status = await payfast_service.check_seat_status(current_user.id)
+    
+    return status
+
+
+# ============================================
+# Payment History & Statements
+# ============================================
+
+from services.statement_service import create_statement_service
+from fastapi.responses import HTMLResponse
+
+@api_router.get("/billing/history")
+async def get_billing_history(
+    limit: int = Query(50, ge=1, le=200),
+    skip: int = Query(0, ge=0),
+    start_date: Optional[str] = None,
+    end_date: Optional[str] = None,
+    current_user: User = Depends(get_current_recruiter)
+):
+    """Get payment history for the current user's account"""
+    statement_service = create_statement_service(db)
+    
+    start_dt = datetime.fromisoformat(start_date) if start_date else None
+    end_dt = datetime.fromisoformat(end_date) if end_date else None
+    
+    history = await statement_service.get_payment_history(
+        account_id=current_user.account_id,
+        start_date=start_dt,
+        end_date=end_dt,
+        limit=limit,
+        skip=skip
+    )
+    
+    return history
+
+
+@api_router.get("/billing/statement")
+async def generate_statement(
+    start_date: str = Query(..., description="Start date YYYY-MM-DD"),
+    end_date: str = Query(..., description="End date YYYY-MM-DD"),
+    format: str = Query("html", description="Output format: html or json"),
+    current_user: User = Depends(get_current_recruiter)
+):
+    """Generate a billing statement for a date range"""
+    statement_service = create_statement_service(db)
+    
+    try:
+        start_dt = datetime.fromisoformat(start_date)
+        end_dt = datetime.fromisoformat(end_date)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid date format. Use YYYY-MM-DD")
+    
+    # Ensure end date is end of day
+    end_dt = end_dt.replace(hour=23, minute=59, second=59)
+    
+    statement_data = await statement_service.generate_statement_data(
+        account_id=current_user.account_id,
+        start_date=start_dt,
+        end_date=end_dt
+    )
+    
+    if format == "html":
+        html = statement_service.generate_html_statement(statement_data)
+        return HTMLResponse(content=html, media_type="text/html")
+    
+    return statement_data
+
+
+@api_router.get("/billing/summary")
+async def get_billing_summary(
+    months: int = Query(12, ge=1, le=24),
+    current_user: User = Depends(get_current_recruiter)
+):
+    """Get billing summary for the last N months"""
+    statement_service = create_statement_service(db)
+    
+    summary = await statement_service.get_billing_summary_for_period(
+        account_id=current_user.account_id,
+        months=months
+    )
+    
+    return summary
+
+
+@api_router.post("/billing/extra-seats")
+async def purchase_extra_seats(
+    quantity: int = Query(1, ge=1, le=100),
+    current_user: User = Depends(get_current_recruiter)
+):
+    """Purchase extra user seats with pro-rata calculation"""
+    from services.payfast_subscription_service import create_payfast_subscription_service
+    
+    payfast_service = create_payfast_subscription_service(db)
+    
+    result = await payfast_service.initiate_extra_seat_payment(
+        account_id=current_user.account_id,
+        quantity=quantity,
+        user_email=current_user.email,
+        user_name=f"{current_user.first_name} {current_user.last_name}",
+        return_url=f"{BASE_URL}/billing?payment=success&type=seats",
+        cancel_url=f"{BASE_URL}/billing?payment=cancelled",
+        notify_url=f"{BASE_URL}/api/payments/webhook"
+    )
+    
+    return result
+
+
+@api_router.get("/billing/account-info")
+async def get_billing_account_info(current_user: User = Depends(get_current_recruiter)):
+    """Get billing-specific account information"""
+    account = await db.accounts.find_one({"id": current_user.account_id})
+    if not account:
+        raise HTTPException(status_code=404, detail="Account not found")
+    
+    tier_config = get_tier_config(TierId(account.get("tier_id", "starter")))
+    
+    return {
+        "account_id": account.get("id"),
+        "company_name": account.get("company_name"),
+        "tier_id": account.get("tier_id"),
+        "tier_name": tier_config["name"],
+        "subscription_status": account.get("subscription_status"),
+        "billing_day": account.get("billing_day"),
+        "next_billing_date": account.get("next_billing_date"),
+        "subscription_start_date": account.get("subscription_start_date"),
+        "subscription_end_date": account.get("subscription_end_date"),
+        "grace_period_start": account.get("grace_period_start"),
+        "extra_users_count": account.get("extra_users_count", 0),
+        "monthly_amount": tier_config["price_monthly"] / 100,
+        "currency": "ZAR"
+    }
+
+
+# ============================================
+# Admin Stats Endpoints
+# ============================================
+
+from services.admin_stats_service import create_admin_stats_service
+admin_stats_service = create_admin_stats_service(db)
+
+@api_router.get("/admin/stats")
+async def get_admin_stats(
+    force_refresh: bool = False,
+    current_user: User = Depends(verify_admin_user)
+):
+    """Get admin dashboard statistics (cached, refreshes at 6am/6pm SAST)"""
+    stats = await admin_stats_service.get_stats(force_refresh=force_refresh)
+    return stats
+
+
+@api_router.get("/admin/analytics")
+async def get_admin_analytics(current_user: User = Depends(verify_admin_user)):
+    """Get detailed analytics data for admin analytics dashboard"""
+    now = datetime.utcnow()
+    
+    # --- Time-series data: last 6 months ---
+    months_data = []
+    for i in range(5, -1, -1):
+        month_start = (now.replace(day=1) - timedelta(days=i * 30)).replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+        if i > 0:
+            month_end = (month_start.replace(day=28) + timedelta(days=4)).replace(day=1)
+        else:
+            month_end = now
+        
+        label = month_start.strftime("%b %Y")
+        
+        new_accounts = await db.accounts.count_documents({"created_at": {"$gte": month_start, "$lt": month_end}})
+        new_users = await db.users.count_documents({"created_at": {"$gte": month_start, "$lt": month_end}})
+        new_jobs = await db.jobs.count_documents({"posted_date": {"$gte": month_start, "$lt": month_end}})
+        new_apps = await db.job_applications.count_documents({"applied_date": {"$gte": month_start, "$lt": month_end}})
+        
+        months_data.append({
+            "month": label,
+            "accounts": new_accounts,
+            "users": new_users,
+            "jobs": new_jobs,
+            "applications": new_apps,
+        })
+    
+    # --- Job analytics ---
+    # By industry
+    job_industry_pipeline = [
+        {"$group": {"_id": "$industry", "count": {"$sum": 1}}},
+        {"$sort": {"count": -1}},
+        {"$limit": 10}
+    ]
+    industry_data = await db.jobs.aggregate(job_industry_pipeline).to_list(10)
+    
+    # By location
+    job_location_pipeline = [
+        {"$group": {"_id": "$location", "count": {"$sum": 1}}},
+        {"$sort": {"count": -1}},
+        {"$limit": 10}
+    ]
+    location_data = await db.jobs.aggregate(job_location_pipeline).to_list(10)
+    
+    # By work type
+    work_type_pipeline = [
+        {"$group": {"_id": "$work_type", "count": {"$sum": 1}}},
+        {"$sort": {"count": -1}}
+    ]
+    work_type_data = await db.jobs.aggregate(work_type_pipeline).to_list(10)
+    
+    # By job type
+    job_type_pipeline = [
+        {"$group": {"_id": "$job_type", "count": {"$sum": 1}}},
+        {"$sort": {"count": -1}}
+    ]
+    job_type_data = await db.jobs.aggregate(job_type_pipeline).to_list(10)
+    
+    # --- Application analytics ---
+    app_status_pipeline = [
+        {"$group": {"_id": "$status", "count": {"$sum": 1}}},
+        {"$sort": {"count": -1}}
+    ]
+    app_status_data = await db.job_applications.aggregate(app_status_pipeline).to_list(20)
+    
+    # --- User analytics ---
+    # Onboarding completion
+    onboarded_seekers = await db.users.count_documents({"role": "job_seeker", "onboarding_completed": True})
+    total_seekers = await db.users.count_documents({"role": "job_seeker"})
+    onboarded_recruiters = await db.users.count_documents({"role": "recruiter", "onboarding_completed": True})
+    total_recruiters = await db.users.count_documents({"role": "recruiter"})
+    
+    # --- Account detail table ---
+    accounts_detail = []
+    async for acc in db.accounts.find({}).sort("created_at", -1):
+        if "_id" in acc:
+            del acc["_id"]
+        owner = await db.users.find_one({"id": acc.get("owner_user_id", "")}, {"_id": 0, "email": 1, "first_name": 1, "last_name": 1})
+        job_count = await db.jobs.count_documents({"account_id": acc["id"]})
+        app_count = await db.job_applications.count_documents({"account_id": acc["id"]})
+        
+        tier_prices = {"free": 0, "starter": 6899, "growth": 10499, "pro": 19999, "enterprise": 39999}
+        extra = acc.get("extra_users_count", 0)
+        mrr = tier_prices.get(acc.get("tier_id", "starter"), 0) + (extra * 899)
+        
+        accounts_detail.append({
+            "id": acc["id"],
+            "name": acc.get("name", ""),
+            "tier_id": acc.get("tier_id", "starter"),
+            "subscription_status": acc.get("subscription_status", "pending"),
+            "owner_name": f"{owner.get('first_name','')} {owner.get('last_name','')}" if owner else "N/A",
+            "owner_email": owner.get("email", "N/A") if owner else "N/A",
+            "user_count": acc.get("current_user_count", 1),
+            "extra_users": extra,
+            "job_count": job_count,
+            "application_count": app_count,
+            "mrr": mrr,
+            "created_at": acc.get("created_at", now).isoformat() if isinstance(acc.get("created_at"), datetime) else str(acc.get("created_at", "")),
+        })
+    
+    # --- Top jobs by applications ---
+    top_jobs_pipeline = [
+        {"$group": {"_id": "$job_id", "count": {"$sum": 1}}},
+        {"$sort": {"count": -1}},
+        {"$limit": 10}
+    ]
+    top_jobs_raw = await db.job_applications.aggregate(top_jobs_pipeline).to_list(10)
+    top_jobs = []
+    for tj in top_jobs_raw:
+        job = await db.jobs.find_one({"id": tj["_id"]}, {"_id": 0, "title": 1, "company_name": 1, "location": 1})
+        if job:
+            top_jobs.append({**job, "application_count": tj["count"]})
+    
+    return {
+        "monthly_trends": months_data,
+        "jobs_by_industry": [{"name": d["_id"] or "Other", "count": d["count"]} for d in industry_data],
+        "jobs_by_location": [{"name": d["_id"] or "Other", "count": d["count"]} for d in location_data],
+        "jobs_by_work_type": [{"name": d["_id"] or "Other", "count": d["count"]} for d in work_type_data],
+        "jobs_by_job_type": [{"name": d["_id"] or "Other", "count": d["count"]} for d in job_type_data],
+        "applications_by_status": [{"name": d["_id"] or "Other", "count": d["count"]} for d in app_status_data],
+        "onboarding": {
+            "job_seekers": {"completed": onboarded_seekers, "total": total_seekers},
+            "recruiters": {"completed": onboarded_recruiters, "total": total_recruiters},
+        },
+        "accounts_detail": accounts_detail,
+        "top_jobs": top_jobs,
+    }
+
+
+# ============================================
+# Admin Account Management Endpoints
+# ============================================
+
+@api_router.get("/admin/accounts/{account_id}")
+async def admin_get_account(account_id: str, current_user: User = Depends(verify_admin_user)):
+    """Get detailed account info for admin management"""
+    account = await db.accounts.find_one({"id": account_id}, {"_id": 0})
+    if not account:
+        raise HTTPException(status_code=404, detail="Account not found")
+    
+    tier_config = get_tier_config(TierId(account.get("tier_id", "starter")))
+    owner = await db.users.find_one({"id": account.get("owner_user_id", "")}, {"_id": 0, "email": 1, "first_name": 1, "last_name": 1})
+    job_count = await db.jobs.count_documents({"account_id": account_id})
+    
+    # Get active addons
+    addons = []
+    async for addon in db.account_addons.find({"account_id": account_id, "is_active": True}, {"_id": 0}):
+        addons.append(addon)
+    
+    # Get audit log
+    audit_log = []
+    async for log in db.admin_audit_log.find({"account_id": account_id}, {"_id": 0}).sort("created_at", -1).limit(50):
+        if isinstance(log.get("created_at"), datetime):
+            log["created_at"] = log["created_at"].isoformat()
+        audit_log.append(log)
+    
+    return {
+        **account,
+        "tier_name": tier_config["name"],
+        "tier_price": tier_config["price_monthly"],
+        "owner": owner,
+        "job_count": job_count,
+        "active_addons": addons,
+        "credit_balance": account.get("credit_balance", 0),
+        "audit_log": audit_log,
+    }
+
+async def _admin_audit(account_id: str, admin_id: str, action: str, details: dict):
+    """Log an admin action to the audit trail"""
+    await db.admin_audit_log.insert_one({
+        "id": str(uuid.uuid4()),
+        "account_id": account_id,
+        "admin_user_id": admin_id,
+        "action": action,
+        "details": details,
+        "created_at": datetime.utcnow(),
+    })
+
+@api_router.put("/admin/accounts/{account_id}/tier")
+async def admin_change_tier(
+    account_id: str,
+    request: Request,
+    current_user: User = Depends(verify_admin_user)
+):
+    """Change an account's subscription tier"""
+    body = await request.json()
+    new_tier_id = body.get("tier_id")
+    reason = body.get("reason", "Admin override")
+    
+    if new_tier_id not in ["starter", "growth", "pro", "enterprise"]:
+        raise HTTPException(status_code=400, detail="Invalid tier ID")
+    
+    account = await db.accounts.find_one({"id": account_id})
+    if not account:
+        raise HTTPException(status_code=404, detail="Account not found")
+    
+    old_tier = account.get("tier_id", "starter")
+    new_tier_config = get_tier_config(TierId(new_tier_id))
+    
+    await db.accounts.update_one({"id": account_id}, {"$set": {
+        "tier_id": new_tier_id,
+        "subscription_status": "active",
+        "subscription_start_date": datetime.utcnow(),
+        "subscription_end_date": datetime.utcnow() + timedelta(days=30),
+        "updated_at": datetime.utcnow(),
+    }})
+    
+    await _admin_audit(account_id, current_user.id, "tier_change", {
+        "old_tier": old_tier, "new_tier": new_tier_id, "reason": reason
+    })
+    
+    return {"success": True, "message": f"Tier changed from {old_tier} to {new_tier_id}", "tier_id": new_tier_id}
+
+@api_router.post("/admin/accounts/{account_id}/addon")
+async def admin_grant_addon(
+    account_id: str,
+    request: Request,
+    current_user: User = Depends(verify_admin_user)
+):
+    """Grant an add-on feature to an account for free"""
+    body = await request.json()
+    addon_id = body.get("addon_id")
+    reason = body.get("reason", "Admin grant")
+    
+    account = await db.accounts.find_one({"id": account_id})
+    if not account:
+        raise HTTPException(status_code=404, detail="Account not found")
+    
+    addon_config = None
+    for aid, cfg in ADDON_CONFIG.items():
+        if aid.value == addon_id:
+            addon_config = cfg
+            break
+    
+    if not addon_config:
+        raise HTTPException(status_code=400, detail="Invalid add-on ID")
+    
+    # Check if already active
+    existing = await db.account_addons.find_one({"account_id": account_id, "addon_id": addon_id, "is_active": True})
+    if existing:
+        raise HTTPException(status_code=400, detail="Add-on already active on this account")
+    
+    addon_doc = {
+        "id": str(uuid.uuid4()),
+        "account_id": account_id,
+        "addon_id": addon_id,
+        "feature_id": addon_config["feature_id"].value,
+        "purchased_date": datetime.utcnow(),
+        "expires_date": datetime.utcnow() + timedelta(days=365),
+        "is_active": True,
+        "price_paid": 0,
+        "payment_id": None,
+        "admin_granted": True,
+    }
+    await db.account_addons.insert_one(addon_doc)
+    
+    await _admin_audit(account_id, current_user.id, "addon_grant", {
+        "addon_id": addon_id, "addon_name": addon_config["name"], "reason": reason
+    })
+    
+    return {"success": True, "message": f"Add-on '{addon_config['name']}' granted", "addon_id": addon_id}
+
+@api_router.delete("/admin/accounts/{account_id}/addon/{addon_purchase_id}")
+async def admin_revoke_addon(
+    account_id: str,
+    addon_purchase_id: str,
+    current_user: User = Depends(verify_admin_user)
+):
+    """Revoke an add-on from an account"""
+    result = await db.account_addons.update_one(
+        {"id": addon_purchase_id, "account_id": account_id},
+        {"$set": {"is_active": False, "updated_at": datetime.utcnow()}}
+    )
+    if result.modified_count == 0:
+        raise HTTPException(status_code=404, detail="Add-on not found")
+    
+    await _admin_audit(account_id, current_user.id, "addon_revoke", {"addon_purchase_id": addon_purchase_id})
+    return {"success": True, "message": "Add-on revoked"}
+
+@api_router.post("/admin/accounts/{account_id}/seats")
+async def admin_add_seats(
+    account_id: str,
+    request: Request,
+    current_user: User = Depends(verify_admin_user)
+):
+    """Add extra user seats to an account for free"""
+    body = await request.json()
+    quantity = body.get("quantity", 1)
+    reason = body.get("reason", "Admin grant")
+    
+    if quantity < 1 or quantity > 50:
+        raise HTTPException(status_code=400, detail="Quantity must be between 1 and 50")
+    
+    account = await db.accounts.find_one({"id": account_id})
+    if not account:
+        raise HTTPException(status_code=404, detail="Account not found")
+    
+    current_extra = account.get("extra_users_count", 0)
+    await db.accounts.update_one({"id": account_id}, {"$set": {
+        "extra_users_count": current_extra + quantity,
+        "updated_at": datetime.utcnow(),
+    }})
+    
+    await _admin_audit(account_id, current_user.id, "seats_added", {
+        "quantity": quantity, "previous_extra": current_extra, "reason": reason
+    })
+    
+    return {"success": True, "message": f"{quantity} seat(s) added", "total_extra_seats": current_extra + quantity}
+
+@api_router.post("/admin/accounts/{account_id}/credits")
+async def admin_add_credits(
+    account_id: str,
+    request: Request,
+    current_user: User = Depends(verify_admin_user)
+):
+    """Add credit balance to an account"""
+    body = await request.json()
+    amount = body.get("amount", 0)
+    reason = body.get("reason", "Admin credit")
+    
+    if amount <= 0 or amount > 1000000:
+        raise HTTPException(status_code=400, detail="Amount must be between R1 and R1,000,000")
+    
+    account = await db.accounts.find_one({"id": account_id})
+    if not account:
+        raise HTTPException(status_code=404, detail="Account not found")
+    
+    current_balance = account.get("credit_balance", 0)
+    new_balance = current_balance + amount
+    
+    await db.accounts.update_one({"id": account_id}, {"$set": {
+        "credit_balance": new_balance,
+        "updated_at": datetime.utcnow(),
+    }})
+    
+    await _admin_audit(account_id, current_user.id, "credit_added", {
+        "amount": amount, "previous_balance": current_balance, "new_balance": new_balance, "reason": reason
+    })
+    
+    return {"success": True, "message": f"R{amount:,.0f} credited", "credit_balance": new_balance}
+
+@api_router.get("/admin/accounts/{account_id}/audit-log")
+async def admin_get_audit_log(account_id: str, current_user: User = Depends(verify_admin_user)):
+    """Get audit log for an account"""
+    logs = []
+    async for log in db.admin_audit_log.find({"account_id": account_id}, {"_id": 0}).sort("created_at", -1).limit(100):
+        if isinstance(log.get("created_at"), datetime):
+            log["created_at"] = log["created_at"].isoformat()
+        logs.append(log)
+    return {"logs": logs}
+
+
+@api_router.post("/admin/accounts/{account_id}/reactivate")
+async def admin_reactivate_account(account_id: str, current_user: User = Depends(verify_admin_user)):
+    """Admin manual reactivation of a suspended account (e.g. after EFT payment)"""
+    account = await db.accounts.find_one({"id": account_id})
+    if not account:
+        raise HTTPException(status_code=404, detail="Account not found")
+    
+    now = datetime.utcnow()
+    next_billing = now + timedelta(days=30)
+    
+    await db.accounts.update_one(
+        {"id": account_id},
+        {"$set": {
+            "subscription_status": SubscriptionStatus.ACTIVE.value,
+            "subscription_end_date": next_billing,
+            "next_billing_date": next_billing,
+            "last_payment_date": now,
+            "grace_period_start": None,
+            "payment_retry_count": 0,
+            "deactivated_at": None,
+            "deactivation_reason": None,
+            "billing_cycle_reset_date": now,
+            "billing_cycle_reset_reason": "admin_manual_reactivation",
+            "updated_at": now
+        }}
+    )
+    
+    # Audit log
+    await db.admin_audit_log.insert_one({
+        "id": str(uuid.uuid4()),
+        "account_id": account_id,
+        "action": "manual_reactivation",
+        "performed_by": current_user.id,
+        "performed_by_email": current_user.email,
+        "details": f"Account manually reactivated by admin. Next billing: {next_billing.strftime('%Y-%m-%d')}",
+        "created_at": now
+    })
+    
+    logger.info(f"Account {account_id} manually reactivated by admin {current_user.email}")
+    return {"status": "reactivated", "next_billing_date": next_billing.isoformat()}
+
+
+@api_router.get("/admin/subscription-overview")
+async def admin_subscription_overview(current_user: User = Depends(verify_admin_user)):
+    """Get a snapshot of all account statuses for the admin dashboard"""
+    now = datetime.utcnow()
+    
+    pipeline = [
+        {"$match": {"subscription_status": {"$exists": True}}},
+        {"$group": {
+            "_id": "$subscription_status",
+            "count": {"$sum": 1}
+        }}
+    ]
+    
+    status_counts = {"active": 0, "trial": 0, "past_due": 0, "inactive": 0, "pending": 0, "free": 0}
+    async for doc in db.accounts.aggregate(pipeline):
+        status_id = doc["_id"]
+        if status_id in status_counts:
+            status_counts[status_id] = doc["count"]
+        elif status_id == "cancelled" or status_id == "expired":
+            status_counts["inactive"] += doc["count"]
+    
+    # Count accounts with tier_id = "free" as free (regardless of subscription_status)
+    free_count = await db.accounts.count_documents({"tier_id": "free"})
+    status_counts["free"] = free_count
+    
+    # Get accounts in grace period (past_due with grace_period_start)
+    grace_accounts = []
+    async for acc in db.accounts.find(
+        {"subscription_status": "past_due", "grace_period_start": {"$ne": None}},
+        {"_id": 0, "id": 1, "name": 1, "grace_period_start": 1, "tier_id": 1}
+    ).limit(50):
+        gp_start = acc.get("grace_period_start")
+        if isinstance(gp_start, datetime):
+            days_remaining = max(0, 7 - (now - gp_start).days)
+            acc["grace_days_remaining"] = days_remaining
+            acc["grace_period_start"] = gp_start.isoformat()
+        grace_accounts.append(acc)
+    
+    # Get recently suspended accounts
+    suspended_accounts = []
+    async for acc in db.accounts.find(
+        {"subscription_status": "inactive", "deactivation_reason": {"$exists": True}},
+        {"_id": 0, "id": 1, "name": 1, "deactivated_at": 1, "tier_id": 1, "deactivation_reason": 1}
+    ).sort("deactivated_at", -1).limit(20):
+        if isinstance(acc.get("deactivated_at"), datetime):
+            acc["deactivated_at"] = acc["deactivated_at"].isoformat()
+        suspended_accounts.append(acc)
+    
+    return {
+        "status_counts": status_counts,
+        "grace_period_accounts": grace_accounts,
+        "suspended_accounts": suspended_accounts
+    }
+
+
+@api_router.post("/admin/test-email")
+async def admin_test_email(
+    request: Request,
+    current_user: User = Depends(verify_admin_user)
+):
+    """Test email sending functionality (Admin only)"""
+    body = await request.json()
+    test_email = body.get("email")
+    email_type = body.get("type", "job_alerts")
+    
+    if not test_email:
+        raise HTTPException(status_code=400, detail="Email address required")
+    
+    # Send a test email
+    email_content = EmailTemplates.job_alert_notification(
+        user_name="Test User",
+        job_title="Senior Software Developer",
+        company_name="Test Company",
+        location="Cape Town",
+        work_type="Remote",
+        salary_range="R60,000 - R90,000",
+        job_url="https://jobrocket.co.za/jobs/test",
+        alert_name="Software Developer"
+    )
+    
+    result = email_service.send_email(
+        email_type=EmailType.JOB_ALERTS,
+        to_email=test_email,
+        subject="🧪 Job Rocket Email Test - Job Alert",
+        html_content=email_content["html"],
+        plain_content=email_content["plain"]
+    )
+    
+    return {
+        "success": result["success"],
+        "message": result.get("message") or result.get("error"),
+        "sent_to": test_email
+    }
+
+
+@api_router.get("/admin/email-notifications")
+async def get_email_notifications(
+    current_user: User = Depends(verify_admin_user),
+    status: Optional[str] = None,
+    limit: int = 50
+):
+    """Get job alert email notifications (Admin only)"""
+    query = {}
+    if status:
+        query["status"] = status
+    
+    notifications = []
+    async for notif in db.job_alert_notifications.find(query, {"_id": 0}).sort("created_at", -1).limit(limit):
+        if isinstance(notif.get("created_at"), datetime):
+            notif["created_at"] = notif["created_at"].isoformat()
+        if isinstance(notif.get("sent_at"), datetime):
+            notif["sent_at"] = notif["sent_at"].isoformat()
+        notifications.append(notif)
+    
+    return {"notifications": notifications, "total": len(notifications)}
+
+
+# ============================================
+# AI Matching Endpoints
+# ============================================
+
+from services.ai_matching_service import get_ai_matching_service, set_ai_matching_enabled
+ai_service = get_ai_matching_service(db)
+
+@api_router.get("/ai-matching/status")
+async def get_ai_matching_status_public(current_user: User = Depends(get_current_user)):
+    """Check if AI matching is enabled (for any authenticated user)"""
+    return {
+        "ai_enabled": ai_service.is_ai_enabled,
+        "method": "ai" if ai_service.is_ai_enabled else "keyword"
+    }
+
+@api_router.get("/admin/ai-matching/status")
+async def get_ai_matching_status(current_user: User = Depends(verify_admin_user)):
+    """Check if AI matching is enabled"""
+    return {
+        "ai_enabled": ai_service.is_ai_enabled,
+        "method": "ai" if ai_service.is_ai_enabled else "keyword"
+    }
+
+@api_router.post("/admin/ai-matching/toggle")
+async def toggle_ai_matching(
+    enabled: bool,
+    current_user: User = Depends(verify_admin_user)
+):
+    """Enable/disable AI matching (kill switch)"""
+    set_ai_matching_enabled(enabled)
+    return {
+        "success": True,
+        "ai_enabled": enabled,
+        "message": f"AI matching {'enabled' if enabled else 'disabled'}. Using {'AI' if enabled else 'keyword'} matching."
+    }
+
+
+# ============================================
+# Admin User Management Endpoints
+# ============================================
+
+@api_router.get("/admin/users")
+async def admin_list_users(
+    role: Optional[str] = Query(None, description="Filter by role: job_seeker, recruiter"),
+    search: Optional[str] = Query(None, description="Search by name or email"),
+    skip: int = Query(0, ge=0),
+    limit: int = Query(50, le=200),
+    current_user: User = Depends(verify_admin_user)
+):
+    """List all users with optional filters"""
+    query = {}
+    if role:
+        query["role"] = role
+    if search:
+        query["$or"] = [
+            {"email": {"$regex": search, "$options": "i"}},
+            {"first_name": {"$regex": search, "$options": "i"}},
+            {"last_name": {"$regex": search, "$options": "i"}}
+        ]
+    
+    total = await db.users.count_documents(query)
+    cursor = db.users.find(query, {"password": 0, "password_hash": 0, "_id": 0}).skip(skip).limit(limit).sort("created_at", -1)
+    users = await cursor.to_list(length=limit)
+    
+    return {"users": users, "total": total, "skip": skip, "limit": limit}
+
+
+@api_router.get("/admin/users/{user_id}")
+async def admin_get_user(
+    user_id: str,
+    current_user: User = Depends(verify_admin_user)
+):
+    """Get full user details including profile"""
+    user = await db.users.find_one({"id": user_id}, {"password": 0, "password_hash": 0, "_id": 0})
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    # If recruiter, also get account info
+    if user.get("role") == "recruiter" and user.get("account_id"):
+        account = await db.accounts.find_one({"id": user["account_id"]}, {"_id": 0})
+        user["account"] = account
+    
+    return user
+
+
+@api_router.post("/admin/users")
+async def admin_create_user(
+    request: Request,
+    current_user: User = Depends(verify_admin_user)
+):
+    """Create a new user (job seeker or recruiter) with full profile"""
+    body = await request.json()
+    
+    # Required fields
+    email = body.get("email", "").strip().lower()
+    password = body.get("password", "")
+    first_name = body.get("first_name", "").strip()
+    last_name = body.get("last_name", "").strip()
+    role = body.get("role", "job_seeker")
+    
+    if not email or not password or not first_name or not last_name:
+        raise HTTPException(status_code=400, detail="Email, password, first_name, and last_name are required")
+    
+    if role not in ["job_seeker", "recruiter"]:
+        raise HTTPException(status_code=400, detail="Role must be job_seeker or recruiter")
+    
+    # Check if email exists
+    existing = await db.users.find_one({"email": email})
+    if existing:
+        raise HTTPException(status_code=400, detail="Email already registered")
+    
+    # Hash password
+    pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+    hashed_password = pwd_context.hash(password)
+    
+    # Create user document
+    user_id = str(uuid.uuid4())
+    now = datetime.utcnow()
+    
+    user_doc = {
+        "id": user_id,
+        "email": email,
+        "password_hash": hashed_password,
+        "first_name": first_name,
+        "last_name": last_name,
+        "role": role,
+        "created_at": now,
+        "updated_at": now,
+        "onboarding_completed": True,
+        "onboarding_progress": 100,
+        "is_active": True
+    }
+    
+    # Add optional profile fields
+    profile_fields = [
+        "phone", "location", "about_me", "skills", "job_title",
+        "linkedin_url", "portfolio_url", "expected_salary_min", "expected_salary_max",
+        "availability", "work_type_preferences", "employment_type_preferences"
+    ]
+    for field in profile_fields:
+        if field in body and body[field] is not None:
+            user_doc[field] = body[field]
+    
+    # Handle work experience, education, achievements for job seekers
+    if role == "job_seeker":
+        if "work_experience" in body:
+            user_doc["work_experience"] = body["work_experience"]
+        if "education" in body:
+            user_doc["education"] = body["education"]
+        if "achievements" in body:
+            user_doc["achievements"] = body["achievements"]
+        
+        # Initialize profile progress
+        user_doc["profile_progress"] = {}
+    
+    # Handle recruiter-specific setup
+    if role == "recruiter":
+        account_id = body.get("account_id")
+        
+        if account_id:
+            # Add to existing account
+            account = await db.accounts.find_one({"id": account_id})
+            if not account:
+                raise HTTPException(status_code=400, detail="Account not found")
+            user_doc["account_id"] = account_id
+            user_doc["account_role"] = body.get("account_role", "user")
+        else:
+            # Create new account if company info provided
+            company_name = body.get("company_name", f"{first_name}'s Company")
+            tier_id = body.get("tier_id", "starter")
+            
+            account_doc = {
+                "id": str(uuid.uuid4()),
+                "name": company_name,
+                "owner_id": user_id,
+                "tier_id": tier_id,
+                "subscription_status": "active",
+                "billing_cycle": "monthly",
+                "current_user_count": 1,
+                "max_users": get_tier_config(tier_id).get("max_users", 1),
+                "features": get_tier_config(tier_id).get("features", []),
+                "credit_balance": body.get("credit_balance", 0),
+                "created_at": now,
+                "updated_at": now
+            }
+            
+            # Optional account fields
+            if "company_website" in body:
+                account_doc["website"] = body["company_website"]
+            if "company_industry" in body:
+                account_doc["industry"] = body["company_industry"]
+            if "company_size" in body:
+                account_doc["company_size"] = body["company_size"]
+            if "company_description" in body:
+                account_doc["description"] = body["company_description"]
+            
+            await db.accounts.insert_one(account_doc)
+            user_doc["account_id"] = account_doc["id"]
+            user_doc["account_role"] = "owner"
+    
+    await db.users.insert_one(user_doc)
+    
+    # Remove sensitive fields from response
+    user_doc.pop("password", None)
+    user_doc.pop("_id", None)
+    
+    return {"message": "User created successfully", "user": user_doc}
+
+
+@api_router.put("/admin/users/{user_id}")
+async def admin_update_user(
+    user_id: str,
+    request: Request,
+    current_user: User = Depends(verify_admin_user)
+):
+    """Update user profile and account settings"""
+    body = await request.json()
+    
+    user = await db.users.find_one({"id": user_id})
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    update_fields = {"updated_at": datetime.utcnow()}
+    
+    # Basic profile fields
+    basic_fields = [
+        "first_name", "last_name", "phone", "location", "about_me", 
+        "job_title", "skills", "linkedin_url", "portfolio_url",
+        "expected_salary_min", "expected_salary_max", "availability",
+        "work_type_preferences", "employment_type_preferences", "is_active"
+    ]
+    for field in basic_fields:
+        if field in body:
+            update_fields[field] = body[field]
+    
+    # Handle password change
+    if "password" in body and body["password"]:
+        pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+        update_fields["password_hash"] = pwd_context.hash(body["password"])
+    
+    # Handle work experience, education, achievements for job seekers
+    if user.get("role") == "job_seeker":
+        if "work_experience" in body:
+            update_fields["work_experience"] = body["work_experience"]
+        if "education" in body:
+            update_fields["education"] = body["education"]
+        if "achievements" in body:
+            update_fields["achievements"] = body["achievements"]
+    
+    # Update user
+    await db.users.update_one({"id": user_id}, {"$set": update_fields})
+    
+    # Recalculate profile progress for job seekers
+    if user.get("role") == "job_seeker":
+        await calculate_profile_progress(user_id)
+    
+    # Handle recruiter account updates
+    if user.get("role") == "recruiter" and user.get("account_id"):
+        account_updates = {}
+        account_fields = ["company_name", "company_website", "company_industry", "company_size", "company_description"]
+        field_mapping = {
+            "company_name": "name",
+            "company_website": "website",
+            "company_industry": "industry",
+            "company_size": "company_size",
+            "company_description": "description"
+        }
+        for field in account_fields:
+            if field in body:
+                account_updates[field_mapping[field]] = body[field]
+        
+        # Handle tier change
+        if "tier_id" in body:
+            new_tier = body["tier_id"]
+            tier_config = get_tier_config(new_tier)
+            account_updates["tier_id"] = new_tier
+            account_updates["max_users"] = tier_config.get("max_users", 1)
+            account_updates["features"] = tier_config.get("features", [])
+        
+        # Handle credit balance
+        if "credit_balance" in body:
+            account_updates["credit_balance"] = body["credit_balance"]
+        
+        if account_updates:
+            account_updates["updated_at"] = datetime.utcnow()
+            await db.accounts.update_one({"id": user["account_id"]}, {"$set": account_updates})
+    
+    return {"message": "User updated successfully"}
+
+
+@api_router.delete("/admin/users/{user_id}")
+async def admin_delete_user(
+    user_id: str,
+    current_user: User = Depends(verify_admin_user)
+):
+    """Delete a user (soft delete by deactivating)"""
+    user = await db.users.find_one({"id": user_id})
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    # Don't allow deleting admins
+    if user.get("role") == "admin":
+        raise HTTPException(status_code=400, detail="Cannot delete admin users")
+    
+    # Soft delete - deactivate user
+    await db.users.update_one(
+        {"id": user_id},
+        {"$set": {"is_active": False, "updated_at": datetime.utcnow()}}
+    )
+    
+    return {"message": "User deactivated successfully"}
+
+
+@api_router.get("/admin/accounts-list")
+async def admin_list_accounts(
+    current_user: User = Depends(verify_admin_user)
+):
+    """List all accounts for dropdown selection"""
+    cursor = db.accounts.find({}, {"_id": 0, "id": 1, "name": 1, "tier_id": 1, "owner_id": 1})
+    accounts = await cursor.to_list(length=500)
+    return {"accounts": accounts}
+
+
+# ============================================
+# Admin Discount Code Endpoints
+# ============================================
+
+@api_router.get("/admin/discount-codes")
+async def admin_list_discount_codes(
+    current_user: User = Depends(verify_admin_user)
+):
+    """List all discount codes"""
+    cursor = db.discount_codes.find({}, {"_id": 0})
+    codes = await cursor.to_list(length=500)
+    return codes
+
+
+@api_router.get("/admin/discount-codes/stats/usage")
+async def admin_discount_code_stats(
+    current_user: User = Depends(verify_admin_user)
+):
+    """Get discount code usage statistics"""
+    # Get all codes
+    cursor = db.discount_codes.find({}, {"_id": 0})
+    codes = await cursor.to_list(length=500)
+    
+    total_codes = len(codes)
+    active_codes = len([c for c in codes if c.get("status") == "active"])
+    total_usage = sum(c.get("usage_count", 0) for c in codes)
+    
+    # Calculate total discount given
+    total_discount_given = 0
+    cursor = db.payments.find({"discount_code": {"$exists": True, "$ne": None}}, {"_id": 0, "discount_amount": 1})
+    payments = await cursor.to_list(length=10000)
+    total_discount_given = sum(p.get("discount_amount", 0) for p in payments)
+    
+    return {
+        "total_codes": total_codes,
+        "active_codes": active_codes,
+        "total_usage": total_usage,
+        "total_discount_given": total_discount_given
+    }
+
+
+@api_router.post("/admin/discount-codes")
+async def admin_create_discount_code(
+    code_data: DiscountCodeCreate,
+    current_user: User = Depends(verify_admin_user)
+):
+    """Create a new discount code"""
+    # Check if code already exists
+    existing = await db.discount_codes.find_one({"code": code_data.code.upper()})
+    if existing:
+        raise HTTPException(status_code=400, detail="Discount code already exists")
+    
+    now = datetime.utcnow()
+    code_dict = {
+        "id": str(uuid.uuid4()),
+        "code": code_data.code.upper(),
+        "name": code_data.name,
+        "description": code_data.description,
+        "discount_type": code_data.discount_type.value if hasattr(code_data.discount_type, 'value') else code_data.discount_type,
+        "discount_value": code_data.discount_value,
+        "minimum_amount": code_data.minimum_amount,
+        "maximum_discount": code_data.maximum_discount,
+        "usage_limit": code_data.usage_limit,
+        "usage_count": 0,
+        "user_limit": code_data.user_limit,
+        "valid_from": code_data.valid_from or now,
+        "valid_until": code_data.valid_until,
+        "applicable_tiers": [t.value if hasattr(t, 'value') else t for t in code_data.applicable_tiers] if code_data.applicable_tiers else None,
+        "status": "active",
+        "created_by": current_user.id,
+        "created_at": now,
+        "updated_at": now
+    }
+    
+    await db.discount_codes.insert_one(code_dict)
+    code_dict.pop("_id", None)
+    
+    return code_dict
+
+
+@api_router.put("/admin/discount-codes/{code_id}")
+async def admin_update_discount_code(
+    code_id: str,
+    request: Request,
+    current_user: User = Depends(verify_admin_user)
+):
+    """Update a discount code"""
+    code = await db.discount_codes.find_one({"id": code_id})
+    if not code:
+        raise HTTPException(status_code=404, detail="Discount code not found")
+    
+    body = await request.json()
+    update_fields = {"updated_at": datetime.utcnow()}
+    
+    allowed_fields = [
+        "name", "description", "discount_type", "discount_value",
+        "minimum_amount", "maximum_discount", "usage_limit", "user_limit",
+        "valid_from", "valid_until", "applicable_tiers", "status"
+    ]
+    
+    for field in allowed_fields:
+        if field in body:
+            if field == "discount_type" and body[field]:
+                update_fields[field] = body[field] if isinstance(body[field], str) else body[field].value
+            elif field == "applicable_tiers" and body[field]:
+                update_fields[field] = [t if isinstance(t, str) else t.value for t in body[field]]
+            elif field in ["valid_from", "valid_until"] and body[field]:
+                if isinstance(body[field], str):
+                    update_fields[field] = datetime.fromisoformat(body[field].replace('Z', '+00:00'))
+                else:
+                    update_fields[field] = body[field]
+            else:
+                update_fields[field] = body[field]
+    
+    await db.discount_codes.update_one({"id": code_id}, {"$set": update_fields})
+    
+    updated = await db.discount_codes.find_one({"id": code_id}, {"_id": 0})
+    return updated
+
+
+@api_router.delete("/admin/discount-codes/{code_id}")
+async def admin_delete_discount_code(
+    code_id: str,
+    current_user: User = Depends(verify_admin_user)
+):
+    """Delete a discount code"""
+    code = await db.discount_codes.find_one({"id": code_id})
+    if not code:
+        raise HTTPException(status_code=404, detail="Discount code not found")
+    
+    await db.discount_codes.delete_one({"id": code_id})
+    return {"message": "Discount code deleted successfully"}
+
+
+# ============================================
+# Public Discount Code Validation
+# ============================================
+
+@api_router.post("/payments/validate-discount")
+async def validate_discount_code(
+    request: Request,
+    current_user: User = Depends(get_current_recruiter)
+):
+    """Validate a discount code and return discount details"""
+    body = await request.json()
+    code_str = body.get("code", "").upper()
+    tier_id = body.get("tier_id")
+    amount = body.get("amount", 0)
+    
+    if not code_str:
+        raise HTTPException(status_code=400, detail="Discount code is required")
+    
+    # Find the discount code
+    code = await db.discount_codes.find_one({"code": code_str})
+    if not code:
+        raise HTTPException(status_code=404, detail="Invalid discount code")
+    
+    # Check if code is active
+    if code.get("status") != "active":
+        raise HTTPException(status_code=400, detail="This discount code is no longer active")
+    
+    # Check validity dates
+    now = datetime.utcnow()
+    valid_from = code.get("valid_from")
+    valid_until = code.get("valid_until")
+    
+    if valid_from and now < valid_from:
+        raise HTTPException(status_code=400, detail="This discount code is not yet valid")
+    
+    if valid_until and now > valid_until:
+        raise HTTPException(status_code=400, detail="This discount code has expired")
+    
+    # Check usage limit
+    usage_limit = code.get("usage_limit")
+    usage_count = code.get("usage_count", 0)
+    if usage_limit and usage_count >= usage_limit:
+        raise HTTPException(status_code=400, detail="This discount code has reached its usage limit")
+    
+    # Check user limit (how many times this user has used this code)
+    user_limit = code.get("user_limit")
+    if user_limit:
+        user_usage = await db.payments.count_documents({
+            "user_id": current_user.id,
+            "discount_code": code_str,
+            "status": {"$in": ["completed", "pending"]}
+        })
+        if user_usage >= user_limit:
+            raise HTTPException(status_code=400, detail="You have already used this discount code")
+    
+    # Check minimum amount
+    minimum_amount = code.get("minimum_amount")
+    if minimum_amount and amount < minimum_amount:
+        raise HTTPException(status_code=400, detail=f"Minimum order amount of R{minimum_amount:.2f} required")
+    
+    # Check applicable tiers
+    applicable_tiers = code.get("applicable_tiers")
+    if applicable_tiers and tier_id and tier_id not in applicable_tiers:
+        raise HTTPException(status_code=400, detail="This discount code is not valid for the selected plan")
+    
+    # Calculate discount
+    discount_type = code.get("discount_type")
+    discount_value = code.get("discount_value", 0)
+    maximum_discount = code.get("maximum_discount")
+    
+    if discount_type == "percentage":
+        discount_amount = amount * (discount_value / 100)
+    else:  # fixed_amount
+        discount_amount = discount_value
+    
+    # Apply maximum discount cap
+    if maximum_discount and discount_amount > maximum_discount:
+        discount_amount = maximum_discount
+    
+    # Don't let discount exceed the amount
+    if discount_amount > amount:
+        discount_amount = amount
+    
+    final_amount = amount - discount_amount
+    
+    return {
+        "valid": True,
+        "code": code_str,
+        "discount_type": discount_type,
+        "discount_value": discount_value,
+        "discount_amount": round(discount_amount, 2),
+        "original_amount": amount,
+        "final_amount": round(final_amount, 2),
+        "message": f"Discount of R{discount_amount:.2f} applied!"
+    }
+
+
+# ============================================
+# Admin Bulk Job Export
+# ============================================
+
+@api_router.get("/admin/jobs/export")
+async def admin_export_jobs(
+    start_date: Optional[str] = None,
+    end_date: Optional[str] = None,
+    limit: Optional[int] = None,
+    current_user: User = Depends(verify_admin_user)
+):
+    """Export jobs as CSV for admin with optional date filtering and limit"""
+    import csv
+    import io
+    from fastapi.responses import StreamingResponse
+    
+    # Build query filter
+    query = {}
+    
+    # Add date filters if provided
+    if start_date or end_date:
+        date_filter = {}
+        if start_date:
+            try:
+                start_dt = datetime.fromisoformat(start_date.replace('Z', '+00:00'))
+                date_filter["$gte"] = start_dt
+            except:
+                pass
+        if end_date:
+            try:
+                end_dt = datetime.fromisoformat(end_date.replace('Z', '+00:00'))
+                # Add one day to include the end date fully
+                end_dt = end_dt.replace(hour=23, minute=59, second=59)
+                date_filter["$lte"] = end_dt
+            except:
+                pass
+        if date_filter:
+            query["created_at"] = date_filter
+    
+    # Set limit (default to 150000 if not specified)
+    fetch_limit = limit if limit and limit > 0 else 150000
+    
+    # Fetch jobs sorted by created_at descending (latest first)
+    cursor = db.jobs.find(query, {"_id": 0}).sort("created_at", -1).limit(fetch_limit)
+    jobs = await cursor.to_list(length=fetch_limit)
+    
+    # Create CSV in memory
+    output = io.StringIO()
+    writer = csv.writer(output)
+    
+    # Write header
+    headers = [
+        "Job Title",
+        "Location", 
+        "Salary",
+        "Description",
+        "Role Type",
+        "Work Type",
+        "Industry",
+        "Link to Job Listing",
+        "Job Listing ID",
+        "Posted Date"
+    ]
+    writer.writerow(headers)
+    
+    # Write job data
+    base_url = os.environ.get("BASE_URL", "https://jobrocket.co.za")
+    
+    for job in jobs:
+        job_id = job.get("id", "")
+        
+        # Format salary
+        salary = job.get("salary", "Not specified")
+        
+        # Clean description (remove HTML and limit length)
+        description = job.get("description", "")
+        if description:
+            # Remove HTML tags
+            import re
+            description = re.sub(r'<[^>]+>', '', description)
+            # Limit length and remove newlines
+            description = description.replace('\n', ' ').replace('\r', ' ')[:500]
+        
+        # Format posted date
+        created_at = job.get("created_at", "")
+        if created_at:
+            if isinstance(created_at, datetime):
+                posted_date = created_at.strftime("%Y-%m-%d %H:%M")
+            else:
+                posted_date = str(created_at)[:19]
+        else:
+            posted_date = ""
+        
+        row = [
+            job.get("title", ""),
+            job.get("location", ""),
+            salary,
+            description,
+            job.get("role_type", job.get("job_type", "")),
+            job.get("work_type", job.get("employment_type", "")),
+            job.get("industry", job.get("category", "")),
+            f"{base_url}/jobs/{job_id}",
+            job_id,
+            posted_date
+        ]
+        writer.writerow(row)
+    
+    # Prepare response
+    output.seek(0)
+    
+    # Generate filename with date
+    filename = f"jobrocket_jobs_export_{datetime.utcnow().strftime('%Y%m%d_%H%M%S')}.csv"
+    
+    return StreamingResponse(
+        iter([output.getvalue()]),
+        media_type="text/csv",
+        headers={
+            "Content-Disposition": f"attachment; filename={filename}",
+            "Content-Type": "text/csv; charset=utf-8"
+        }
+    )
+
+
+@api_router.post("/cv-search/match")
+async def match_candidates(
+    job_id: str,
+    current_user: User = Depends(get_current_recruiter)
+):
+    """Get AI/keyword match scores for candidates against a job"""
+    # Check feature access
+    await check_feature(current_user, FeatureId.TALENT_CV_DATABASE)
+    
+    # Get job
+    job = await db.jobs.find_one({"id": job_id, "account_id": current_user.account_id})
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found")
+    
+    # Get all job seekers
+    candidates = []
+    cursor = db.users.find({"role": "job_seeker"}).limit(100)
+    async for user in cursor:
+        if "_id" in user:
+            del user["_id"]
+        if "password_hash" in user:
+            del user["password_hash"]
+        candidates.append(user)
+    
+    # Get match scores
+    results = await ai_service.batch_match(job, candidates)
+    
+    return {
+        "job_id": job_id,
+        "job_title": job.get("title"),
+        "matching_method": "ai" if ai_service.is_ai_enabled else "keyword",
+        "candidates": results
+    }
+
+
+@api_router.post("/cv-search/ai-match")
+async def cv_search_ai_match(request: Request, current_user: User = Depends(get_current_recruiter)):
+    """
+    AI Match Score: Score a candidate against a specific recruiter job.
+    Available for Growth tier and above (same as CV Search access).
+    Cached to prevent duplicate LLM calls.
+    """
+    body = await request.json()
+    candidate_id = body.get("candidate_id")
+    job_id = body.get("job_id")
+
+    if not candidate_id or not job_id:
+        raise HTTPException(status_code=400, detail="candidate_id and job_id are required")
+
+    # Check CV Search access (Growth+ tier)
+    account = await db.accounts.find_one({"id": current_user.account_id})
+    if not account:
+        raise HTTPException(status_code=403, detail="Account not found")
+    tier_id = account.get("tier_id", "starter")
+    tier_config = get_tier_config(TierId(tier_id))
+    if not tier_config.get("cv_search_enabled", False):
+        raise HTTPException(status_code=403, detail="CV Search requires Growth tier or above")
+
+    # Check job belongs to recruiter's account
+    job = await db.jobs.find_one({"id": job_id, "account_id": current_user.account_id})
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found or not in your account")
+
+    # Check for cached result
+    cached = await db.recruiter_match_scores.find_one(
+        {"candidate_id": candidate_id, "job_id": job_id, "recruiter_id": current_user.id},
+        {"_id": 0}
+    )
+    if cached:
+        if isinstance(cached.get("created_at"), datetime):
+            cached["created_at"] = cached["created_at"].isoformat()
+        return {"success": True, "cached": True, "result": cached}
+
+    # Get candidate
+    candidate = await db.users.find_one({"id": candidate_id, "role": "job_seeker"})
+    if not candidate:
+        raise HTTPException(status_code=404, detail="Candidate not found")
+    if "_id" in candidate:
+        del candidate["_id"]
+    if "password_hash" in candidate:
+        del candidate["password_hash"]
+
+    # Remove _id from job too
+    if "_id" in job:
+        del job["_id"]
+
+    # Get AI match score
+    from services.ai_matching_service import get_ai_matching_service
+    matching_service = get_ai_matching_service(db)
+    match_result = await matching_service.get_match_score(job, candidate)
+
+    # Cache the result
+    import uuid
+    score_doc = {
+        "id": str(uuid.uuid4()),
+        "recruiter_id": current_user.id,
+        "account_id": current_user.account_id,
+        "candidate_id": candidate_id,
+        "candidate_name": f"{candidate.get('first_name', '')} {candidate.get('last_name', '')}",
+        "job_id": job_id,
+        "job_title": job.get("title", ""),
+        "score": match_result.get("score", 0),
+        "reasoning": match_result.get("reasoning", ""),
+        "method": match_result.get("method", "keyword"),
+        "breakdown": match_result.get("breakdown", {}),
+        "created_at": datetime.utcnow(),
+    }
+    await db.recruiter_match_scores.insert_one(score_doc)
+    score_doc.pop("_id", None)
+    score_doc["created_at"] = score_doc["created_at"].isoformat()
+
+    return {"success": True, "cached": False, "result": score_doc}
+
+
+@api_router.get("/cv-search/ai-match-scores")
+async def get_recruiter_match_scores(
+    candidate_id: str = None,
+    job_id: str = None,
+    current_user: User = Depends(get_current_recruiter)
+):
+    """Get cached AI match scores for the recruiter. Optionally filter by candidate or job."""
+    query = {"recruiter_id": current_user.id}
+    if candidate_id:
+        query["candidate_id"] = candidate_id
+    if job_id:
+        query["job_id"] = job_id
+
+    scores = []
+    async for doc in db.recruiter_match_scores.find(query, {"_id": 0}).sort("created_at", -1).limit(100):
+        if isinstance(doc.get("created_at"), datetime):
+            doc["created_at"] = doc["created_at"].isoformat()
+        scores.append(doc)
+
+    return {"scores": scores, "count": len(scores)}
+
+
+# ============================================
+# CV Database / Talent Pool Endpoints
+# ============================================
+
+# Contact reveal limits by tier (monthly)
+CONTACT_REVEAL_LIMITS = {
+    "free": 0,
+    "starter": 0,
+    "growth": 1500,
+    "pro": 5000,
+    "enterprise": 10000
+}
+
+# High usage threshold for admin notification
+CV_SEARCH_HIGH_USAGE_THRESHOLD = 20000
+
+
+@api_router.get("/cv-search/access")
+async def check_cv_search_access(current_user: User = Depends(get_current_recruiter)):
+    """Check if user has CV search access and their usage limits"""
+    account = await db.accounts.find_one({"id": current_user.account_id})
+    if not account:
+        raise HTTPException(status_code=404, detail="Account not found")
+    
+    tier_id = account.get("tier_id", "starter")
+    tier_config = get_tier_config(TierId(tier_id))
+    
+    # Get current month usage
+    now = datetime.utcnow()
+    month_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+    
+    # Get contact reveals this month
+    reveals_count = await db.contact_reveals.count_documents({
+        "account_id": current_user.account_id,
+        "revealed_at": {"$gte": month_start}
+    })
+    
+    # Get searches this month
+    searches_count = await db.cv_search_usage.count_documents({
+        "account_id": current_user.account_id,
+        "searched_at": {"$gte": month_start}
+    })
+    
+    has_access = tier_config.get("cv_search_enabled", False)
+    contact_limit = tier_config.get("contact_reveals_limit", 0)
+    
+    return {
+        "has_access": has_access,
+        "tier": tier_id,
+        "tier_name": tier_config.get("name"),
+        "contact_reveals_limit": contact_limit,
+        "contact_reveals_used": reveals_count,
+        "contact_reveals_remaining": max(0, contact_limit - reveals_count),
+        "searches_this_month": searches_count,
+        "upgrade_required": not has_access
+    }
+
+
+@api_router.get("/cv-search")
+async def search_candidates(
+    current_user: User = Depends(get_current_recruiter),
+    q: Optional[str] = None,
+    skills: Optional[str] = None,
+    location: Optional[str] = None,
+    experience_min: Optional[int] = None,
+    experience_max: Optional[int] = None,
+    industry: Optional[str] = None,
+    salary_min: Optional[int] = None,
+    salary_max: Optional[int] = None,
+    availability: Optional[str] = None,
+    skip: int = 0,
+    limit: int = 50
+):
+    """Search the CV database / talent pool"""
+    
+    # Get account and tier info
+    account = await db.accounts.find_one({"id": current_user.account_id})
+    if not account:
+        raise HTTPException(status_code=404, detail="Account not found")
+    
+    tier_id = account.get("tier_id", "starter")
+    tier_config = get_tier_config(TierId(tier_id))
+    
+    # Check if tier has CV search access
+    if not tier_config.get("cv_search_enabled", False):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail={
+                "error": "upgrade_required",
+                "message": "CV Search is available on Growth plan and above. Upgrade to access the talent pool.",
+                "upgrade_to": "growth"
+            }
+        )
+    
+    # Build query
+    query = {"role": "job_seeker"}
+    
+    if q:
+        query["$or"] = [
+            {"first_name": {"$regex": q, "$options": "i"}},
+            {"last_name": {"$regex": q, "$options": "i"}},
+            {"about_me": {"$regex": q, "$options": "i"}},
+            {"headline": {"$regex": q, "$options": "i"}},
+            {"skills": {"$elemMatch": {"$regex": q, "$options": "i"}}}
+        ]
+    
+    if skills:
+        skill_list = [s.strip().lower() for s in skills.split(",")]
+        query["skills"] = {"$elemMatch": {"$regex": "|".join(skill_list), "$options": "i"}}
+    
+    if location:
+        query["location"] = {"$regex": location, "$options": "i"}
+    
+    if industry:
+        industry_query = [
+            {"industry": {"$regex": industry, "$options": "i"}},
+            {"preferred_industry": {"$regex": industry, "$options": "i"}}
+        ]
+        if "$or" in query:
+            query["$and"] = [{"$or": query.pop("$or")}, {"$or": industry_query}]
+        else:
+            query["$or"] = industry_query
+    
+    if experience_min is not None:
+        query["years_experience"] = query.get("years_experience", {})
+        query["years_experience"]["$gte"] = experience_min
+    
+    if experience_max is not None:
+        query["years_experience"] = query.get("years_experience", {})
+        query["years_experience"]["$lte"] = experience_max
+    
+    if salary_min is not None:
+        query["expected_salary"] = query.get("expected_salary", {})
+        query["expected_salary"]["$gte"] = salary_min
+    
+    if salary_max is not None:
+        query["expected_salary"] = query.get("expected_salary", {})
+        query["expected_salary"]["$lte"] = salary_max
+    
+    if availability:
+        query["availability_status"] = availability
+    
+    # Execute search
+    candidates = []
+    cursor = db.users.find(query).skip(skip).limit(limit)
+    
+    # Get already revealed contacts for this account
+    revealed_ids = set()
+    reveals_cursor = db.contact_reveals.find({"account_id": current_user.account_id})
+    async for reveal in reveals_cursor:
+        revealed_ids.add(reveal.get("candidate_id"))
+    
+    async for user in cursor:
+        if "_id" in user:
+            del user["_id"]
+        if "password_hash" in user:
+            del user["password_hash"]
+        
+        # Mask contact info if not revealed
+        candidate_id = user.get("id")
+        is_revealed = candidate_id in revealed_ids
+        
+        if not is_revealed:
+            # Mask email and phone
+            if user.get("email"):
+                email_parts = user["email"].split("@")
+                if len(email_parts) == 2:
+                    masked = email_parts[0][:2] + "***@" + email_parts[1]
+                    user["email_masked"] = masked
+                user["email"] = None
+            if user.get("phone"):
+                user["phone_masked"] = user["phone"][:3] + "****" + user["phone"][-2:] if len(user.get("phone", "")) > 5 else "****"
+                user["phone"] = None
+        
+        user["contact_revealed"] = is_revealed
+        candidates.append(user)
+    
+    total = await db.users.count_documents(query)
+    
+    # Track this search
+    await db.cv_search_usage.insert_one({
+        "account_id": current_user.account_id,
+        "user_id": current_user.id,
+        "searched_at": datetime.utcnow(),
+        "query_params": {
+            "q": q,
+            "skills": skills,
+            "location": location,
+            "experience_min": experience_min,
+            "experience_max": experience_max,
+            "industry": industry,
+            "salary_min": salary_min,
+            "salary_max": salary_max,
+            "availability": availability
+        },
+        "results_count": total
+    })
+    
+    # Check for high usage notification
+    now = datetime.utcnow()
+    month_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+    searches_this_month = await db.cv_search_usage.count_documents({
+        "account_id": current_user.account_id,
+        "searched_at": {"$gte": month_start}
+    })
+    
+    if searches_this_month == CV_SEARCH_HIGH_USAGE_THRESHOLD:
+        # Create admin notification for high usage
+        await db.admin_notifications.insert_one({
+            "id": str(uuid.uuid4()),
+            "type": "high_cv_search_usage",
+            "account_id": current_user.account_id,
+            "company_name": account.get("company_name"),
+            "tier": tier_id,
+            "searches_count": searches_this_month,
+            "threshold": CV_SEARCH_HIGH_USAGE_THRESHOLD,
+            "message": f"Account {account.get('company_name')} has exceeded {CV_SEARCH_HIGH_USAGE_THRESHOLD:,} CV searches this month",
+            "created_at": now,
+            "is_read": False
+        })
+    
+    return {
+        "candidates": candidates,
+        "total": total,
+        "skip": skip,
+        "limit": limit,
+        "searches_this_month": searches_this_month
+    }
+
+
+@api_router.post("/cv-search/reveal/{candidate_id}")
+async def reveal_candidate_contact(
+    candidate_id: str,
+    current_user: User = Depends(get_current_recruiter)
+):
+    """Reveal a candidate's contact information (counts against monthly limit)"""
+    
+    # Get account and tier info
+    account = await db.accounts.find_one({"id": current_user.account_id})
+    if not account:
+        raise HTTPException(status_code=404, detail="Account not found")
+    
+    tier_id = account.get("tier_id", "starter")
+    tier_config = get_tier_config(TierId(tier_id))
+    
+    # Check if tier has CV search access
+    if not tier_config.get("cv_search_enabled", False):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="CV Search is not available on your plan"
+        )
+    
+    # Check if already revealed
+    existing_reveal = await db.contact_reveals.find_one({
+        "account_id": current_user.account_id,
+        "candidate_id": candidate_id
+    })
+    
+    if existing_reveal:
+        # Already revealed - return the candidate info without counting
+        candidate = await db.users.find_one({"id": candidate_id})
+        if candidate:
+            if "_id" in candidate:
+                del candidate["_id"]
+            if "password_hash" in candidate:
+                del candidate["password_hash"]
+            return {
+                "success": True,
+                "already_revealed": True,
+                "candidate": candidate
+            }
+    
+    # Check monthly limit
+    now = datetime.utcnow()
+    month_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+    
+    reveals_count = await db.contact_reveals.count_documents({
+        "account_id": current_user.account_id,
+        "revealed_at": {"$gte": month_start}
+    })
+    
+    contact_limit = tier_config.get("contact_reveals_limit", 0)
+    
+    if reveals_count >= contact_limit:
+        raise HTTPException(
+            status_code=status.HTTP_402_PAYMENT_REQUIRED,
+            detail={
+                "error": "limit_reached",
+                "message": f"You have used all {contact_limit:,} contact reveals for this month. Upgrade your plan for more reveals.",
+                "used": reveals_count,
+                "limit": contact_limit,
+                "upgrade_to": "pro" if tier_id == "growth" else "enterprise"
+            }
+        )
+    
+    # Get candidate
+    candidate = await db.users.find_one({"id": candidate_id, "role": "job_seeker"})
+    if not candidate:
+        raise HTTPException(status_code=404, detail="Candidate not found")
+    
+    # Record the reveal
+    await db.contact_reveals.insert_one({
+        "id": str(uuid.uuid4()),
+        "account_id": current_user.account_id,
+        "user_id": current_user.id,
+        "candidate_id": candidate_id,
+        "revealed_at": now
+    })
+    
+    # Clean response
+    if "_id" in candidate:
+        del candidate["_id"]
+    if "password_hash" in candidate:
+        del candidate["password_hash"]
+    
+    return {
+        "success": True,
+        "already_revealed": False,
+        "candidate": candidate,
+        "reveals_used": reveals_count + 1,
+        "reveals_remaining": contact_limit - reveals_count - 1
+    }
+
+
+# ============================================
+# Bulk Upload Endpoints
+# ============================================
+
+from services.bulk_upload_service import create_bulk_upload_service, create_admin_bulk_upload_service
+bulk_upload_service = create_bulk_upload_service(db)
+admin_bulk_upload_service = create_admin_bulk_upload_service(db)
+
+@api_router.post("/jobs/bulk")
+async def bulk_upload_jobs(
+    file: UploadFile = File(...),
+    current_user: User = Depends(get_current_recruiter)
+):
+    """Bulk upload jobs from CSV or Excel file (Pro+ only)"""
+    # Check feature access
+    await check_feature(current_user, FeatureId.JOB_BULK_UPLOAD)
+    
+    # Get account for company details
+    account = await account_service.get_account(current_user.account_id)
+    if not account:
+        raise HTTPException(status_code=404, detail="Account not found")
+    
+    # Read file content
+    content = await file.read()
+    
+    # Process file
+    result = await bulk_upload_service.process_file(
+        file_content=content,
+        filename=file.filename,
+        account_id=current_user.account_id,
+        user_id=current_user.id,
+        company_name=account["name"],
+        logo_url=account.get("company_logo_url")
+    )
+    
+    return result
+
+@api_router.get("/jobs/bulk/template")
+async def get_bulk_upload_template(
+    format: str = "csv",
+    current_user: User = Depends(get_current_recruiter)
+):
+    """Download bulk upload template file"""
+    from fastapi.responses import Response
+    
+    try:
+        content, filename = bulk_upload_service.generate_template(format)
+        
+        content_type = "text/csv" if format == "csv" else "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        
+        return Response(
+            content=content,
+            media_type=content_type,
+            headers={
+                "Content-Disposition": f"attachment; filename={filename}"
+            }
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+# ============================================
+# Admin Bulk Upload Endpoints
+# ============================================
+
+@api_router.post("/admin/jobs/bulk")
+async def admin_bulk_upload_jobs(
+    file: UploadFile = File(...),
+    current_user: User = Depends(get_current_user)
+):
+    """Admin bulk upload jobs from CSV or Excel file"""
+    if current_user.role != UserRole.ADMIN:
+        raise HTTPException(status_code=403, detail="Admin access required")
+    
+    content = await file.read()
+    
+    result = await admin_bulk_upload_service.process_file(
+        file_content=content,
+        filename=file.filename,
+        admin_user_id=current_user.id
+    )
+    
+    return result
+
+@api_router.get("/admin/jobs/bulk/template")
+async def admin_bulk_upload_template(
+    format: str = "csv",
+    current_user: User = Depends(get_current_user)
+):
+    """Download admin bulk upload template file"""
+    if current_user.role != UserRole.ADMIN:
+        raise HTTPException(status_code=403, detail="Admin access required")
+    
+    try:
+        content, filename = admin_bulk_upload_service.generate_template(format)
+        content_type = "text/csv" if format == "csv" else "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        return Response(
+            content=content,
+            media_type=content_type,
+            headers={"Content-Disposition": f"attachment; filename={filename}"}
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+from services.billing_service import create_billing_service
+billing_service = create_billing_service(db)
+
+@api_router.get("/my-packages")
+async def get_my_packages(current_user: User = Depends(get_current_user)):
+    """Get current user's subscription packages and tier info"""
+    if not current_user.account_id:
+        return []
+    
+    # Get account details
+    account = await db.accounts.find_one({"id": current_user.account_id})
+    if not account:
+        return []
+    
+    # Get tier configuration
+    from models.tiers import get_tier_config, TIER_CONFIG
+    from models.enums import TierId
+    
+    tier_id_str = account.get("tier_id", "starter")
+    
+    # Convert string to enum
+    try:
+        tier_enum = TierId(tier_id_str)
+    except ValueError:
+        tier_enum = TierId.STARTER
+    
+    tier_config = get_tier_config(tier_enum)
+    
+    # Check if subscription is active and not expired
+    subscription_status = account.get("subscription_status", "inactive")
+    subscription_end = account.get("subscription_end_date")
+    is_expired = False
+    
+    if subscription_end:
+        from datetime import datetime
+        if isinstance(subscription_end, str):
+            subscription_end = datetime.fromisoformat(subscription_end.replace('Z', '+00:00'))
+        is_expired = subscription_end < datetime.utcnow()
+    
+    # Build package response
+    job_credits = account.get("job_credits", 0)
+    
+    # Determine job listings - Pro and above have unlimited
+    if tier_enum in [TierId.PRO, TierId.ENTERPRISE]:
+        job_listings_remaining = None  # null = unlimited
+    else:
+        job_listings_remaining = job_credits if job_credits else tier_config.get("job_post_limit", 0)
+    
+    user_package = {
+        "id": account.get("id"),
+        "account_id": account.get("id"),
+        "tier_id": tier_id_str,
+        "subscription_status": subscription_status,
+        "is_active": subscription_status == "active" and not is_expired,
+        "job_listings_remaining": job_listings_remaining,
+        "subscription_start_date": account.get("subscription_start_date"),
+        "subscription_end_date": subscription_end,
+        "purchased_date": account.get("subscription_start_date") or account.get("created_at"),
+        "expiry_date": subscription_end,
+        "created_at": account.get("created_at"),
+    }
+    
+    package_info = {
+        "id": tier_id_str,
+        "name": tier_config.get("name", "Starter"),
+        "package_type": tier_id_str,
+        "price": tier_config.get("price_monthly", 0),
+        "currency": tier_config.get("currency", "ZAR"),
+        "features": [str(f) for f in tier_config.get("features", [])],
+        "included_users": tier_config.get("included_users", 1),
+        "job_post_limit": tier_config.get("job_post_limit"),
+        "is_subscription": True,
+    }
+    
+    return [{
+        "user_package": user_package,
+        "package": package_info,
+        "is_expired": is_expired
+    }]
+
+@api_router.get("/billing")
+async def get_billing_summary(current_user: User = Depends(get_recruiter_for_billing)):
+    """Get billing summary for current account - allows free tier users to see 'No Active Package' card"""
+    return await billing_service.get_billing_summary(current_user.account_id)
+
+@api_router.get("/billing/history")
+async def get_billing_history(
+    current_user: User = Depends(get_recruiter_for_billing),
+    limit: int = 50,
+    skip: int = 0
+):
+    """Get payment/billing history"""
+    history = await billing_service.get_billing_history(
+        current_user.account_id, limit, skip
+    )
+    return {"history": history, "total": len(history), "payments": history}
+
+@api_router.post("/billing/addon")
+async def purchase_addon(
+    addon_id: str,
+    current_user: User = Depends(get_current_recruiter)
+):
+    """Initiate add-on purchase via Payfast"""
+    from models.tiers import get_addon_config
+    from models.enums import AddonId
+    
+    try:
+        addon = get_addon_config(AddonId(addon_id))
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid add-on")
+    
+    if not addon:
+        raise HTTPException(status_code=404, detail="Add-on not found")
+    
+    # Calculate price
+    amount = addon.get("price_monthly") or addon.get("price_once", 0)
+    
+    # Create payment record
+    payment = await billing_service.create_payment_record(
+        account_id=current_user.account_id,
+        user_id=current_user.id,
+        payment_type="addon",
+        amount=amount,
+        addon_id=AddonId(addon_id)
+    )
+    
+    # Generate Payfast data
+    payfast_data = {
+        "merchant_id": PAYFAST_MERCHANT_ID,
+        "merchant_key": PAYFAST_MERCHANT_KEY,
+        "return_url": f"{BASE_URL}/payment/success?payment_id={payment['id']}",
+        "cancel_url": f"{BASE_URL}/payment/cancel?payment_id={payment['id']}",
+        "notify_url": f"{BASE_URL}/api/payments/webhook",
+        "name_first": current_user.first_name,
+        "name_last": current_user.last_name,
+        "email_address": current_user.email,
+        "m_payment_id": payment['id'],
+        "amount": f"{amount:.2f}",
+        "item_name": f"JobRocket Add-on: {addon['name']}",
+    }
+    
+    payfast_data["signature"] = generate_payfast_signature(payfast_data, PAYFAST_PASSPHRASE)
+    payfast_url = "https://sandbox.payfast.co.za/eng/process" if PAYFAST_SANDBOX else "https://www.payfast.co.za/eng/process"
+    
+    return {
+        "payment_id": payment['id'],
+        "payfast_url": payfast_url,
+        "payfast_data": payfast_data
+    }
+
+@api_router.delete("/billing/addon/{addon_purchase_id}")
+async def cancel_addon(
+    addon_purchase_id: str,
+    current_user: User = Depends(get_current_recruiter)
+):
+    """Cancel an add-on subscription"""
+    result = await billing_service.cancel_addon(
+        current_user.account_id, addon_purchase_id
+    )
+    if not result["success"]:
+        raise HTTPException(status_code=400, detail=result["error"])
+    return result
+
+@api_router.post("/billing/extra-seats")
+async def purchase_extra_seats(
+    quantity: int,
+    current_user: User = Depends(get_current_recruiter)
+):
+    """Purchase extra user seats via Payfast"""
+    if quantity < 1 or quantity > 100:
+        raise HTTPException(status_code=400, detail="Quantity must be between 1 and 100")
+    
+    amount = quantity * billing_service.EXTRA_USER_PRICE
+    
+    # Create payment record
+    payment = await billing_service.create_payment_record(
+        account_id=current_user.account_id,
+        user_id=current_user.id,
+        payment_type="extra_seats",
+        amount=amount,
+        extra_seats=quantity
+    )
+    
+    # Generate Payfast data
+    payfast_data = {
+        "merchant_id": PAYFAST_MERCHANT_ID,
+        "merchant_key": PAYFAST_MERCHANT_KEY,
+        "return_url": f"{BASE_URL}/payment/success?payment_id={payment['id']}",
+        "cancel_url": f"{BASE_URL}/payment/cancel?payment_id={payment['id']}",
+        "notify_url": f"{BASE_URL}/api/payments/webhook",
+        "name_first": current_user.first_name,
+        "name_last": current_user.last_name,
+        "email_address": current_user.email,
+        "m_payment_id": payment['id'],
+        "amount": f"{amount:.2f}",
+        "item_name": f"JobRocket Extra User Seats ({quantity})",
+    }
+    
+    payfast_data["signature"] = generate_payfast_signature(payfast_data, PAYFAST_PASSPHRASE)
+    payfast_url = "https://sandbox.payfast.co.za/eng/process" if PAYFAST_SANDBOX else "https://www.payfast.co.za/eng/process"
+    
+    return {
+        "payment_id": payment['id'],
+        "quantity": quantity,
+        "total": amount,
+        "payfast_url": payfast_url,
+        "payfast_data": payfast_data
+    }
+
+@api_router.get("/billing/extra-seats")
+async def get_extra_seats(current_user: User = Depends(get_current_recruiter)):
+    """Get extra user seats for account"""
+    seats = await billing_service.get_extra_seats(current_user.account_id)
+    return {"seats": seats, "total": len(seats)}
+
+@api_router.delete("/billing/extra-seats/{seat_id}")
+async def cancel_extra_seat(
+    seat_id: str,
+    current_user: User = Depends(get_current_recruiter)
+):
+    """Cancel an extra user seat"""
+    result = await billing_service.cancel_extra_seat(
+        current_user.account_id, seat_id
+    )
+    if not result["success"]:
+        raise HTTPException(status_code=400, detail=result["error"])
+    return result
+
+
+# ============================================
+# ============================================
+# Company Structure - Branches, Team, Invitations
+# ============================================
+
+@api_router.get("/company/branches")
+async def get_company_branches(current_user: User = Depends(get_current_user)):
+    """Get all branches for the current user's company"""
+    if not current_user.account_id:
+        raise HTTPException(status_code=400, detail="User not associated with an account")
+    
+    branches = await db.branches.find({"account_id": current_user.account_id}).to_list(100)
+    for branch in branches:
+        branch["id"] = str(branch.pop("_id"))
+    return branches
+
+@api_router.post("/company/branches")
+async def create_company_branch(
+    branch_data: dict,
+    current_user: User = Depends(get_current_user)
+):
+    """Create a new branch for the company"""
+    if not current_user.account_id:
+        raise HTTPException(status_code=400, detail="User not associated with an account")
+    
+    # Check if user has permission (owner or admin)
+    if current_user.account_role not in [AccountRole.OWNER, AccountRole.ADMIN]:
+        raise HTTPException(status_code=403, detail="Only owners and admins can create branches")
+    
+    branch = {
+        "account_id": current_user.account_id,
+        "name": branch_data.get("name", ""),
+        "location": branch_data.get("location", ""),
+        "email": branch_data.get("email"),
+        "phone": branch_data.get("phone"),
+        "is_headquarters": branch_data.get("is_headquarters", False),
+        "created_at": datetime.utcnow(),
+        "created_by": current_user.id
+    }
+    
+    # If marking as headquarters, unset other headquarters
+    if branch["is_headquarters"]:
+        await db.branches.update_many(
+            {"account_id": current_user.account_id},
+            {"$set": {"is_headquarters": False}}
+        )
+    
+    result = await db.branches.insert_one(branch)
+    branch["id"] = str(result.inserted_id)
+    if "_id" in branch:
+        del branch["_id"]
+    
+    return branch
+
+@api_router.put("/company/branches/{branch_id}")
+async def update_company_branch(
+    branch_id: str,
+    branch_data: dict,
+    current_user: User = Depends(get_current_user)
+):
+    """Update a branch"""
+    if not current_user.account_id:
+        raise HTTPException(status_code=400, detail="User not associated with an account")
+    
+    if current_user.account_role not in [AccountRole.OWNER, AccountRole.ADMIN]:
+        raise HTTPException(status_code=403, detail="Only owners and admins can update branches")
+    
+    from bson import ObjectId
+    
+    # Verify branch belongs to user's account
+    branch = await db.branches.find_one({
+        "_id": ObjectId(branch_id),
+        "account_id": current_user.account_id
+    })
+    
+    if not branch:
+        raise HTTPException(status_code=404, detail="Branch not found")
+    
+    update_data = {
+        "name": branch_data.get("name", branch["name"]),
+        "location": branch_data.get("location", branch["location"]),
+        "email": branch_data.get("email", branch.get("email")),
+        "phone": branch_data.get("phone", branch.get("phone")),
+        "is_headquarters": branch_data.get("is_headquarters", branch.get("is_headquarters", False)),
+        "updated_at": datetime.utcnow()
+    }
+    
+    # If marking as headquarters, unset other headquarters
+    if update_data["is_headquarters"]:
+        await db.branches.update_many(
+            {"account_id": current_user.account_id, "_id": {"$ne": ObjectId(branch_id)}},
+            {"$set": {"is_headquarters": False}}
+        )
+    
+    await db.branches.update_one({"_id": ObjectId(branch_id)}, {"$set": update_data})
+    
+    return {"message": "Branch updated successfully"}
+
+@api_router.delete("/company/branches/{branch_id}")
+async def delete_company_branch(
+    branch_id: str,
+    current_user: User = Depends(get_current_user)
+):
+    """Delete a branch"""
+    if not current_user.account_id:
+        raise HTTPException(status_code=400, detail="User not associated with an account")
+    
+    if current_user.account_role not in [AccountRole.OWNER, AccountRole.ADMIN]:
+        raise HTTPException(status_code=403, detail="Only owners and admins can delete branches")
+    
+    from bson import ObjectId
+    
+    result = await db.branches.delete_one({
+        "_id": ObjectId(branch_id),
+        "account_id": current_user.account_id
+    })
+    
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Branch not found")
+    
+    return {"message": "Branch deleted successfully"}
+
+@api_router.get("/company/members")
+async def get_company_members(current_user: User = Depends(get_current_user)):
+    """Get all team members for the current user's company"""
+    if not current_user.account_id:
+        raise HTTPException(status_code=400, detail="User not associated with an account")
+    
+    members = await db.users.find(
+        {"account_id": current_user.account_id},
+        {"password": 0, "_id": 0}
+    ).to_list(100)
+    
+    return members
+
+@api_router.get("/company/invitations")
+async def get_company_invitations(current_user: User = Depends(get_current_user)):
+    """Get all pending invitations for the current user's company"""
+    if not current_user.account_id:
+        raise HTTPException(status_code=400, detail="User not associated with an account")
+    
+    invitations = await db.invitations.find({
+        "account_id": current_user.account_id,
+        "status": "pending"
+    }).to_list(100)
+    
+    for inv in invitations:
+        inv["id"] = str(inv.pop("_id"))
+    
+    return invitations
+
+@api_router.post("/company/invitations")
+async def create_company_invitation(
+    invitation_data: dict,
+    current_user: User = Depends(get_current_user)
+):
+    """Create a new team member invitation"""
+    if not current_user.account_id:
+        raise HTTPException(status_code=400, detail="User not associated with an account")
+    
+    if current_user.account_role not in [AccountRole.OWNER, AccountRole.ADMIN]:
+        raise HTTPException(status_code=403, detail="Only owners and admins can invite team members")
+    
+    # Check if email already exists
+    existing_user = await db.users.find_one({"email": invitation_data.get("email")})
+    if existing_user:
+        raise HTTPException(status_code=400, detail="A user with this email already exists")
+    
+    # Check for existing pending invitation
+    existing_invitation = await db.invitations.find_one({
+        "email": invitation_data.get("email"),
+        "account_id": current_user.account_id,
+        "status": "pending"
+    })
+    if existing_invitation:
+        raise HTTPException(status_code=400, detail="An invitation has already been sent to this email")
+    
+    invitation = {
+        "account_id": current_user.account_id,
+        "email": invitation_data.get("email"),
+        "role": invitation_data.get("role", "member"),
+        "branch_id": invitation_data.get("branch_id"),
+        "token": secrets.token_urlsafe(32),
+        "status": "pending",
+        "created_at": datetime.utcnow(),
+        "created_by": current_user.id,
+        "expires_at": datetime.utcnow() + timedelta(days=7)
+    }
+    
+    result = await db.invitations.insert_one(invitation)
+    invitation["id"] = str(result.inserted_id)
+    if "_id" in invitation:
+        del invitation["_id"]
+    
+    # TODO: Send invitation email
+    
+    return invitation
+
+@api_router.delete("/company/invitations/{invitation_id}")
+async def cancel_company_invitation(
+    invitation_id: str,
+    current_user: User = Depends(get_current_user)
+):
+    """Cancel a pending invitation"""
+    if not current_user.account_id:
+        raise HTTPException(status_code=400, detail="User not associated with an account")
+    
+    if current_user.account_role not in [AccountRole.OWNER, AccountRole.ADMIN]:
+        raise HTTPException(status_code=403, detail="Only owners and admins can cancel invitations")
+    
+    from bson import ObjectId
+    
+    result = await db.invitations.delete_one({
+        "_id": ObjectId(invitation_id),
+        "account_id": current_user.account_id,
+        "status": "pending"
+    })
+    
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Invitation not found")
+    
+    return {"message": "Invitation cancelled successfully"}
+
+
+@api_router.put("/company/members/{member_id}")
+async def update_team_member(
+    member_id: str,
+    update_data: dict,
+    current_user: User = Depends(get_current_user)
+):
+    """Update a team member's role or branch assignments"""
+    if not current_user.account_id:
+        raise HTTPException(status_code=400, detail="User not associated with an account")
+    
+    if current_user.account_role not in [AccountRole.OWNER, AccountRole.ADMIN]:
+        raise HTTPException(status_code=403, detail="Only owners and admins can update team members")
+    
+    # Find the member
+    member = await db.users.find_one({
+        "id": member_id,
+        "account_id": current_user.account_id
+    })
+    
+    if not member:
+        raise HTTPException(status_code=404, detail="Team member not found")
+    
+    # Prevent modifying owner
+    if member.get("account_role") == "owner" and current_user.account_role != "owner":
+        raise HTTPException(status_code=403, detail="Cannot modify account owner")
+    
+    # Build update fields
+    update_fields = {}
+    
+    if "role" in update_data:
+        # Validate role
+        valid_roles = ["admin", "recruiter", "member", "viewer"]
+        if update_data["role"] not in valid_roles:
+            raise HTTPException(status_code=400, detail=f"Invalid role. Must be one of: {valid_roles}")
+        update_fields["account_role"] = update_data["role"]
+    
+    if "branch_ids" in update_data:
+        update_fields["branch_ids"] = update_data["branch_ids"]
+    
+    if not update_fields:
+        raise HTTPException(status_code=400, detail="No valid fields to update")
+    
+    update_fields["updated_at"] = datetime.utcnow()
+    
+    await db.users.update_one(
+        {"id": member_id},
+        {"$set": update_fields}
+    )
+    
+    return {"message": "Team member updated successfully"}
+
+
+@api_router.delete("/company/members/{member_id}")
+async def remove_team_member(
+    member_id: str,
+    current_user: User = Depends(get_current_user)
+):
+    """Remove a team member from the company"""
+    if not current_user.account_id:
+        raise HTTPException(status_code=400, detail="User not associated with an account")
+    
+    if current_user.account_role not in [AccountRole.OWNER, AccountRole.ADMIN]:
+        raise HTTPException(status_code=403, detail="Only owners and admins can remove team members")
+    
+    # Find the member
+    member = await db.users.find_one({
+        "id": member_id,
+        "account_id": current_user.account_id
+    })
+    
+    if not member:
+        raise HTTPException(status_code=404, detail="Team member not found")
+    
+    # Prevent removing owner
+    if member.get("account_role") == "owner":
+        raise HTTPException(status_code=403, detail="Cannot remove account owner")
+    
+    # Prevent self-removal
+    if member_id == current_user.id:
+        raise HTTPException(status_code=403, detail="Cannot remove yourself")
+    
+    # Remove member from account (set account_id to null)
+    await db.users.update_one(
+        {"id": member_id},
+        {"$set": {
+            "account_id": None,
+            "account_role": None,
+            "branch_ids": [],
+            "removed_from_account_at": datetime.utcnow()
+        }}
+    )
+    
+    return {"message": "Team member removed successfully"}
+
+
+# Health Check
+# ============================================
+
+@api_router.get("/health")
+async def health_check():
+    """Health check endpoint"""
+    return {
+        "status": "healthy",
+        "version": "2.0.0",
+        "timestamp": datetime.utcnow().isoformat()
+    }
+
+
+# ============================================
+# Recruiter Reports API Endpoints
+# ============================================
+
+@api_router.get("/reports/time-to-fill")
+async def get_time_to_fill_report(
+    current_user: User = Depends(get_current_recruiter),
+    start_date: str = None,
+    end_date: str = None,
+    job_id: str = None,
+    recruiter_id: str = None,
+    include_open: bool = False,
+    page: int = 1,
+    limit: int = 50
+):
+    """
+    Time-to-Fill Report
+    Measures how long it takes to successfully close roles.
+    Time to fill = Offer Accepted Date - Job Open Date
+    """
+    
+    now = datetime.utcnow()
+    
+    # Parse date filters
+    date_start = datetime.fromisoformat(start_date) if start_date else now - timedelta(days=90)
+    date_end = datetime.fromisoformat(end_date) if end_date else now
+    
+    # Build query for jobs
+    job_query = {
+        "account_id": current_user.account_id,
+        "posted_date": {"$gte": date_start, "$lte": date_end}
+    }
+    
+    if job_id:
+        job_query["id"] = job_id
+    
+    if recruiter_id:
+        job_query["posted_by"] = recruiter_id
+    
+    # Fetch jobs
+    jobs_cursor = db.jobs.find(job_query).sort("posted_date", -1)
+    jobs_list = await jobs_cursor.to_list(None)
+    
+    report_data = []
+    total_days_to_fill = []
+    
+    for job in jobs_list:
+        job_id_val = job["id"]
+        job_open_date = job.get("posted_date", job.get("created_at", now))
+        
+        # Check if job has been filled (has an accepted offer)
+        filled_app = await db.job_applications.find_one({
+            "job_id": job_id_val,
+            "status": {"$in": ["offered", "hired"]}
+        })
+        
+        is_filled = filled_app is not None
+        offer_accepted_date = filled_app.get("last_updated") if filled_app else None
+        
+        # Calculate time to fill
+        if is_filled and offer_accepted_date:
+            days_to_fill = (offer_accepted_date - job_open_date).days
+        else:
+            days_to_fill = (now - job_open_date).days  # Days open
+        
+        # Skip open jobs if not requested
+        if not is_filled and not include_open:
+            continue
+        
+        if is_filled:
+            total_days_to_fill.append(days_to_fill)
+        
+        # Get recruiter info
+        recruiter = await db.users.find_one({"id": job.get("posted_by")})
+        recruiter_name = f"{recruiter.get('first_name', '')} {recruiter.get('last_name', '')}" if recruiter else "Unknown"
+        
+        report_data.append({
+            "job_id": job_id_val,
+            "job_title": job.get("title", ""),
+            "company_name": job.get("company_name", ""),
+            "recruiter_id": job.get("posted_by"),
+            "recruiter_name": recruiter_name,
+            "job_open_date": job_open_date.isoformat(),
+            "offer_accepted_date": offer_accepted_date.isoformat() if offer_accepted_date else None,
+            "days_to_fill": days_to_fill,
+            "is_filled": is_filled,
+            "status": "Filled" if is_filled else "Open"
+        })
+    
+    # Calculate summary metrics
+    avg_time_to_fill = sum(total_days_to_fill) / len(total_days_to_fill) if total_days_to_fill else 0
+    sorted_days = sorted(total_days_to_fill)
+    median_time_to_fill = sorted_days[len(sorted_days) // 2] if sorted_days else 0
+    
+    # Pagination
+    total_count = len(report_data)
+    start_idx = (page - 1) * limit
+    end_idx = start_idx + limit
+    paginated_data = report_data[start_idx:end_idx]
+    
+    return {
+        "report_type": "time_to_fill",
+        "generated_at": now.isoformat(),
+        "filters": {
+            "start_date": date_start.isoformat(),
+            "end_date": date_end.isoformat(),
+            "job_id": job_id,
+            "recruiter_id": recruiter_id,
+            "include_open": include_open
+        },
+        "summary": {
+            "total_jobs": total_count,
+            "filled_jobs": len(total_days_to_fill),
+            "open_jobs": total_count - len(total_days_to_fill),
+            "average_days_to_fill": round(avg_time_to_fill, 1),
+            "median_days_to_fill": median_time_to_fill
+        },
+        "data": paginated_data,
+        "pagination": {
+            "page": page,
+            "limit": limit,
+            "total_count": total_count,
+            "total_pages": (total_count + limit - 1) // limit
+        }
+    }
+
+
+@api_router.get("/reports/pipeline-conversion")
+async def get_pipeline_conversion_report(
+    current_user: User = Depends(get_current_recruiter),
+    start_date: str = None,
+    end_date: str = None,
+    job_id: str = None,
+    recruiter_id: str = None,
+    page: int = 1,
+    limit: int = 50
+):
+    """
+    Pipeline Conversion Report
+    Identifies bottlenecks and drop-off points within hiring pipelines.
+    Stage-to-stage conversion = candidates moved to next stage / candidates in previous stage
+    """
+    
+    now = datetime.utcnow()
+    
+    # Parse date filters
+    date_start = datetime.fromisoformat(start_date) if start_date else now - timedelta(days=90)
+    date_end = datetime.fromisoformat(end_date) if end_date else now
+    
+    # Define pipeline stages in order
+    pipeline_stages = ["pending", "reviewed", "shortlisted", "interviewed", "offered"]
+    
+    # Build application query
+    app_query = {
+        "account_id": current_user.account_id,
+        "applied_date": {"$gte": date_start, "$lte": date_end}
+    }
+    
+    if job_id:
+        app_query["job_id"] = job_id
+    
+    # Get job filter by recruiter
+    job_ids_filter = None
+    if recruiter_id:
+        jobs = await db.jobs.find({"posted_by": recruiter_id, "account_id": current_user.account_id}).to_list(None)
+        job_ids_filter = [j["id"] for j in jobs]
+        if job_ids_filter:
+            app_query["job_id"] = {"$in": job_ids_filter}
+    
+    # Aggregate applications by status
+    pipeline = [
+        {"$match": app_query},
+        {"$group": {
+            "_id": "$status",
+            "count": {"$sum": 1}
+        }}
+    ]
+    
+    status_counts = await db.job_applications.aggregate(pipeline).to_list(None)
+    status_map = {item["_id"]: item["count"] for item in status_counts}
+    
+    # Calculate stage metrics
+    stage_data = []
+    total_applications = sum(status_map.values())
+    
+    for i, stage in enumerate(pipeline_stages):
+        count = status_map.get(stage, 0)
+        
+        # For conversion calculation, we need cumulative counts
+        # Candidates "at or past" this stage
+        at_or_past = sum(status_map.get(s, 0) for s in pipeline_stages[i:])
+        
+        # Previous stage count (for conversion rate)
+        if i == 0:
+            conversion_rate = 100.0  # First stage always 100%
+            prev_count = total_applications
+        else:
+            prev_stage = pipeline_stages[i-1]
+            prev_at_or_past = sum(status_map.get(s, 0) for s in pipeline_stages[i-1:])
+            conversion_rate = (at_or_past / prev_at_or_past * 100) if prev_at_or_past > 0 else 0
+            prev_count = prev_at_or_past
+        
+        # Drop-off rate
+        drop_off = 100 - conversion_rate if i > 0 else 0
+        
+        stage_data.append({
+            "stage": stage,
+            "stage_label": stage.replace("_", " ").title(),
+            "count": count,
+            "cumulative_count": at_or_past,
+            "conversion_rate": round(conversion_rate, 1),
+            "drop_off_rate": round(drop_off, 1)
+        })
+    
+    # Add rejected/withdrawn stats
+    rejected_count = status_map.get("rejected", 0)
+    withdrawn_count = status_map.get("withdrawn", 0)
+    
+    # Per-job breakdown if no specific job selected
+    job_breakdown = []
+    if not job_id:
+        job_pipeline = [
+            {"$match": app_query},
+            {"$group": {
+                "_id": "$job_id",
+                "total": {"$sum": 1},
+                "pending": {"$sum": {"$cond": [{"$eq": ["$status", "pending"]}, 1, 0]}},
+                "reviewed": {"$sum": {"$cond": [{"$eq": ["$status", "reviewed"]}, 1, 0]}},
+                "shortlisted": {"$sum": {"$cond": [{"$eq": ["$status", "shortlisted"]}, 1, 0]}},
+                "interviewed": {"$sum": {"$cond": [{"$eq": ["$status", "interviewed"]}, 1, 0]}},
+                "offered": {"$sum": {"$cond": [{"$eq": ["$status", "offered"]}, 1, 0]}},
+                "rejected": {"$sum": {"$cond": [{"$eq": ["$status", "rejected"]}, 1, 0]}}
+            }},
+            {"$sort": {"total": -1}},
+            {"$limit": limit}
+        ]
+        
+        job_stats = await db.job_applications.aggregate(job_pipeline).to_list(None)
+        
+        for js in job_stats:
+            job = await db.jobs.find_one({"id": js["_id"]})
+            if job:
+                job_breakdown.append({
+                    "job_id": js["_id"],
+                    "job_title": job.get("title", "Unknown"),
+                    "total_applications": js["total"],
+                    "stages": {
+                        "pending": js["pending"],
+                        "reviewed": js["reviewed"],
+                        "shortlisted": js["shortlisted"],
+                        "interviewed": js["interviewed"],
+                        "offered": js["offered"],
+                        "rejected": js["rejected"]
+                    }
+                })
+    
+    return {
+        "report_type": "pipeline_conversion",
+        "generated_at": now.isoformat(),
+        "filters": {
+            "start_date": date_start.isoformat(),
+            "end_date": date_end.isoformat(),
+            "job_id": job_id,
+            "recruiter_id": recruiter_id
+        },
+        "summary": {
+            "total_applications": total_applications,
+            "rejected": rejected_count,
+            "withdrawn": withdrawn_count,
+            "overall_conversion_to_offer": round(
+                (status_map.get("offered", 0) / total_applications * 100) if total_applications > 0 else 0, 1
+            )
+        },
+        "pipeline_stages": stage_data,
+        "job_breakdown": job_breakdown,
+        "pagination": {
+            "page": page,
+            "limit": limit
+        }
+    }
+
+
+@api_router.get("/reports/recruiter-workload")
+async def get_recruiter_workload_report(
+    current_user: User = Depends(get_current_recruiter),
+    start_date: str = None,
+    end_date: str = None,
+    recruiter_id: str = None,
+    page: int = 1,
+    limit: int = 50
+):
+    """
+    Recruiter Workload Report
+    Monitors recruiter capacity and prevents overload or SLA breaches.
+    """
+    
+    now = datetime.utcnow()
+    
+    # Parse date filters
+    date_start = datetime.fromisoformat(start_date) if start_date else now - timedelta(days=30)
+    date_end = datetime.fromisoformat(end_date) if end_date else now
+    
+    # Get recruiters in account
+    recruiter_query = {
+        "account_id": current_user.account_id,
+        "role": "recruiter"
+    }
+    
+    if recruiter_id:
+        recruiter_query["id"] = recruiter_id
+    
+    # Check access - recruiters see only their own, admins see all
+    if current_user.account_role not in [AccountRole.OWNER, AccountRole.ADMIN]:
+        recruiter_query["id"] = current_user.id
+    
+    recruiters = await db.users.find(recruiter_query).to_list(None)
+    
+    workload_data = []
+    
+    for recruiter in recruiters:
+        rec_id = recruiter["id"]
+        rec_name = f"{recruiter.get('first_name', '')} {recruiter.get('last_name', '')}"
+        
+        # Active jobs (jobs with candidates in pipeline, status Open)
+        active_jobs = await db.jobs.count_documents({
+            "posted_by": rec_id,
+            "is_active": True,
+            "expiry_date": {"$gt": now}
+        })
+        
+        # Get job IDs for this recruiter
+        rec_job_ids = []
+        async for job in db.jobs.find({"posted_by": rec_id}, {"id": 1}):
+            rec_job_ids.append(job["id"])
+        
+        # Candidates actively managed (applications not rejected/withdrawn)
+        active_candidates = await db.job_applications.count_documents({
+            "job_id": {"$in": rec_job_ids},
+            "status": {"$nin": ["rejected", "withdrawn"]}
+        }) if rec_job_ids else 0
+        
+        # Interviews scheduled (candidates with interviewed status in date range)
+        interviews_scheduled = await db.job_applications.count_documents({
+            "job_id": {"$in": rec_job_ids},
+            "status": "interviewed",
+            "last_updated": {"$gte": date_start, "$lte": date_end}
+        }) if rec_job_ids else 0
+        
+        # Pending reviews (applications in pending status for > 48 hours - overdue)
+        overdue_threshold = now - timedelta(hours=48)
+        overdue_reviews = await db.job_applications.count_documents({
+            "job_id": {"$in": rec_job_ids},
+            "status": "pending",
+            "applied_date": {"$lt": overdue_threshold}
+        }) if rec_job_ids else 0
+        
+        # New applications in date range
+        new_applications = await db.job_applications.count_documents({
+            "job_id": {"$in": rec_job_ids},
+            "applied_date": {"$gte": date_start, "$lte": date_end}
+        }) if rec_job_ids else 0
+        
+        # Offers pending response
+        offers_pending = await db.job_applications.count_documents({
+            "job_id": {"$in": rec_job_ids},
+            "status": "offered"
+        }) if rec_job_ids else 0
+        
+        workload_data.append({
+            "recruiter_id": rec_id,
+            "recruiter_name": rec_name,
+            "email": recruiter.get("email", ""),
+            "metrics": {
+                "active_jobs": active_jobs,
+                "active_candidates": active_candidates,
+                "interviews_scheduled": interviews_scheduled,
+                "new_applications": new_applications,
+                "overdue_reviews": overdue_reviews,
+                "offers_pending": offers_pending
+            },
+            "workload_score": active_jobs * 10 + active_candidates + overdue_reviews * 5,  # Simple scoring
+            "has_overdue": overdue_reviews > 0
+        })
+    
+    # Sort by workload score descending
+    workload_data.sort(key=lambda x: x["workload_score"], reverse=True)
+    
+    # Calculate summary
+    total_active_jobs = sum(w["metrics"]["active_jobs"] for w in workload_data)
+    total_active_candidates = sum(w["metrics"]["active_candidates"] for w in workload_data)
+    total_overdue = sum(w["metrics"]["overdue_reviews"] for w in workload_data)
+    recruiters_with_overdue = sum(1 for w in workload_data if w["has_overdue"])
+    
+    # Pagination
+    total_count = len(workload_data)
+    start_idx = (page - 1) * limit
+    end_idx = start_idx + limit
+    paginated_data = workload_data[start_idx:end_idx]
+    
+    return {
+        "report_type": "recruiter_workload",
+        "generated_at": now.isoformat(),
+        "filters": {
+            "start_date": date_start.isoformat(),
+            "end_date": date_end.isoformat(),
+            "recruiter_id": recruiter_id
+        },
+        "summary": {
+            "total_recruiters": total_count,
+            "total_active_jobs": total_active_jobs,
+            "total_active_candidates": total_active_candidates,
+            "total_overdue_tasks": total_overdue,
+            "recruiters_with_overdue": recruiters_with_overdue
+        },
+        "data": paginated_data,
+        "pagination": {
+            "page": page,
+            "limit": limit,
+            "total_count": total_count,
+            "total_pages": (total_count + limit - 1) // limit
+        }
+    }
+
+
+@api_router.get("/reports/export/{report_type}")
+async def export_report_csv(
+    report_type: str,
+    current_user: User = Depends(get_current_recruiter),
+    start_date: str = None,
+    end_date: str = None,
+    job_id: str = None,
+    recruiter_id: str = None
+):
+    """Export report data as CSV"""
+    from fastapi.responses import StreamingResponse
+    import csv
+    import io
+    
+    # Get report data based on type
+    if report_type == "time-to-fill":
+        report = await get_time_to_fill_report(
+            current_user=current_user,
+            start_date=start_date,
+            end_date=end_date,
+            job_id=job_id,
+            recruiter_id=recruiter_id,
+            include_open=True,
+            limit=10000
+        )
+        headers = ["Job Title", "Company", "Recruiter", "Open Date", "Fill Date", "Days to Fill", "Status"]
+        rows = [
+            [d["job_title"], d["company_name"], d["recruiter_name"], d["job_open_date"], 
+             d["offer_accepted_date"] or "", d["days_to_fill"], d["status"]]
+            for d in report["data"]
+        ]
+    elif report_type == "pipeline-conversion":
+        report = await get_pipeline_conversion_report(
+            current_user=current_user,
+            start_date=start_date,
+            end_date=end_date,
+            job_id=job_id,
+            recruiter_id=recruiter_id,
+            limit=10000
+        )
+        headers = ["Stage", "Count", "Cumulative", "Conversion Rate %", "Drop-off Rate %"]
+        rows = [
+            [s["stage_label"], s["count"], s["cumulative_count"], s["conversion_rate"], s["drop_off_rate"]]
+            for s in report["pipeline_stages"]
+        ]
+    elif report_type == "recruiter-workload":
+        report = await get_recruiter_workload_report(
+            current_user=current_user,
+            start_date=start_date,
+            end_date=end_date,
+            recruiter_id=recruiter_id,
+            limit=10000
+        )
+        headers = ["Recruiter", "Email", "Active Jobs", "Active Candidates", "Interviews", "New Apps", "Overdue", "Offers Pending"]
+        rows = [
+            [d["recruiter_name"], d["email"], d["metrics"]["active_jobs"], d["metrics"]["active_candidates"],
+             d["metrics"]["interviews_scheduled"], d["metrics"]["new_applications"], 
+             d["metrics"]["overdue_reviews"], d["metrics"]["offers_pending"]]
+            for d in report["data"]
+        ]
+    else:
+        raise HTTPException(status_code=400, detail="Invalid report type")
+    
+    # Generate CSV
+    output = io.StringIO()
+    writer = csv.writer(output)
+    writer.writerow(headers)
+    writer.writerows(rows)
+    
+    # Return as streaming response
+    output.seek(0)
+    return StreamingResponse(
+        iter([output.getvalue()]),
+        media_type="text/csv",
+        headers={"Content-Disposition": f"attachment; filename={report_type}_{datetime.utcnow().strftime('%Y%m%d')}.csv"}
+    )
+
+
+# ============================================================
+# SIDEKICK AI ENDPOINTS — Job Seeker AI Features
+# ============================================================
+
+@api_router.get("/ai/pricing")
+async def get_ai_pricing(current_user: User = Depends(get_current_user)):
+    """Get AI feature pricing and user wallet balance"""
+    from services.ai_service import AI_PRICING
+    balance = current_user.wallet_balance if hasattr(current_user, 'wallet_balance') else 0
+    user_doc = await db.users.find_one({"id": current_user.id}, {"_id": 0, "wallet_balance": 1})
+    balance = user_doc.get("wallet_balance", 0) if user_doc else 0
+    return {"pricing": AI_PRICING, "wallet_balance": balance}
+
+
+@api_router.get("/ai/wallet")
+async def get_wallet_balance(current_user: User = Depends(get_current_user)):
+    """Get job seeker wallet balance"""
+    user_doc = await db.users.find_one({"id": current_user.id}, {"_id": 0, "wallet_balance": 1})
+    return {"wallet_balance": user_doc.get("wallet_balance", 0) if user_doc else 0}
+
+
+@api_router.post("/ai/wallet/topup")
+async def topup_wallet(request: Request, current_user: User = Depends(get_current_user)):
+    """Top up job seeker wallet"""
+    body = await request.json()
+    amount = body.get("amount", 0)
+    if not isinstance(amount, (int, float)) or amount <= 0 or amount > 10000:
+        raise HTTPException(status_code=400, detail="Amount must be between R1 and R10,000")
+
+    result = await db.users.find_one_and_update(
+        {"id": current_user.id},
+        {"$inc": {"wallet_balance": amount}, "$set": {"updated_at": datetime.utcnow()}},
+        return_document=True,
+        projection={"_id": 0, "wallet_balance": 1},
+    )
+    new_balance = result.get("wallet_balance", 0) if result else 0
+
+    await db.ai_usage_log.insert_one({
+        "id": str(uuid.uuid4()),
+        "user_id": current_user.id,
+        "action": "topup",
+        "amount": amount,
+        "created_at": datetime.utcnow(),
+    })
+
+    return {"success": True, "wallet_balance": new_balance}
+
+
+@api_router.post("/ai/wallet/setup-card")
+async def wallet_setup_card(request: Request, current_user: User = Depends(get_current_user)):
+    """Generate PayFast tokenization form data to save a card for wallet auto top-up"""
+    from services.payfast_wallet_service import generate_card_setup_data
+
+    base_url = os.environ.get("FRONTEND_URL", "https://jobrocket.co.za")
+    notify_url = os.environ.get("PAYFAST_NOTIFY_URL", f"{base_url}/api/payfast/wallet-itn")
+
+    data = generate_card_setup_data(
+        user_id=current_user.id,
+        user_email=current_user.email,
+        user_first=current_user.first_name,
+        user_last=current_user.last_name,
+        return_url=f"{base_url}/settings?card_saved=true",
+        cancel_url=f"{base_url}/settings?card_saved=false",
+        notify_url=notify_url,
+    )
+
+    await db.wallet_card_setups.insert_one({
+        "id": data["m_payment_id"],
+        "user_id": current_user.id,
+        "status": "pending",
+        "created_at": datetime.utcnow(),
+    })
+
+    return data
+
+
+@api_router.post("/payfast/wallet-itn")
+async def payfast_wallet_itn(request: Request):
+    """Handle PayFast ITN webhook for wallet card tokenization"""
+    try:
+        form = await request.form()
+        itn_data = dict(form)
+
+        logger.info(f"Wallet ITN received: payment_status={itn_data.get('payment_status')}, token={itn_data.get('token', 'N/A')}")
+
+        token = itn_data.get("token")
+        payment_status = itn_data.get("payment_status")
+        custom_str1 = itn_data.get("custom_str1")  # user_id
+        custom_str2 = itn_data.get("custom_str2")  # "wallet_tokenization"
+        m_payment_id = itn_data.get("m_payment_id")
+
+        if custom_str2 == "wallet_tokenization" and token and payment_status == "COMPLETE":
+            if custom_str1:
+                await db.users.update_one(
+                    {"id": custom_str1},
+                    {"$set": {
+                        "wallet_payfast_token": token,
+                        "wallet_card_saved_at": datetime.utcnow(),
+                        "updated_at": datetime.utcnow(),
+                    }}
+                )
+                logger.info(f"Saved wallet PayFast token for user {custom_str1}")
+
+            if m_payment_id:
+                await db.wallet_card_setups.update_one(
+                    {"id": m_payment_id},
+                    {"$set": {"status": "completed", "token": token, "completed_at": datetime.utcnow()}}
+                )
+        elif custom_str2 == "wallet_tokenization" and payment_status == "CANCELLED":
+            if m_payment_id:
+                await db.wallet_card_setups.update_one(
+                    {"id": m_payment_id},
+                    {"$set": {"status": "cancelled", "updated_at": datetime.utcnow()}}
+                )
+
+        # Handle ITN for auto top-up charges (not tokenization setup)
+        if itn_data.get("m_payment_id", "").startswith("auto-topup-"):
+            logger.info(f"Auto top-up ITN confirmed: {m_payment_id}")
+
+    except Exception as e:
+        logger.error(f"Wallet ITN error: {e}")
+
+    return Response(status_code=200)
+
+
+@api_router.get("/ai/wallet/card-status")
+async def wallet_card_status(current_user: User = Depends(get_current_user)):
+    """Check if user has a saved card for auto top-up"""
+    user_doc = await db.users.find_one({"id": current_user.id}, {
+        "_id": 0, "wallet_payfast_token": 1, "wallet_card_saved_at": 1
+    })
+    has_card = bool(user_doc and user_doc.get("wallet_payfast_token"))
+    saved_at = user_doc.get("wallet_card_saved_at") if user_doc else None
+    if isinstance(saved_at, datetime):
+        saved_at = saved_at.isoformat()
+    return {"has_card": has_card, "saved_at": saved_at}
+
+
+@api_router.delete("/ai/wallet/remove-card")
+async def wallet_remove_card(current_user: User = Depends(get_current_user)):
+    """Remove saved card and disable auto top-up"""
+    await db.users.update_one(
+        {"id": current_user.id},
+        {"$unset": {"wallet_payfast_token": "", "wallet_card_saved_at": ""},
+         "$set": {"wallet_auto_topup.enabled": False, "updated_at": datetime.utcnow()}}
+    )
+    return {"success": True, "message": "Card removed and auto top-up disabled"}
+
+
+@api_router.get("/ai/wallet/auto-topup")
+async def get_auto_topup_settings(current_user: User = Depends(get_current_user)):
+    """Get auto top-up settings"""
+    user_doc = await db.users.find_one({"id": current_user.id}, {
+        "_id": 0, "wallet_auto_topup": 1, "wallet_payfast_token": 1
+    })
+    settings = user_doc.get("wallet_auto_topup", {}) if user_doc else {}
+    has_card = bool(user_doc and user_doc.get("wallet_payfast_token"))
+    return {
+        "enabled": settings.get("enabled", False),
+        "threshold": settings.get("threshold", 50),
+        "amount": settings.get("amount", 200),
+        "has_card": has_card,
+    }
+
+
+@api_router.post("/ai/wallet/auto-topup")
+async def update_auto_topup_settings(request: Request, current_user: User = Depends(get_current_user)):
+    """Update auto top-up settings"""
+    body = await request.json()
+    enabled = body.get("enabled", False)
+    threshold = body.get("threshold", 50)
+    amount = body.get("amount", 200)
+
+    if not isinstance(threshold, (int, float)) or threshold < 0 or threshold > 5000:
+        raise HTTPException(status_code=400, detail="Threshold must be between R0 and R5,000")
+    if not isinstance(amount, (int, float)) or amount < 5 or amount > 10000:
+        raise HTTPException(status_code=400, detail="Top-up amount must be between R5 and R10,000")
+
+    if enabled:
+        user_doc = await db.users.find_one({"id": current_user.id}, {"_id": 0, "wallet_payfast_token": 1})
+        if not user_doc or not user_doc.get("wallet_payfast_token"):
+            raise HTTPException(status_code=400, detail="Please save a card before enabling auto top-up")
+
+    await db.users.update_one(
+        {"id": current_user.id},
+        {"$set": {
+            "wallet_auto_topup": {"enabled": enabled, "threshold": threshold, "amount": amount},
+            "updated_at": datetime.utcnow(),
+        }}
+    )
+    return {"success": True, "enabled": enabled, "threshold": threshold, "amount": amount}
+
+
+@api_router.post("/ai/match-score")
+async def ai_match_score(request: Request, current_user: User = Depends(get_current_user)):
+    """Get AI match score between job seeker and a job (R10)"""
+    from services.ai_service import get_match_score
+    body = await request.json()
+    job_id = body.get("job_id")
+    if not job_id:
+        raise HTTPException(status_code=400, detail="job_id is required")
+
+    result = await get_match_score(db, current_user.id, job_id)
+    if not result.get("success"):
+        status = 402 if "Insufficient" in result.get("error", "") else 500
+        raise HTTPException(status_code=status, detail=result.get("error", "Unknown error"))
+    # Trigger auto top-up if balance dropped below threshold
+    if not result.get("cached"):
+        from services.ai_service import _trigger_auto_topup_if_needed
+        topup = await _trigger_auto_topup_if_needed(db, current_user.id, result.get("new_balance", 0))
+        if topup and topup.get("success"):
+            result["auto_topup"] = {"amount": topup["amount"], "new_balance": topup["new_balance"]}
+    return result
+
+
+@api_router.get("/ai/match-scores")
+async def get_my_match_scores(current_user: User = Depends(get_current_user)):
+    """Get all cached match scores for the current user"""
+    scores = []
+    async for s in db.ai_match_scores.find({"user_id": current_user.id}, {"_id": 0}).sort("created_at", -1):
+        if isinstance(s.get("created_at"), datetime):
+            s["created_at"] = s["created_at"].isoformat()
+        scores.append(s)
+    return {"scores": scores}
+
+
+@api_router.post("/ai/top-matches")
+async def ai_top_matches(current_user: User = Depends(get_current_user)):
+    """Find the top 10 best matching jobs for this job seeker (R50)"""
+    from services.ai_service import get_top_matches
+    result = await get_top_matches(db, current_user.id)
+    if not result.get("success"):
+        status = 402 if "Insufficient" in result.get("error", "") else 500
+        raise HTTPException(status_code=status, detail=result.get("error", "Unknown error"))
+    from services.ai_service import _trigger_auto_topup_if_needed
+    topup = await _trigger_auto_topup_if_needed(db, current_user.id, result.get("new_balance", 0))
+    if topup and topup.get("success"):
+        result["auto_topup"] = {"amount": topup["amount"], "new_balance": topup["new_balance"]}
+    return result
+
+
+@api_router.post("/ai/auto-apply")
+async def ai_auto_apply(request: Request, current_user: User = Depends(get_current_user)):
+    """Auto-apply to selected jobs with AI cover letters (R50)"""
+    from services.ai_service import auto_apply_jobs
+    body = await request.json()
+    job_ids = body.get("job_ids", [])
+    min_score = body.get("min_match_score", 70)
+
+    if not job_ids:
+        raise HTTPException(status_code=400, detail="job_ids list is required")
+
+    result = await auto_apply_jobs(db, current_user.id, job_ids, min_score)
+    if not result.get("success"):
+        status = 402 if "Insufficient" in result.get("error", "") else 500
+        raise HTTPException(status_code=status, detail=result.get("error", "Unknown error"))
+    from services.ai_service import _trigger_auto_topup_if_needed
+    topup = await _trigger_auto_topup_if_needed(db, current_user.id, result.get("new_balance", 0))
+    if topup and topup.get("success"):
+        result["auto_topup"] = {"amount": topup["amount"], "new_balance": topup["new_balance"]}
+    return result
+
+
+@api_router.post("/ai/cv-enhance")
+async def ai_cv_enhance(current_user: User = Depends(get_current_user)):
+    """Enhance CV and profile with AI recommendations (R80)"""
+    from services.ai_service import enhance_cv_profile
+    result = await enhance_cv_profile(db, current_user.id)
+    if not result.get("success"):
+        status = 402 if "Insufficient" in result.get("error", "") else 500
+        raise HTTPException(status_code=status, detail=result.get("error", "Unknown error"))
+    from services.ai_service import _trigger_auto_topup_if_needed
+    topup = await _trigger_auto_topup_if_needed(db, current_user.id, result.get("new_balance", 0))
+    if topup and topup.get("success"):
+        result["auto_topup"] = {"amount": topup["amount"], "new_balance": topup["new_balance"]}
+    return result
+
+
+@api_router.get("/ai/dashboard")
+async def ai_dashboard(current_user: User = Depends(get_current_user)):
+    """Get AI insights dashboard data for job seeker"""
+    user_doc = await db.users.find_one({"id": current_user.id}, {"_id": 0, "wallet_balance": 1})
+    wallet_balance = user_doc.get("wallet_balance", 0) if user_doc else 0
+
+    # Transaction history
+    transactions = []
+    async for t in db.ai_usage_log.find({"user_id": current_user.id}, {"_id": 0}).sort("created_at", -1).limit(50):
+        if isinstance(t.get("created_at"), datetime):
+            t["created_at"] = t["created_at"].isoformat()
+        transactions.append(t)
+
+    # Counts
+    match_count = await db.ai_match_scores.count_documents({"user_id": current_user.id})
+    search_count = await db.ai_top_searches.count_documents({"user_id": current_user.id})
+    auto_apply_count = await db.ai_auto_applies.count_documents({"user_id": current_user.id})
+    cv_enhance_count = await db.ai_cv_enhancements.count_documents({"user_id": current_user.id})
+
+    # Total spent
+    total_spent = sum(t.get("cost", 0) for t in transactions if t.get("action") != "topup" and t.get("action") != "refund")
+
+    return {
+        "wallet_balance": wallet_balance,
+        "transactions": transactions,
+        "stats": {
+            "match_reports": match_count,
+            "top_job_searches": search_count,
+            "auto_applies": auto_apply_count,
+            "cv_enhancements": cv_enhance_count,
+            "total_spent": total_spent,
+        },
+    }
+
+
+@api_router.get("/admin/ai/analytics")
+async def admin_ai_analytics(current_user: User = Depends(verify_admin_user)):
+    """Admin AI analytics — comprehensive usage, revenue, trends, top users"""
+    from services.ai_service import AI_PRICING
+
+    ai_actions = list(AI_PRICING.keys())
+
+    # Revenue by feature
+    revenue_by_feature = {}
+    for action in ai_actions:
+        pipeline = [
+            {"$match": {"action": action}},
+            {"$group": {"_id": None, "total": {"$sum": "$cost"}, "count": {"$sum": 1}}},
+        ]
+        result = await db.ai_usage_log.aggregate(pipeline).to_list(1)
+        if result:
+            revenue_by_feature[action] = {"total_revenue": result[0]["total"], "usage_count": result[0]["count"]}
+        else:
+            revenue_by_feature[action] = {"total_revenue": 0, "usage_count": 0}
+
+    total_revenue = sum(r["total_revenue"] for r in revenue_by_feature.values())
+    total_ai_actions = sum(r["usage_count"] for r in revenue_by_feature.values())
+
+    # Refunds
+    refund_pipeline = [
+        {"$match": {"action": "refund"}},
+        {"$group": {"_id": None, "total": {"$sum": "$amount"}, "count": {"$sum": 1}}},
+    ]
+    refund_result = await db.ai_usage_log.aggregate(refund_pipeline).to_list(1)
+    total_refunds = refund_result[0]["total"] if refund_result else 0
+    refund_count = refund_result[0]["count"] if refund_result else 0
+
+    # Topups
+    topup_pipeline = [
+        {"$match": {"action": "topup"}},
+        {"$group": {"_id": None, "total": {"$sum": "$amount"}, "count": {"$sum": 1}}},
+    ]
+    topup_result = await db.ai_usage_log.aggregate(topup_pipeline).to_list(1)
+    total_topups = topup_result[0]["total"] if topup_result else 0
+    topup_count = topup_result[0]["count"] if topup_result else 0
+
+    # Auto topups
+    auto_topup_pipeline = [
+        {"$match": {"action": "auto_topup"}},
+        {"$group": {"_id": None, "total": {"$sum": "$amount"}, "count": {"$sum": 1}}},
+    ]
+    auto_topup_result = await db.ai_usage_log.aggregate(auto_topup_pipeline).to_list(1)
+    total_auto_topups = auto_topup_result[0]["total"] if auto_topup_result else 0
+    auto_topup_count = auto_topup_result[0]["count"] if auto_topup_result else 0
+
+    # Unique AI users
+    unique_users = await db.ai_usage_log.distinct("user_id", {"action": {"$in": ai_actions}})
+
+    # Users with auto top-up enabled
+    auto_topup_users = await db.users.count_documents({"wallet_auto_topup.enabled": True})
+    saved_card_users = await db.users.count_documents({"wallet_payfast_token": {"$exists": True, "$ne": None}})
+
+    # Daily revenue trend (last 30 days)
+    from datetime import timedelta
+    thirty_days_ago = datetime.utcnow() - timedelta(days=30)
+    daily_pipeline = [
+        {"$match": {"action": {"$in": ai_actions}, "created_at": {"$gte": thirty_days_ago}}},
+        {"$group": {
+            "_id": {"$dateToString": {"format": "%Y-%m-%d", "date": "$created_at"}},
+            "revenue": {"$sum": "$cost"},
+            "actions": {"$sum": 1},
+        }},
+        {"$sort": {"_id": 1}},
+    ]
+    daily_data = await db.ai_usage_log.aggregate(daily_pipeline).to_list(31)
+    daily_trend = [{"date": d["_id"], "revenue": d["revenue"], "actions": d["actions"]} for d in daily_data]
+
+    # Top users by AI spend
+    top_users_pipeline = [
+        {"$match": {"action": {"$in": ai_actions}}},
+        {"$group": {"_id": "$user_id", "total_spent": {"$sum": "$cost"}, "action_count": {"$sum": 1}}},
+        {"$sort": {"total_spent": -1}},
+        {"$limit": 10},
+    ]
+    top_users_raw = await db.ai_usage_log.aggregate(top_users_pipeline).to_list(10)
+    top_users = []
+    for u in top_users_raw:
+        user_doc = await db.users.find_one({"id": u["_id"]}, {"_id": 0, "email": 1, "first_name": 1, "last_name": 1})
+        top_users.append({
+            "user_id": u["_id"],
+            "email": user_doc.get("email", "Unknown") if user_doc else "Unknown",
+            "name": f"{user_doc.get('first_name', '')} {user_doc.get('last_name', '')}" if user_doc else "Unknown",
+            "total_spent": u["total_spent"],
+            "action_count": u["action_count"],
+        })
+
+    # Wallet balance distribution
+    wallet_pipeline = [
+        {"$match": {"role": "job_seeker", "wallet_balance": {"$gt": 0}}},
+        {"$group": {"_id": None, "total_balance": {"$sum": "$wallet_balance"}, "count": {"$sum": 1}, "avg": {"$avg": "$wallet_balance"}}},
+    ]
+    wallet_result = await db.users.aggregate(wallet_pipeline).to_list(1)
+    wallet_stats = {
+        "total_balance_held": wallet_result[0]["total_balance"] if wallet_result else 0,
+        "users_with_balance": wallet_result[0]["count"] if wallet_result else 0,
+        "avg_balance": round(wallet_result[0]["avg"], 2) if wallet_result else 0,
+    }
+
+    # Recent transactions (last 50)
+    recent = []
+    async for t in db.ai_usage_log.find({}, {"_id": 0}).sort("created_at", -1).limit(50):
+        if isinstance(t.get("created_at"), datetime):
+            t["created_at"] = t["created_at"].isoformat()
+        user_doc = await db.users.find_one({"id": t.get("user_id")}, {"_id": 0, "email": 1, "first_name": 1, "last_name": 1})
+        t["user_email"] = user_doc.get("email", "Unknown") if user_doc else "Unknown"
+        t["user_name"] = f"{user_doc.get('first_name', '')} {user_doc.get('last_name', '')}" if user_doc else "Unknown"
+        recent.append(t)
+
+    return {
+        "summary": {
+            "total_revenue": total_revenue,
+            "total_refunds": total_refunds,
+            "net_revenue": total_revenue - total_refunds,
+            "total_ai_actions": total_ai_actions,
+            "unique_ai_users": len(unique_users),
+            "total_topups": total_topups,
+            "topup_count": topup_count,
+            "refund_count": refund_count,
+            "total_auto_topups": total_auto_topups,
+            "auto_topup_count": auto_topup_count,
+        },
+        "auto_topup_stats": {
+            "users_with_card": saved_card_users,
+            "users_auto_topup_enabled": auto_topup_users,
+        },
+        "wallet_stats": wallet_stats,
+        "revenue_by_feature": revenue_by_feature,
+        "daily_trend": daily_trend,
+        "top_users": top_users,
+        "pricing": AI_PRICING,
+        "recent_transactions": recent,
+    }
+
+
+@api_router.post("/admin/ai/refund/{transaction_id}")
+async def admin_ai_refund(transaction_id: str, current_user: User = Depends(verify_admin_user)):
+    """Admin: Refund an AI transaction"""
+    from services.ai_service import refund_wallet
+    transaction = await db.ai_usage_log.find_one({"id": transaction_id}, {"_id": 0})
+    if not transaction:
+        raise HTTPException(status_code=404, detail="Transaction not found")
+    if transaction.get("action") in ("topup", "refund"):
+        raise HTTPException(status_code=400, detail="Cannot refund topups or refunds")
+
+    cost = transaction.get("cost", 0)
+    user_id = transaction.get("user_id")
+    await refund_wallet(db, user_id, cost, f"Admin refund by {current_user.email}")
+
+    return {"success": True, "message": f"Refunded R{cost:.2f} to user"}
+
+
+@api_router.put("/admin/ai/pricing")
+async def admin_update_pricing(request: Request, current_user: User = Depends(verify_admin_user)):
+    """Admin: Update AI feature pricing"""
+    from services import ai_service
+    body = await request.json()
+
+    for action, price in body.items():
+        if action in ai_service.AI_PRICING:
+            if isinstance(price, (int, float)) and price >= 0:
+                ai_service.AI_PRICING[action] = float(price)
+
+    return {"success": True, "pricing": ai_service.AI_PRICING}
+
+
+
+# SEO: Dynamic Sitemap
+@api_router.get("/sitemap")
+async def generate_sitemap():
+    """Generate dynamic XML sitemap for search engines"""
+    from fastapi.responses import Response
+    
+    base_url = "https://jobrocket.co.za"
+    
+    static_pages = [
+        {"loc": "/", "changefreq": "daily", "priority": "1.0"},
+        {"loc": "/browse-jobs", "changefreq": "hourly", "priority": "0.9"},
+        {"loc": "/pricing", "changefreq": "weekly", "priority": "0.8"},
+        {"loc": "/register", "changefreq": "monthly", "priority": "0.7"},
+        {"loc": "/about", "changefreq": "monthly", "priority": "0.5"},
+        {"loc": "/contact", "changefreq": "monthly", "priority": "0.5"},
+        {"loc": "/privacy-policy", "changefreq": "yearly", "priority": "0.3"},
+        {"loc": "/terms-of-service", "changefreq": "yearly", "priority": "0.3"},
+    ]
+    
+    jobs = await db.jobs.find(
+        {"status": {"$in": ["active", "published", None]}},
+        {"_id": 0, "id": 1, "title": 1, "posted_date": 1, "updated_at": 1}
+    ).sort("posted_date", -1).limit(500).to_list(500)
+    
+    companies = await db.accounts.find(
+        {"company_name": {"$exists": True, "$ne": ""}},
+        {"_id": 0, "id": 1, "company_name": 1, "updated_at": 1}
+    ).limit(200).to_list(200)
+    
+    xml_parts = [
+        '<?xml version="1.0" encoding="UTF-8"?>',
+        '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">',
+    ]
+    
+    for page in static_pages:
+        xml_parts.append(f'  <url>\n    <loc>{base_url}{page["loc"]}</loc>\n    <changefreq>{page["changefreq"]}</changefreq>\n    <priority>{page["priority"]}</priority>\n  </url>')
+    
+    for job in jobs:
+        lastmod = ""
+        date_val = job.get("updated_at") or job.get("posted_date")
+        if date_val:
+            if isinstance(date_val, str):
+                lastmod = f"\n    <lastmod>{date_val[:10]}</lastmod>"
+            else:
+                lastmod = f"\n    <lastmod>{date_val.strftime('%Y-%m-%d')}</lastmod>"
+        xml_parts.append(f'  <url>\n    <loc>{base_url}/jobs/{job["id"]}</loc>{lastmod}\n    <changefreq>weekly</changefreq>\n    <priority>0.8</priority>\n  </url>')
+    
+    for company in companies:
+        xml_parts.append(f'  <url>\n    <loc>{base_url}/company/{company["id"]}</loc>\n    <changefreq>weekly</changefreq>\n    <priority>0.6</priority>\n  </url>')
+    
+    xml_parts.append('</urlset>')
+    xml_content = "\n".join(xml_parts)
+    return Response(content=xml_content, media_type="application/xml")
+
+
+
+# Include router
+app.include_router(api_router)
+
+# Mount static files AFTER router include to avoid shadowing upload POST endpoints
+# The StaticFiles mount was previously shadowing /api/uploads/cv, /api/uploads/profile-picture etc.
+app.mount("/api/uploads", StaticFiles(directory=UPLOAD_PATH), name="uploads")
+
+
+# Root redirect
+@app.get("/")
+async def root():
+    return {"message": "JobRocket API v2.0.0", "docs": "/docs"}
