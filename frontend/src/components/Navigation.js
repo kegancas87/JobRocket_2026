@@ -22,7 +22,8 @@ import {
   BarChart3,
   ChevronDown,
   PieChart,
-  FlaskConical
+  FlaskConical,
+  Beaker
 } from "lucide-react";
 
 const Navigation = ({ user, onLogout }) => {
@@ -99,14 +100,16 @@ const Navigation = ({ user, onLogout }) => {
         { name: 'Account', path: '/account', icon: Building2 },
         { name: 'Admin Panel', path: '/admin', icon: Settings },
         { name: 'Profile', path: '/profile', icon: User },
-        { name: 'Test', path: '#', icon: FlaskConical }
+        { name: 'Test', path: '#', icon: FlaskConical },
+        { name: 'Test 1', path: '#', icon: Beaker }
       ];
     } else {
       // Job seeker - Profile and Notifications moved to dropdown
       return [
         { name: 'Jobs', path: '/jobs', icon: Briefcase },
         { name: 'My Applications', path: '/my-applications', icon: FileText },
-        { name: 'Test', path: '#', icon: FlaskConical }
+        { name: 'Test', path: '#', icon: FlaskConical },
+        { name: 'Test 1', path: '#', icon: Beaker }
       ];
     }
   };
