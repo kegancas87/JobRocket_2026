@@ -21,8 +21,7 @@ import {
   FileSpreadsheet,
   BarChart3,
   ChevronDown,
-  PieChart,
-  FlaskConical
+  PieChart
 } from "lucide-react";
 
 const Navigation = ({ user, onLogout }) => {
@@ -98,15 +97,13 @@ const Navigation = ({ user, onLogout }) => {
         { name: 'Jobs', path: '/jobs', icon: Briefcase },
         { name: 'Account', path: '/account', icon: Building2 },
         { name: 'Admin Panel', path: '/admin', icon: Settings },
-        { name: 'Profile', path: '/profile', icon: User },
-        { name: 'testabc', path: '#', icon: FlaskConical }
+        { name: 'Profile', path: '/profile', icon: User }
       ];
     } else {
       // Job seeker - Profile and Notifications moved to dropdown
       return [
         { name: 'Jobs', path: '/jobs', icon: Briefcase },
-        { name: 'My Applications', path: '/my-applications', icon: FileText },
-        { name: 'testabc', path: '#', icon: FlaskConical }
+        { name: 'My Applications', path: '/my-applications', icon: FileText }
       ];
     }
   };
