@@ -206,7 +206,7 @@ const AdminDashboard = ({ user, onLogout, onNavigateToJobs }) => {
       const downloadUrl = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = downloadUrl;
-      a.download = `jobrocket_jobs_export_${new Date().toISOString().slice(0,10)}.csv`;
+      a.download = `jobrocket_jobs_export_${new Date().toISOString().slice(0,10)}.xlsx`;
       document.body.appendChild(a);
       a.click();
       window.URL.revokeObjectURL(downloadUrl);
@@ -832,7 +832,7 @@ const AdminDashboard = ({ user, onLogout, onNavigateToJobs }) => {
                 <div className="bg-slate-700/30 rounded-lg p-6 border border-slate-600">
                   <h3 className="text-lg font-semibold text-white mb-4">Export Job Listings</h3>
                   <p className="text-slate-400 mb-6">
-                    Download a CSV file containing job listings. Use the filters below to customize your export.
+                    Download an Excel (.xlsx) file containing job listings. Use the filters below to customize your export.
                   </p>
                   
                   {/* Export Filters */}
@@ -899,21 +899,20 @@ const AdminDashboard = ({ user, onLogout, onNavigateToJobs }) => {
                     </p>
                   </div>
                   
-                  {/* CSV Columns Info */}
+                  {/* Excel Columns Info */}
                   <div className="bg-slate-800 rounded-lg p-4 mb-6">
-                    <h4 className="text-sm font-medium text-slate-300 mb-3">CSV Columns:</h4>
+                    <h4 className="text-sm font-medium text-slate-300 mb-3">Excel Columns:</h4>
                     <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
                       {[
-                        'Job Title',
+                        'Link',
+                        'Title',
+                        'Company',
                         'Location',
+                        'Work Type',
+                        'Job Type',
                         'Salary',
                         'Description',
-                        'Role Type',
-                        'Work Type',
-                        'Industry',
-                        'Link to Job Listing',
-                        'Job Listing ID',
-                        'Posted Date'
+                        'Created At'
                       ].map((col, idx) => (
                         <div key={idx} className="flex items-center text-sm">
                           <Check className="w-4 h-4 text-green-400 mr-2" />
@@ -937,7 +936,7 @@ const AdminDashboard = ({ user, onLogout, onNavigateToJobs }) => {
                       ) : (
                         <>
                           <Download className="w-4 h-4 mr-2" />
-                          Download Jobs CSV
+                          Download Jobs Excel
                         </>
                       )}
                     </Button>

@@ -4604,114 +4604,137 @@ async def admin_export_jobs(
     limit: Optional[int] = None,
     current_user: User = Depends(verify_admin_user)
 ):
-    """Export jobs as CSV for admin with optional date filtering and limit"""
-    import csv
+    """Export jobs as Excel (.xlsx) for admin with optional date filtering and limit"""
     import io
+    import re
     from fastapi.responses import StreamingResponse
-    
+    from openpyxl import Workbook
+    from openpyxl.styles import Font, PatternFill, Alignment
+    from openpyxl.utils import get_column_letter
+
     # Build query filter
     query = {}
-    
-    # Add date filters if provided
+
+    # Add date filters if provided (filters on created_at)
     if start_date or end_date:
         date_filter = {}
         if start_date:
             try:
                 start_dt = datetime.fromisoformat(start_date.replace('Z', '+00:00'))
                 date_filter["$gte"] = start_dt
-            except:
+            except Exception:
                 pass
         if end_date:
             try:
                 end_dt = datetime.fromisoformat(end_date.replace('Z', '+00:00'))
-                # Add one day to include the end date fully
+                # Include the entire end date
                 end_dt = end_dt.replace(hour=23, minute=59, second=59)
                 date_filter["$lte"] = end_dt
-            except:
+            except Exception:
                 pass
         if date_filter:
             query["created_at"] = date_filter
-    
+
     # Set limit (default to 150000 if not specified)
     fetch_limit = limit if limit and limit > 0 else 150000
-    
+
     # Fetch jobs sorted by created_at descending (latest first)
     cursor = db.jobs.find(query, {"_id": 0}).sort("created_at", -1).limit(fetch_limit)
     jobs = await cursor.to_list(length=fetch_limit)
-    
-    # Create CSV in memory
-    output = io.StringIO()
-    writer = csv.writer(output)
-    
-    # Write header
+
+    # Build Excel workbook
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Jobs Export"
+
     headers = [
-        "Job Title",
-        "Location", 
+        "Link",
+        "Title",
+        "Company",
+        "Location",
+        "Work Type",
+        "Job Type",
         "Salary",
         "Description",
-        "Role Type",
-        "Work Type",
-        "Industry",
-        "Link to Job Listing",
-        "Job Listing ID",
-        "Posted Date"
+        "Created At",
     ]
-    writer.writerow(headers)
-    
-    # Write job data
+    ws.append(headers)
+
+    # Style header row
+    header_font = Font(bold=True, color="FFFFFF")
+    header_fill = PatternFill(start_color="1F2937", end_color="1F2937", fill_type="solid")
+    header_align = Alignment(horizontal="left", vertical="center")
+    for col_idx in range(1, len(headers) + 1):
+        cell = ws.cell(row=1, column=col_idx)
+        cell.font = header_font
+        cell.fill = header_fill
+        cell.alignment = header_align
+
     base_url = os.environ.get("BASE_URL", "https://jobrocket.co.za")
-    
+
     for job in jobs:
         job_id = job.get("id", "")
-        
-        # Format salary
-        salary = job.get("salary", "Not specified")
-        
-        # Clean description (remove HTML and limit length)
-        description = job.get("description", "")
+
+        # Clean description (strip HTML, collapse whitespace, cap length)
+        description = job.get("description", "") or ""
         if description:
-            # Remove HTML tags
-            import re
             description = re.sub(r'<[^>]+>', '', description)
-            # Limit length and remove newlines
-            description = description.replace('\n', ' ').replace('\r', ' ')[:500]
-        
-        # Format posted date
+            description = description.replace('\n', ' ').replace('\r', ' ').strip()
+            if len(description) > 1000:
+                description = description[:1000] + "..."
+
+        # Format created_at
         created_at = job.get("created_at", "")
-        if created_at:
-            if isinstance(created_at, datetime):
-                posted_date = created_at.strftime("%Y-%m-%d %H:%M")
-            else:
-                posted_date = str(created_at)[:19]
+        if isinstance(created_at, datetime):
+            created_str = created_at.strftime("%Y-%m-%d %H:%M")
+        elif created_at:
+            created_str = str(created_at)[:19]
         else:
-            posted_date = ""
-        
+            created_str = ""
+
         row = [
-            job.get("title", ""),
-            job.get("location", ""),
-            salary,
-            description,
-            job.get("role_type", job.get("job_type", "")),
-            job.get("work_type", job.get("employment_type", "")),
-            job.get("industry", job.get("category", "")),
             f"{base_url}/jobs/{job_id}",
-            job_id,
-            posted_date
+            job.get("title", "") or "",
+            job.get("company_name", "") or "",
+            job.get("location", "") or "",
+            job.get("work_type", job.get("employment_type", "")) or "",
+            job.get("role_type", job.get("job_type", "")) or "",
+            job.get("salary", "") or "",
+            description,
+            created_str,
         ]
-        writer.writerow(row)
-    
-    # Prepare response
+        ws.append(row)
+
+    # Auto-size columns (with caps)
+    col_widths = {
+        1: 50,   # Link
+        2: 35,   # Title
+        3: 25,   # Company
+        4: 22,   # Location
+        5: 16,   # Work Type
+        6: 16,   # Job Type
+        7: 18,   # Salary
+        8: 80,   # Description
+        9: 18,   # Created At
+    }
+    for col_idx, width in col_widths.items():
+        ws.column_dimensions[get_column_letter(col_idx)].width = width
+
+    # Freeze header row
+    ws.freeze_panes = "A2"
+
+    # Write to in-memory buffer
+    output = io.BytesIO()
+    wb.save(output)
     output.seek(0)
-    
-    # Generate filename with date
-    filename = f"jobrocket_jobs_export_{datetime.utcnow().strftime('%Y%m%d_%H%M%S')}.csv"
-    
+
+    filename = f"jobrocket_jobs_export_{datetime.utcnow().strftime('%Y%m%d_%H%M%S')}.xlsx"
+
     return StreamingResponse(
-        iter([output.getvalue()]),
-        media_type="text/csv",
+        output,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         headers={
-            "Content-Disposition": f"attachment; filename={filename}",
-            "Content-Type": "text/csv; charset=utf-8"
+            "Content-Disposition": f"attachment; filename={filename}"
         }
     )
 
