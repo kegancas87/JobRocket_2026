@@ -6389,12 +6389,53 @@ async def get_wallet_balance(current_user: User = Depends(get_current_user)):
 
 @api_router.post("/ai/wallet/topup")
 async def topup_wallet(request: Request, current_user: User = Depends(get_current_user)):
-    """Top up job seeker wallet"""
+    """Top up job seeker wallet by charging their saved PayFast card.
+
+    Security: This endpoint MUST charge the user via PayFast. It is NOT a free
+    credit endpoint. A saved PayFast token is required; users without a saved
+    card must add one in Settings first.
+    """
+    from services.payfast_wallet_service import charge_saved_card
+
     body = await request.json()
     amount = body.get("amount", 0)
     if not isinstance(amount, (int, float)) or amount <= 0 or amount > 10000:
         raise HTTPException(status_code=400, detail="Amount must be between R1 and R10,000")
+    if amount < 5:
+        raise HTTPException(status_code=400, detail="Minimum top-up is R5.00")
 
+    # Require a saved PayFast card token
+    user_doc = await db.users.find_one(
+        {"id": current_user.id},
+        {"_id": 0, "wallet_balance": 1, "wallet_payfast_token": 1},
+    )
+    if not user_doc:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    token = user_doc.get("wallet_payfast_token")
+    if not token:
+        raise HTTPException(
+            status_code=400,
+            detail="No saved card found. Please save a card in Settings before topping up.",
+        )
+
+    # Charge via PayFast ad-hoc tokenization API
+    amount_cents = int(round(amount * 100))
+    m_payment_id = f"wallet-topup-{current_user.id[:8]}-{uuid.uuid4().hex[:8]}"
+    charge_result = await charge_saved_card(
+        token=token,
+        amount_cents=amount_cents,
+        item_name=f"JobRocket Wallet Top-Up R{float(amount):.2f}",
+        m_payment_id=m_payment_id,
+    )
+
+    if not charge_result.get("success"):
+        raise HTTPException(
+            status_code=402,
+            detail=charge_result.get("error", "Payment failed. Please check your saved card and try again."),
+        )
+
+    # Charge succeeded — credit the wallet
     result = await db.users.find_one_and_update(
         {"id": current_user.id},
         {"$inc": {"wallet_balance": amount}, "$set": {"updated_at": datetime.utcnow()}},
@@ -6408,10 +6449,16 @@ async def topup_wallet(request: Request, current_user: User = Depends(get_curren
         "user_id": current_user.id,
         "action": "topup",
         "amount": amount,
+        "pf_payment_id": charge_result.get("pf_payment_id"),
+        "m_payment_id": m_payment_id,
         "created_at": datetime.utcnow(),
     })
 
-    return {"success": True, "wallet_balance": new_balance}
+    return {
+        "success": True,
+        "wallet_balance": new_balance,
+        "pf_payment_id": charge_result.get("pf_payment_id"),
+    }
 
 
 @api_router.post("/ai/wallet/setup-card")

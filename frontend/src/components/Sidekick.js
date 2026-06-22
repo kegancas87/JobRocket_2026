@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from "./ui/card";
 import { Button } from "./ui/button";
-import { Input } from "./ui/input";
 import {
   Zap, X, Wallet, Target, Search, Send, FileText, Sparkles, 
   ChevronRight, Loader2, CheckCircle, AlertCircle, Briefcase,
@@ -274,13 +274,12 @@ const CVEnhanceResult = ({ data }) => {
 
 
 const Sidekick = ({ isOpen, onClose, currentJobId, currentJobTitle }) => {
+  const navigate = useNavigate();
   const [walletBalance, setWalletBalance] = useState(0);
   const [autoTopupEnabled, setAutoTopupEnabled] = useState(false);
   const [messages, setMessages] = useState([]);
   const [loading, setLoading] = useState(false);
   const [loadingAction, setLoadingAction] = useState('');
-  const [topupAmount, setTopupAmount] = useState('');
-  const [showTopup, setShowTopup] = useState(false);
   const [lastTopMatches, setLastTopMatches] = useState(null);
   const messagesEndRef = useRef(null);
 
@@ -312,18 +311,9 @@ const Sidekick = ({ isOpen, onClose, currentJobId, currentJobTitle }) => {
     }
   };
 
-  const handleTopup = async () => {
-    const amount = parseFloat(topupAmount);
-    if (!amount || amount <= 0) return;
-    try {
-      const res = await axios.post(`${API}/ai/wallet/topup`, { amount }, getAuthHeaders());
-      setWalletBalance(res.data.wallet_balance);
-      setTopupAmount('');
-      setShowTopup(false);
-      addMessage('system', `Wallet topped up by R${amount.toFixed(2)}. New balance: R${res.data.wallet_balance.toFixed(2)}`);
-    } catch (err) {
-      addMessage('error', err.response?.data?.detail || 'Top up failed');
-    }
+  const handleTopUpClick = () => {
+    onClose();
+    navigate('/profile?tab=wallet');
   };
 
   const addMessage = (type, content, data = null) => {
@@ -393,8 +383,7 @@ const Sidekick = ({ isOpen, onClose, currentJobId, currentJobTitle }) => {
       } else {
         const detail = err.response?.data?.detail || 'Something went wrong';
         if (err.response?.status === 402) {
-          addMessage('error', `${detail} Your balance: R${walletBalance.toFixed(2)}. Required: R${feature.price}.`);
-          setShowTopup(true);
+          addMessage('error', `${detail} Your balance: R${walletBalance.toFixed(2)}. Required: R${feature.price}. Click "Top Up" above to add funds.`);
         } else {
           addMessage('error', detail);
         }
@@ -443,40 +432,13 @@ const Sidekick = ({ isOpen, onClose, currentJobId, currentJobTitle }) => {
           )}
         </div>
         <button
-          onClick={() => setShowTopup(!showTopup)}
+          onClick={handleTopUpClick}
           className="text-xs bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-1 rounded-full transition-colors"
           data-testid="sidekick-topup-toggle"
         >
           Top Up
         </button>
       </div>
-
-      {/* Top-up Panel */}
-      {showTopup && (
-        <div className="bg-slate-800/80 px-4 py-3 border-b border-slate-700">
-          <div className="flex gap-2">
-            <div className="flex gap-1">
-              {[50, 100, 200, 500].map(amt => (
-                <button key={amt} onClick={() => setTopupAmount(String(amt))}
-                  className={`text-xs px-2 py-1 rounded-full border transition-colors ${topupAmount === String(amt) ? 'bg-emerald-600 border-emerald-600 text-white' : 'border-slate-600 text-slate-400 hover:border-emerald-500'}`}>
-                  R{amt}
-                </button>
-              ))}
-            </div>
-          </div>
-          <div className="flex gap-2 mt-2">
-            <Input
-              type="number" placeholder="Amount (R)" value={topupAmount}
-              onChange={(e) => setTopupAmount(e.target.value)}
-              className="h-8 text-sm bg-slate-700 border-slate-600 text-white flex-1"
-              data-testid="sidekick-topup-input"
-            />
-            <Button onClick={handleTopup} size="sm" className="bg-emerald-600 hover:bg-emerald-700 h-8 px-4" data-testid="sidekick-topup-confirm">
-              Add
-            </Button>
-          </div>
-        </div>
-      )}
 
       {/* Messages Area */}
       <div className="flex-1 overflow-y-auto p-4 space-y-3">

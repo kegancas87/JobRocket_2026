@@ -37,18 +37,29 @@ import {
   Eye,
   EyeOff,
   CheckCircle,
-  AlertCircle
+  AlertCircle,
+  Wallet,
+  CreditCard
 } from "lucide-react";
 import axios from 'axios';
+import { useSearchParams } from 'react-router-dom';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
 
 const ProfileDashboard = ({ user, onUpdateUser }) => {
+  const [searchParams, setSearchParams] = useSearchParams();
   const [profile, setProfile] = useState(user);
   const [loading, setLoading] = useState(false);
-  const [activeTab, setActiveTab] = useState('overview');
+  const [activeTab, setActiveTab] = useState(searchParams.get('tab') || 'overview');
   const [progress, setProgress] = useState(user.profile_progress || {});
+
+  // Wallet state
+  const [walletBalance, setWalletBalance] = useState(0);
+  const [walletLoading, setWalletLoading] = useState(false);
+  const [walletTopupAmount, setWalletTopupAmount] = useState('');
+  const [walletHasCard, setWalletHasCard] = useState(false);
+  const [walletMessage, setWalletMessage] = useState(null); // { type: 'success'|'error', text: string }
   
   // Form states
   const [profileForm, setProfileForm] = useState({
@@ -199,6 +210,72 @@ const ProfileDashboard = ({ user, onUpdateUser }) => {
         'Authorization': `Bearer ${token}`
       }
     };
+  };
+
+  // ============================================
+  // Wallet
+  // ============================================
+  const fetchWallet = async () => {
+    try {
+      const balRes = await axios.get(`${API}/ai/wallet`, getAuthHeaders());
+      setWalletBalance(balRes.data.wallet_balance || 0);
+      const cardRes = await axios.get(`${API}/ai/wallet/card-status`, getAuthHeaders());
+      setWalletHasCard(!!cardRes.data?.has_card);
+    } catch (err) {
+      console.error('Failed to fetch wallet:', err);
+    }
+  };
+
+  useEffect(() => {
+    if (activeTab === 'wallet') {
+      fetchWallet();
+    }
+  }, [activeTab]);
+
+  // Keep tab in URL so deep-links from Sidekick work
+  useEffect(() => {
+    const urlTab = searchParams.get('tab');
+    if (urlTab && urlTab !== activeTab) {
+      setActiveTab(urlTab);
+    }
+  }, [searchParams, activeTab]);
+
+  const handleWalletTopup = async () => {
+    const amount = parseFloat(walletTopupAmount);
+    if (!amount || amount <= 0) {
+      setWalletMessage({ type: 'error', text: 'Please enter a valid amount.' });
+      return;
+    }
+    if (amount < 5) {
+      setWalletMessage({ type: 'error', text: 'Minimum top-up is R5.' });
+      return;
+    }
+    if (!walletHasCard) {
+      setWalletMessage({
+        type: 'error',
+        text: 'Please save a card in Settings before topping up.'
+      });
+      return;
+    }
+
+    setWalletLoading(true);
+    setWalletMessage(null);
+    try {
+      const res = await axios.post(`${API}/ai/wallet/topup`, { amount }, getAuthHeaders());
+      setWalletBalance(res.data.wallet_balance);
+      setWalletTopupAmount('');
+      setWalletMessage({
+        type: 'success',
+        text: `R${amount.toFixed(2)} added to your wallet. New balance: R${res.data.wallet_balance.toFixed(2)}.`
+      });
+    } catch (err) {
+      setWalletMessage({
+        type: 'error',
+        text: err.response?.data?.detail || 'Top up failed. Please try again.'
+      });
+    } finally {
+      setWalletLoading(false);
+    }
   };
 
   const handleProfilePictureUpload = async (file) => {
@@ -834,7 +911,7 @@ const ProfileDashboard = ({ user, onUpdateUser }) => {
           {/* Main Profile Tabs */}
           <div className="lg:col-span-3">
             <Tabs value={activeTab} onValueChange={setActiveTab}>
-              <TabsList className="grid w-full grid-cols-8 bg-white/80 backdrop-blur-sm">
+              <TabsList className="grid w-full grid-cols-9 bg-white/80 backdrop-blur-sm">
                 <TabsTrigger value="overview" className="flex items-center space-x-1">
                   <User className="w-4 h-4" />
                   <span className="hidden sm:inline">Overview</span>
@@ -862,6 +939,10 @@ const ProfileDashboard = ({ user, onUpdateUser }) => {
                 <TabsTrigger value="alerts" className="flex items-center space-x-1">
                   <Bell className="w-4 h-4" />
                   <span className="hidden sm:inline">Alerts</span>
+                </TabsTrigger>
+                <TabsTrigger value="wallet" className="flex items-center space-x-1" data-testid="profile-tab-wallet">
+                  <Wallet className="w-4 h-4" />
+                  <span className="hidden sm:inline">Wallet</span>
                 </TabsTrigger>
                 <TabsTrigger value="settings" className="flex items-center space-x-1">
                   <Settings className="w-4 h-4" />
@@ -2057,6 +2138,146 @@ const ProfileDashboard = ({ user, onUpdateUser }) => {
                           Save Salary Preferences
                         </Button>
                       </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              </TabsContent>
+
+              {/* Wallet Tab */}
+              <TabsContent value="wallet" className="space-y-6 mt-6" data-testid="profile-wallet-tab-content">
+                <Card className="bg-white/80 backdrop-blur-sm border-0 shadow-xl">
+                  <CardHeader>
+                    <CardTitle className="flex items-center space-x-2">
+                      <Wallet className="w-5 h-5 text-emerald-600" />
+                      <span>AI Wallet</span>
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-6">
+                    {/* Balance Display */}
+                    <div className="bg-gradient-to-br from-emerald-50 to-blue-50 rounded-xl p-6 border border-emerald-100">
+                      <p className="text-sm text-slate-600 mb-1">Current Balance</p>
+                      <p className="text-4xl font-bold text-emerald-600" data-testid="wallet-balance">
+                        R{walletBalance.toFixed(2)}
+                      </p>
+                      <p className="text-xs text-slate-500 mt-2">
+                        Use your balance to access AI features (Match Score, Auto-Apply, CV Enhance, etc.)
+                      </p>
+                    </div>
+
+                    {/* Message */}
+                    {walletMessage && (
+                      <div
+                        className={`flex items-start gap-2 p-3 rounded-lg text-sm ${
+                          walletMessage.type === 'success'
+                            ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                            : 'bg-red-50 text-red-700 border border-red-200'
+                        }`}
+                        data-testid="wallet-message"
+                      >
+                        {walletMessage.type === 'success' ? (
+                          <CheckCircle className="w-4 h-4 mt-0.5 flex-shrink-0" />
+                        ) : (
+                          <AlertCircle className="w-4 h-4 mt-0.5 flex-shrink-0" />
+                        )}
+                        <span>{walletMessage.text}</span>
+                      </div>
+                    )}
+
+                    {/* Saved card warning */}
+                    {!walletHasCard && (
+                      <div className="flex items-start gap-3 p-4 rounded-lg bg-amber-50 border border-amber-200">
+                        <CreditCard className="w-5 h-5 text-amber-600 mt-0.5 flex-shrink-0" />
+                        <div className="flex-1">
+                          <p className="text-sm font-medium text-amber-900">
+                            No saved card found
+                          </p>
+                          <p className="text-xs text-amber-700 mt-1">
+                            To top up your wallet, save a payment card first via Settings.
+                          </p>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="mt-3 border-amber-300 text-amber-700 hover:bg-amber-100"
+                            onClick={() => {
+                              setActiveTab('settings');
+                              setSearchParams({ tab: 'settings' });
+                            }}
+                            data-testid="wallet-goto-settings-btn"
+                          >
+                            Go to Settings
+                          </Button>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Top Up Form */}
+                    <div>
+                      <h3 className="text-sm font-semibold text-slate-700 mb-3">Top Up Wallet</h3>
+                      <div className="flex flex-wrap gap-2 mb-3">
+                        {[50, 100, 200, 500].map((amt) => (
+                          <button
+                            key={amt}
+                            type="button"
+                            onClick={() => setWalletTopupAmount(String(amt))}
+                            className={`px-4 py-2 rounded-full text-sm font-medium border transition-colors ${
+                              walletTopupAmount === String(amt)
+                                ? 'bg-emerald-600 border-emerald-600 text-white'
+                                : 'border-slate-300 text-slate-700 hover:border-emerald-400 hover:bg-emerald-50'
+                            }`}
+                            data-testid={`wallet-preset-${amt}`}
+                          >
+                            R{amt}
+                          </button>
+                        ))}
+                      </div>
+                      <div className="flex flex-col sm:flex-row gap-2">
+                        <Input
+                          type="number"
+                          placeholder="Enter amount (min R5)"
+                          value={walletTopupAmount}
+                          onChange={(e) => setWalletTopupAmount(e.target.value)}
+                          min="5"
+                          className="flex-1"
+                          data-testid="wallet-topup-input"
+                        />
+                        <Button
+                          onClick={handleWalletTopup}
+                          disabled={walletLoading || !walletHasCard}
+                          className="bg-emerald-600 hover:bg-emerald-700 text-white"
+                          data-testid="wallet-topup-btn"
+                        >
+                          {walletLoading ? (
+                            <>
+                              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                              Processing...
+                            </>
+                          ) : (
+                            <>
+                              <CreditCard className="w-4 h-4 mr-2" />
+                              Top Up
+                            </>
+                          )}
+                        </Button>
+                      </div>
+                      <p className="text-xs text-slate-500 mt-2">
+                        Top-ups are charged to your saved card via PayFast.
+                      </p>
+                    </div>
+
+                    {/* Auto Top-Up Link */}
+                    <div className="border-t border-slate-200 pt-4">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          setActiveTab('settings');
+                          setSearchParams({ tab: 'settings' });
+                        }}
+                        data-testid="wallet-manage-auto-topup-btn"
+                      >
+                        <Settings className="w-4 h-4 mr-2" />
+                        Manage Auto Top-Up & Saved Card
+                      </Button>
                     </div>
                   </CardContent>
                 </Card>
