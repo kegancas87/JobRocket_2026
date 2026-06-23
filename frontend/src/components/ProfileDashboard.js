@@ -58,8 +58,7 @@ const ProfileDashboard = ({ user, onUpdateUser }) => {
   const [walletBalance, setWalletBalance] = useState(0);
   const [walletLoading, setWalletLoading] = useState(false);
   const [walletTopupAmount, setWalletTopupAmount] = useState('');
-  const [walletHasCard, setWalletHasCard] = useState(false);
-  const [walletMessage, setWalletMessage] = useState(null); // { type: 'success'|'error', text: string }
+  const [walletMessage, setWalletMessage] = useState(null); // { type: 'success'|'error'|'info', text: string }
   
   // Form states
   const [profileForm, setProfileForm] = useState({
@@ -219,8 +218,6 @@ const ProfileDashboard = ({ user, onUpdateUser }) => {
     try {
       const balRes = await axios.get(`${API}/ai/wallet`, getAuthHeaders());
       setWalletBalance(balRes.data.wallet_balance || 0);
-      const cardRes = await axios.get(`${API}/ai/wallet/card-status`, getAuthHeaders());
-      setWalletHasCard(!!cardRes.data?.has_card);
     } catch (err) {
       console.error('Failed to fetch wallet:', err);
     }
@@ -232,11 +229,25 @@ const ProfileDashboard = ({ user, onUpdateUser }) => {
     }
   }, [activeTab]);
 
-  // Keep tab in URL so deep-links from Sidekick work
+  // Keep tab in URL so deep-links from Sidekick work; show post-payment status
   useEffect(() => {
     const urlTab = searchParams.get('tab');
     if (urlTab && urlTab !== activeTab) {
       setActiveTab(urlTab);
+    }
+    const topup = searchParams.get('topup');
+    if (topup === 'success') {
+      setWalletMessage({
+        type: 'success',
+        text: 'Payment received. Your wallet will be credited shortly.',
+      });
+      // Refresh balance shortly after redirect
+      setTimeout(() => fetchWallet(), 1500);
+    } else if (topup === 'cancelled') {
+      setWalletMessage({
+        type: 'error',
+        text: 'Top-up cancelled. No payment was taken.',
+      });
     }
   }, [searchParams, activeTab]);
 
@@ -250,30 +261,34 @@ const ProfileDashboard = ({ user, onUpdateUser }) => {
       setWalletMessage({ type: 'error', text: 'Minimum top-up is R5.' });
       return;
     }
-    if (!walletHasCard) {
-      setWalletMessage({
-        type: 'error',
-        text: 'Please save a card in Settings before topping up.'
-      });
-      return;
-    }
 
     setWalletLoading(true);
     setWalletMessage(null);
     try {
       const res = await axios.post(`${API}/ai/wallet/topup`, { amount }, getAuthHeaders());
-      setWalletBalance(res.data.wallet_balance);
-      setWalletTopupAmount('');
-      setWalletMessage({
-        type: 'success',
-        text: `R${amount.toFixed(2)} added to your wallet. New balance: R${res.data.wallet_balance.toFixed(2)}.`
+      const { payfast_url, payfast_data } = res.data;
+      if (!payfast_url || !payfast_data) {
+        throw new Error('Invalid response from server');
+      }
+
+      // Build a hidden form and POST to PayFast hosted checkout
+      const form = document.createElement('form');
+      form.method = 'POST';
+      form.action = payfast_url;
+      Object.entries(payfast_data).forEach(([k, v]) => {
+        const input = document.createElement('input');
+        input.type = 'hidden';
+        input.name = k;
+        input.value = v == null ? '' : String(v);
+        form.appendChild(input);
       });
+      document.body.appendChild(form);
+      form.submit();
     } catch (err) {
       setWalletMessage({
         type: 'error',
-        text: err.response?.data?.detail || 'Top up failed. Please try again.'
+        text: err.response?.data?.detail || 'Could not start payment. Please try again.',
       });
-    } finally {
       setWalletLoading(false);
     }
   };
@@ -2183,33 +2198,6 @@ const ProfileDashboard = ({ user, onUpdateUser }) => {
                       </div>
                     )}
 
-                    {/* Saved card warning */}
-                    {!walletHasCard && (
-                      <div className="flex items-start gap-3 p-4 rounded-lg bg-amber-50 border border-amber-200">
-                        <CreditCard className="w-5 h-5 text-amber-600 mt-0.5 flex-shrink-0" />
-                        <div className="flex-1">
-                          <p className="text-sm font-medium text-amber-900">
-                            No saved card found
-                          </p>
-                          <p className="text-xs text-amber-700 mt-1">
-                            To top up your wallet, save a payment card first via Settings.
-                          </p>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            className="mt-3 border-amber-300 text-amber-700 hover:bg-amber-100"
-                            onClick={() => {
-                              setActiveTab('settings');
-                              setSearchParams({ tab: 'settings' });
-                            }}
-                            data-testid="wallet-goto-settings-btn"
-                          >
-                            Go to Settings
-                          </Button>
-                        </div>
-                      </div>
-                    )}
-
                     {/* Top Up Form */}
                     <div>
                       <h3 className="text-sm font-semibold text-slate-700 mb-3">Top Up Wallet</h3>
@@ -2242,14 +2230,14 @@ const ProfileDashboard = ({ user, onUpdateUser }) => {
                         />
                         <Button
                           onClick={handleWalletTopup}
-                          disabled={walletLoading || !walletHasCard}
+                          disabled={walletLoading}
                           className="bg-emerald-600 hover:bg-emerald-700 text-white"
                           data-testid="wallet-topup-btn"
                         >
                           {walletLoading ? (
                             <>
                               <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                              Processing...
+                              Redirecting to PayFast...
                             </>
                           ) : (
                             <>
@@ -2260,7 +2248,7 @@ const ProfileDashboard = ({ user, onUpdateUser }) => {
                         </Button>
                       </div>
                       <p className="text-xs text-slate-500 mt-2">
-                        Top-ups are charged to your saved card via PayFast.
+                        You&apos;ll be redirected to PayFast to complete payment securely.
                       </p>
                     </div>
 

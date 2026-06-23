@@ -6389,14 +6389,12 @@ async def get_wallet_balance(current_user: User = Depends(get_current_user)):
 
 @api_router.post("/ai/wallet/topup")
 async def topup_wallet(request: Request, current_user: User = Depends(get_current_user)):
-    """Top up job seeker wallet by charging their saved PayFast card.
+    """Initiate a PayFast hosted-checkout payment for a wallet top-up.
 
-    Security: This endpoint MUST charge the user via PayFast. It is NOT a free
-    credit endpoint. A saved PayFast token is required; users without a saved
-    card must add one in Settings first.
+    Returns the PayFast URL + signed form data. The frontend posts these to
+    PayFast, where the user enters their card. After the payment completes,
+    PayFast notifies /api/payfast/wallet-itn which credits the wallet.
     """
-    from services.payfast_wallet_service import charge_saved_card
-
     body = await request.json()
     amount = body.get("amount", 0)
     if not isinstance(amount, (int, float)) or amount <= 0 or amount > 10000:
@@ -6404,60 +6402,43 @@ async def topup_wallet(request: Request, current_user: User = Depends(get_curren
     if amount < 5:
         raise HTTPException(status_code=400, detail="Minimum top-up is R5.00")
 
-    # Require a saved PayFast card token
-    user_doc = await db.users.find_one(
-        {"id": current_user.id},
-        {"_id": 0, "wallet_balance": 1, "wallet_payfast_token": 1},
-    )
-    if not user_doc:
-        raise HTTPException(status_code=404, detail="User not found")
+    amount = float(amount)
+    payment_id = f"wallet-topup-{current_user.id[:8]}-{uuid.uuid4().hex[:8]}"
 
-    token = user_doc.get("wallet_payfast_token")
-    if not token:
-        raise HTTPException(
-            status_code=400,
-            detail="No saved card found. Please save a card in Settings before topping up.",
-        )
-
-    # Charge via PayFast ad-hoc tokenization API
-    amount_cents = int(round(amount * 100))
-    m_payment_id = f"wallet-topup-{current_user.id[:8]}-{uuid.uuid4().hex[:8]}"
-    charge_result = await charge_saved_card(
-        token=token,
-        amount_cents=amount_cents,
-        item_name=f"JobRocket Wallet Top-Up R{float(amount):.2f}",
-        m_payment_id=m_payment_id,
-    )
-
-    if not charge_result.get("success"):
-        raise HTTPException(
-            status_code=402,
-            detail=charge_result.get("error", "Payment failed. Please check your saved card and try again."),
-        )
-
-    # Charge succeeded — credit the wallet
-    result = await db.users.find_one_and_update(
-        {"id": current_user.id},
-        {"$inc": {"wallet_balance": amount}, "$set": {"updated_at": datetime.utcnow()}},
-        return_document=True,
-        projection={"_id": 0, "wallet_balance": 1},
-    )
-    new_balance = result.get("wallet_balance", 0) if result else 0
-
-    await db.ai_usage_log.insert_one({
-        "id": str(uuid.uuid4()),
+    # Record pending top-up so the ITN webhook can credit the wallet later
+    await db.wallet_topups.insert_one({
+        "id": payment_id,
         "user_id": current_user.id,
-        "action": "topup",
         "amount": amount,
-        "pf_payment_id": charge_result.get("pf_payment_id"),
-        "m_payment_id": m_payment_id,
+        "status": "pending",
         "created_at": datetime.utcnow(),
     })
 
+    # Build PayFast hosted checkout payload
+    payfast_data = {
+        "merchant_id": PAYFAST_MERCHANT_ID,
+        "merchant_key": PAYFAST_MERCHANT_KEY,
+        "return_url": f"{BASE_URL}/profile?tab=wallet&topup=success&payment_id={payment_id}",
+        "cancel_url": f"{BASE_URL}/profile?tab=wallet&topup=cancelled&payment_id={payment_id}",
+        "notify_url": f"{BASE_URL}/api/payfast/wallet-itn",
+        "name_first": current_user.first_name or "",
+        "name_last": current_user.last_name or "",
+        "email_address": current_user.email,
+        "m_payment_id": payment_id,
+        "amount": f"{amount:.2f}",
+        "item_name": f"JobRocket Wallet Top-Up R{amount:.2f}",
+        "custom_str1": current_user.id,
+        "custom_str2": "wallet_topup",
+    }
+
+    payfast_data["signature"] = generate_payfast_signature(payfast_data, PAYFAST_PASSPHRASE)
+    payfast_url = "https://sandbox.payfast.co.za/eng/process" if PAYFAST_SANDBOX else "https://www.payfast.co.za/eng/process"
+
     return {
-        "success": True,
-        "wallet_balance": new_balance,
-        "pf_payment_id": charge_result.get("pf_payment_id"),
+        "payment_id": payment_id,
+        "amount": amount,
+        "payfast_url": payfast_url,
+        "payfast_data": payfast_data,
     }
 
 
@@ -6531,6 +6512,59 @@ async def payfast_wallet_itn(request: Request):
         # Handle ITN for auto top-up charges (not tokenization setup)
         if itn_data.get("m_payment_id", "").startswith("auto-topup-"):
             logger.info(f"Auto top-up ITN confirmed: {m_payment_id}")
+
+        # Handle ITN for one-off wallet top-ups via PayFast hosted checkout
+        if custom_str2 == "wallet_topup" and m_payment_id:
+            user_id = custom_str1
+            amount_str = itn_data.get("amount_gross") or itn_data.get("amount") or "0"
+            try:
+                amount = float(amount_str)
+            except (TypeError, ValueError):
+                amount = 0.0
+
+            if payment_status == "COMPLETE" and user_id and amount > 0:
+                # Idempotency guard — only credit once per m_payment_id
+                topup_doc = await db.wallet_topups.find_one({"id": m_payment_id})
+                if topup_doc and topup_doc.get("status") == "completed":
+                    logger.info(f"Wallet top-up {m_payment_id} already credited, skipping")
+                else:
+                    new_doc = await db.users.find_one_and_update(
+                        {"id": user_id},
+                        {"$inc": {"wallet_balance": amount}, "$set": {"updated_at": datetime.utcnow()}},
+                        return_document=True,
+                        projection={"_id": 0, "wallet_balance": 1},
+                    )
+                    new_balance = new_doc.get("wallet_balance", 0) if new_doc else 0
+
+                    await db.wallet_topups.update_one(
+                        {"id": m_payment_id},
+                        {"$set": {
+                            "status": "completed",
+                            "completed_at": datetime.utcnow(),
+                            "pf_payment_id": itn_data.get("pf_payment_id"),
+                            "amount_paid": amount,
+                            "new_balance": new_balance,
+                        }},
+                        upsert=True,
+                    )
+
+                    await db.ai_usage_log.insert_one({
+                        "id": str(uuid.uuid4()),
+                        "user_id": user_id,
+                        "action": "topup",
+                        "amount": amount,
+                        "pf_payment_id": itn_data.get("pf_payment_id"),
+                        "m_payment_id": m_payment_id,
+                        "created_at": datetime.utcnow(),
+                    })
+
+                    logger.info(f"Wallet top-up {m_payment_id} credited R{amount:.2f} to user {user_id}, new balance R{new_balance:.2f}")
+            elif payment_status in ("CANCELLED", "FAILED") and m_payment_id:
+                await db.wallet_topups.update_one(
+                    {"id": m_payment_id},
+                    {"$set": {"status": payment_status.lower(), "updated_at": datetime.utcnow()}},
+                )
+                logger.info(f"Wallet top-up {m_payment_id} marked {payment_status}")
 
     except Exception as e:
         logger.error(f"Wallet ITN error: {e}")
