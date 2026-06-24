@@ -892,7 +892,7 @@ const AdminDashboard = ({ user, onLogout, onNavigateToJobs }) => {
                         'Job Type',
                         'Salary',
                         'Description',
-                        'Created At'
+                        'Date Posted'
                       ].map((col, idx) => (
                         <div key={idx} className="flex items-center text-sm">
                           <Check className="w-4 h-4 text-green-400 mr-2" />

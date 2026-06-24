@@ -4637,7 +4637,9 @@ async def admin_export_jobs(
             dt = dt.replace(hour=0, minute=0, second=0, microsecond=0) if dt.hour == 0 and dt.minute == 0 and dt.second == 0 else dt
         return dt
 
-    # Build query filter on created_at
+    # Build query filter on posted_date (present on ALL jobs, including bulk-uploaded ones).
+    # Note: bulk-uploaded jobs historically did NOT set created_at — only posted_date —
+    # which is why the previous filter missed thousands of jobs.
     query: dict = {}
     date_filter: dict = {}
     start_dt = _parse_dt(start_date, end_of_day=False)
@@ -4647,14 +4649,14 @@ async def admin_export_jobs(
     if end_dt:
         date_filter["$lte"] = end_dt
     if date_filter:
-        query["created_at"] = date_filter
+        query["posted_date"] = date_filter
 
     # Count first so we know what we're fetching
     total = await db.jobs.count_documents(query)
     logger.info(f"admin_export_jobs: query={query}, total matching={total}")
 
-    # Fetch ALL matching jobs sorted by created_at descending
-    cursor = db.jobs.find(query, {"_id": 0}).sort("created_at", -1)
+    # Fetch ALL matching jobs sorted by posted_date descending
+    cursor = db.jobs.find(query, {"_id": 0}).sort("posted_date", -1)
     jobs = await cursor.to_list(length=None)
 
     # Build Excel workbook
@@ -4671,7 +4673,7 @@ async def admin_export_jobs(
         "Job Type",
         "Salary",
         "Description",
-        "Created At",
+        "Date Posted",
     ]
     ws.append(headers)
 
@@ -4698,14 +4700,14 @@ async def admin_export_jobs(
             if len(description) > 1000:
                 description = description[:1000] + "..."
 
-        # Format created_at
-        created_at = job.get("created_at", "")
-        if isinstance(created_at, datetime):
-            created_str = created_at.strftime("%Y-%m-%d %H:%M")
-        elif created_at:
-            created_str = str(created_at)[:19]
+        # Format the date — prefer posted_date (present on all jobs), fall back to created_at
+        date_val = job.get("posted_date") or job.get("created_at") or ""
+        if isinstance(date_val, datetime):
+            date_str = date_val.strftime("%Y-%m-%d %H:%M")
+        elif date_val:
+            date_str = str(date_val)[:19]
         else:
-            created_str = ""
+            date_str = ""
 
         row = [
             f"{base_url}/jobs/{job_id}",
@@ -4716,7 +4718,7 @@ async def admin_export_jobs(
             job.get("role_type", job.get("job_type", "")) or "",
             job.get("salary", "") or "",
             description,
-            created_str,
+            date_str,
         ]
         ws.append(row)
 
