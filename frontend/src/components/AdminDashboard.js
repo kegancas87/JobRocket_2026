@@ -26,7 +26,6 @@ import {
   FileSpreadsheet,
   Loader2,
   CalendarDays,
-  Hash,
   CreditCard,
   AlertTriangle,
   ShieldOff,
@@ -61,7 +60,6 @@ const AdminDashboard = ({ user, onLogout, onNavigateToJobs }) => {
   // Export filter state
   const [exportStartDate, setExportStartDate] = useState('');
   const [exportEndDate, setExportEndDate] = useState('');
-  const [exportLimit, setExportLimit] = useState('');
   const [formData, setFormData] = useState({
     code: '',
     name: '',
@@ -175,18 +173,15 @@ const AdminDashboard = ({ user, onLogout, onNavigateToJobs }) => {
     try {
       const token = localStorage.getItem('token');
       
-      // Build query params
+      // Build query params (date range only — exports ALL jobs in range)
       const params = new URLSearchParams();
       if (exportStartDate) {
-        params.append('start_date', new Date(exportStartDate).toISOString());
+        params.append('start_date', exportStartDate);
       }
       if (exportEndDate) {
-        params.append('end_date', new Date(exportEndDate).toISOString());
+        params.append('end_date', exportEndDate);
       }
-      if (exportLimit && parseInt(exportLimit) > 0) {
-        params.append('limit', exportLimit);
-      }
-      
+
       const queryString = params.toString();
       const url = `${API}/admin/jobs/export${queryString ? '?' + queryString : ''}`;
       
@@ -835,8 +830,8 @@ const AdminDashboard = ({ user, onLogout, onNavigateToJobs }) => {
                     Download an Excel (.xlsx) file containing job listings. Use the filters below to customize your export.
                   </p>
                   
-                  {/* Export Filters */}
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+                  {/* Export Filters - Date Range Only */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
                     {/* Date Range - Start */}
                     <div>
                       <label className="block text-sm font-medium text-slate-300 mb-2">
@@ -848,9 +843,10 @@ const AdminDashboard = ({ user, onLogout, onNavigateToJobs }) => {
                         value={exportStartDate}
                         onChange={(e) => setExportStartDate(e.target.value)}
                         className="bg-slate-700 border-slate-600 text-white"
+                        data-testid="export-start-date"
                       />
                     </div>
-                    
+
                     {/* Date Range - End */}
                     <div>
                       <label className="block text-sm font-medium text-slate-300 mb-2">
@@ -862,43 +858,27 @@ const AdminDashboard = ({ user, onLogout, onNavigateToJobs }) => {
                         value={exportEndDate}
                         onChange={(e) => setExportEndDate(e.target.value)}
                         className="bg-slate-700 border-slate-600 text-white"
-                      />
-                    </div>
-                    
-                    {/* Limit */}
-                    <div>
-                      <label className="block text-sm font-medium text-slate-300 mb-2">
-                        <Hash className="w-4 h-4 inline mr-1" />
-                        Number of Jobs (Latest First)
-                      </label>
-                      <Input
-                        type="number"
-                        value={exportLimit}
-                        onChange={(e) => setExportLimit(e.target.value)}
-                        placeholder="e.g., 1000 (leave empty for all)"
-                        min="1"
-                        className="bg-slate-700 border-slate-600 text-white placeholder-slate-500"
+                        data-testid="export-end-date"
                       />
                     </div>
                   </div>
-                  
+
                   {/* Filter Summary */}
                   <div className="bg-slate-800 rounded-lg p-4 mb-6">
                     <h4 className="text-sm font-medium text-slate-300 mb-2">Export Summary:</h4>
                     <p className="text-slate-400 text-sm">
-                      {exportStartDate || exportEndDate || exportLimit ? (
+                      {exportStartDate || exportEndDate ? (
                         <>
-                          Exporting {exportLimit ? `up to ${exportLimit}` : 'all'} jobs
+                          Exporting all jobs
                           {exportStartDate && ` from ${exportStartDate}`}
                           {exportEndDate && ` to ${exportEndDate}`}
-                          {exportLimit && ', sorted by latest first'}
                         </>
                       ) : (
-                        'Exporting all jobs (no filters applied)'
+                        'Exporting all jobs (no date filter applied)'
                       )}
                     </p>
                   </div>
-                  
+
                   {/* Excel Columns Info */}
                   <div className="bg-slate-800 rounded-lg p-4 mb-6">
                     <h4 className="text-sm font-medium text-slate-300 mb-3">Excel Columns:</h4>
@@ -927,6 +907,7 @@ const AdminDashboard = ({ user, onLogout, onNavigateToJobs }) => {
                       onClick={handleExportJobs}
                       disabled={exportLoading}
                       className="bg-green-600 hover:bg-green-700 text-white"
+                      data-testid="export-jobs-btn"
                     >
                       {exportLoading ? (
                         <>
@@ -940,19 +921,18 @@ const AdminDashboard = ({ user, onLogout, onNavigateToJobs }) => {
                         </>
                       )}
                     </Button>
-                    
-                    {(exportStartDate || exportEndDate || exportLimit) && (
+
+                    {(exportStartDate || exportEndDate) && (
                       <Button
                         onClick={() => {
                           setExportStartDate('');
                           setExportEndDate('');
-                          setExportLimit('');
                         }}
                         variant="outline"
                         className="border-slate-600 text-slate-300 hover:bg-slate-700"
                       >
                         <X className="w-4 h-4 mr-2" />
-                        Clear Filters
+                        Clear Dates
                       </Button>
                     )}
                   </div>

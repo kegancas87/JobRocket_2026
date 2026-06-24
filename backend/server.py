@@ -15,7 +15,7 @@ import logging
 from pathlib import Path
 from typing import List, Optional
 import uuid
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 import jwt
 from passlib.context import CryptContext
 import secrets
@@ -4601,10 +4601,13 @@ async def validate_discount_code(
 async def admin_export_jobs(
     start_date: Optional[str] = None,
     end_date: Optional[str] = None,
-    limit: Optional[int] = None,
     current_user: User = Depends(verify_admin_user)
 ):
-    """Export jobs as Excel (.xlsx) for admin with optional date filtering and limit"""
+    """Export ALL jobs as Excel (.xlsx) within an optional date range.
+
+    No row limit — every job matching the filter is exported.
+    Dates filter on `created_at` and are inclusive of both ends.
+    """
     import io
     import re
     from fastapi.responses import StreamingResponse
@@ -4612,35 +4615,47 @@ async def admin_export_jobs(
     from openpyxl.styles import Font, PatternFill, Alignment
     from openpyxl.utils import get_column_letter
 
-    # Build query filter
-    query = {}
-
-    # Add date filters if provided (filters on created_at)
-    if start_date or end_date:
-        date_filter = {}
-        if start_date:
+    def _parse_dt(value: str, end_of_day: bool = False) -> Optional[datetime]:
+        """Parse an ISO date or datetime string. Returns a naive UTC datetime."""
+        if not value:
+            return None
+        s = value.strip().replace('Z', '+00:00')
+        try:
+            dt = datetime.fromisoformat(s)
+        except Exception:
+            # Plain date string like "2026-01-15"
             try:
-                start_dt = datetime.fromisoformat(start_date.replace('Z', '+00:00'))
-                date_filter["$gte"] = start_dt
+                dt = datetime.strptime(value[:10], "%Y-%m-%d")
             except Exception:
-                pass
-        if end_date:
-            try:
-                end_dt = datetime.fromisoformat(end_date.replace('Z', '+00:00'))
-                # Include the entire end date
-                end_dt = end_dt.replace(hour=23, minute=59, second=59)
-                date_filter["$lte"] = end_dt
-            except Exception:
-                pass
-        if date_filter:
-            query["created_at"] = date_filter
+                return None
+        # Normalise to naive UTC (MongoDB stores naive UTC)
+        if dt.tzinfo is not None:
+            dt = dt.astimezone(timezone.utc).replace(tzinfo=None)
+        if end_of_day:
+            dt = dt.replace(hour=23, minute=59, second=59, microsecond=999000)
+        else:
+            dt = dt.replace(hour=0, minute=0, second=0, microsecond=0) if dt.hour == 0 and dt.minute == 0 and dt.second == 0 else dt
+        return dt
 
-    # Set limit (default to 150000 if not specified)
-    fetch_limit = limit if limit and limit > 0 else 150000
+    # Build query filter on created_at
+    query: dict = {}
+    date_filter: dict = {}
+    start_dt = _parse_dt(start_date, end_of_day=False)
+    end_dt = _parse_dt(end_date, end_of_day=True)
+    if start_dt:
+        date_filter["$gte"] = start_dt
+    if end_dt:
+        date_filter["$lte"] = end_dt
+    if date_filter:
+        query["created_at"] = date_filter
 
-    # Fetch jobs sorted by created_at descending (latest first)
-    cursor = db.jobs.find(query, {"_id": 0}).sort("created_at", -1).limit(fetch_limit)
-    jobs = await cursor.to_list(length=fetch_limit)
+    # Count first so we know what we're fetching
+    total = await db.jobs.count_documents(query)
+    logger.info(f"admin_export_jobs: query={query}, total matching={total}")
+
+    # Fetch ALL matching jobs sorted by created_at descending
+    cursor = db.jobs.find(query, {"_id": 0}).sort("created_at", -1)
+    jobs = await cursor.to_list(length=None)
 
     # Build Excel workbook
     wb = Workbook()
@@ -4728,13 +4743,16 @@ async def admin_export_jobs(
     wb.save(output)
     output.seek(0)
 
+    logger.info(f"admin_export_jobs: exporting {len(jobs)} rows")
+
     filename = f"jobrocket_jobs_export_{datetime.utcnow().strftime('%Y%m%d_%H%M%S')}.xlsx"
 
     return StreamingResponse(
         output,
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         headers={
-            "Content-Disposition": f"attachment; filename={filename}"
+            "Content-Disposition": f"attachment; filename={filename}",
+            "X-Export-Row-Count": str(len(jobs)),
         }
     )
 
