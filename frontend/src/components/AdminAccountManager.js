@@ -107,6 +107,9 @@ const AdminAccountManager = ({ user }) => {
 
   // User management states
   const [users, setUsers] = useState([]);
+  const [usersTotal, setUsersTotal] = useState(0);
+  const [usersLoadingMore, setUsersLoadingMore] = useState(false);
+  const USERS_PAGE_SIZE = 100;
   const [userSearchTerm, setUserSearchTerm] = useState('');
   const [userRoleFilter, setUserRoleFilter] = useState('');
   const [usersLoading, setUsersLoading] = useState(false);
@@ -166,16 +169,37 @@ const AdminAccountManager = ({ user }) => {
       const params = new URLSearchParams();
       if (userRoleFilter) params.append('role', userRoleFilter);
       if (userSearchTerm) params.append('search', userSearchTerm);
-      params.append('limit', '100');
-      
+      params.append('skip', '0');
+      params.append('limit', String(USERS_PAGE_SIZE));
+
       const res = await axios.get(`${API}/admin/users?${params.toString()}`, getAuthHeaders());
       setUsers(res.data.users || []);
+      setUsersTotal(res.data.total || 0);
     } catch (err) {
       console.error('Failed to load users:', err);
     } finally {
       setUsersLoading(false);
     }
   }, [userRoleFilter, userSearchTerm]);
+
+  const loadMoreUsers = useCallback(async () => {
+    try {
+      setUsersLoadingMore(true);
+      const params = new URLSearchParams();
+      if (userRoleFilter) params.append('role', userRoleFilter);
+      if (userSearchTerm) params.append('search', userSearchTerm);
+      params.append('skip', String(users.length));
+      params.append('limit', String(USERS_PAGE_SIZE));
+
+      const res = await axios.get(`${API}/admin/users?${params.toString()}`, getAuthHeaders());
+      setUsers((prev) => [...prev, ...(res.data.users || [])]);
+      setUsersTotal(res.data.total || 0);
+    } catch (err) {
+      console.error('Failed to load more users:', err);
+    } finally {
+      setUsersLoadingMore(false);
+    }
+  }, [userRoleFilter, userSearchTerm, users.length]);
 
   const fetchAccountsList = useCallback(async () => {
     try {
@@ -733,7 +757,14 @@ const AdminAccountManager = ({ user }) => {
                     <p>No users found</p>
                   </div>
                 ) : (
-                  <div className="overflow-x-auto">
+                  <>
+                    <div className="flex items-center justify-between mb-3 text-sm text-slate-600" data-testid="users-count-summary">
+                      <span>
+                        Showing <strong className="text-slate-900">{users.length}</strong> of{' '}
+                        <strong className="text-slate-900">{usersTotal}</strong> users
+                      </span>
+                    </div>
+                    <div className="overflow-x-auto">
                     <table className="w-full text-sm">
                       <thead>
                         <tr className="border-b border-slate-200">
@@ -785,7 +816,29 @@ const AdminAccountManager = ({ user }) => {
                         ))}
                       </tbody>
                     </table>
-                  </div>
+                    </div>
+
+                    {users.length < usersTotal && (
+                      <div className="flex justify-center mt-6">
+                        <Button
+                          onClick={loadMoreUsers}
+                          disabled={usersLoadingMore}
+                          variant="outline"
+                          className="border-blue-300 text-blue-700 hover:bg-blue-50"
+                          data-testid="load-more-users-btn"
+                        >
+                          {usersLoadingMore ? (
+                            <>
+                              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                              Loading...
+                            </>
+                          ) : (
+                            <>Load More ({usersTotal - users.length} remaining)</>
+                          )}
+                        </Button>
+                      </div>
+                    )}
+                  </>
                 )}
               </CardContent>
             </Card>
