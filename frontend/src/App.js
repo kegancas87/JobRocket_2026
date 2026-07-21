@@ -11,6 +11,7 @@ import AnalyticsDashboard from "./components/AnalyticsDashboard";
 import AdminAccountManager from "./components/AdminAccountManager";
 import BillingPage from "./components/BillingPage";
 import BulkUploadPage from "./components/BulkUploadPage";
+import BulkCVUpload from "./components/BulkCVUpload";
 import JobSeekerOnboarding from "./components/JobSeekerOnboarding";
 import RecruiterOnboarding from "./components/RecruiterOnboarding";
 import InvitationPage from "./components/InvitationPage";
@@ -1616,6 +1617,14 @@ function App() {
               <Route path="/manage-accounts" element={
                 user && user.role === 'admin' ? (
                   <AdminAccountManager user={user} />
+                ) : (
+                  <Navigate to="/" replace />
+                )
+              } />
+
+              <Route path="/admin/bulk-cv-upload" element={
+                user && user.role === 'admin' ? (
+                  <BulkCVUpload user={user} />
                 ) : (
                   <Navigate to="/" replace />
                 )

@@ -21,7 +21,8 @@ import {
   FileSpreadsheet,
   BarChart3,
   ChevronDown,
-  PieChart
+  PieChart,
+  Upload
 } from "lucide-react";
 
 const Navigation = ({ user, onLogout }) => {
@@ -95,6 +96,7 @@ const Navigation = ({ user, onLogout }) => {
         { name: 'Analytics', path: '/analytics', icon: BarChart3 },
         { name: 'Manage', path: '/manage-accounts', icon: Shield },
         { name: 'Jobs', path: '/jobs', icon: Briefcase },
+        { name: 'Bulk CVs', path: '/admin/bulk-cv-upload', icon: Upload },
         { name: 'Account', path: '/account', icon: Building2 },
         { name: 'Admin Panel', path: '/admin', icon: Settings },
         { name: 'Profile', path: '/profile', icon: User }

@@ -5323,6 +5323,177 @@ async def admin_bulk_upload_template(
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
 
+
+# ============================================
+# Admin Bulk CV Upload — creates job-seeker users from uploaded CV files
+# ============================================
+
+# Password used for ALL job-seeker users created via bulk CV upload.
+# Note: this is intentionally hardcoded per product requirement — the intent
+# is that the admin knows this password and can share it with the imported
+# candidates if/when needed. Regular signup flow enforces password complexity.
+_BULK_CV_UPLOAD_PASSWORD = "C@ss1dy2"
+
+
+@api_router.post("/admin/bulk-cv-upload")
+async def admin_bulk_cv_upload(
+    files: List[UploadFile] = File(...),
+    current_user: User = Depends(verify_admin_user),
+):
+    """Bulk-upload CV files (up to 1000) and create a job-seeker user for each.
+
+    For each uploaded file:
+      • Save the file as a CV document
+      • Create a new job_seeker user with:
+          - name detected from filename (or "Job Seeker" fallback)
+          - email derived from filename slug (with random suffix on collision)
+          - password = the bulk-upload password (hashed)
+      • Try to extract email / phone / skills from the CV content and store them
+    """
+    from services.bulk_cv_upload_service import (
+        extract_name_from_filename,
+        generate_bulk_email,
+        extract_text_from_cv,
+        extract_email_from_text,
+        extract_phone_from_text,
+        extract_skills_from_text,
+    )
+
+    if not files:
+        raise HTTPException(status_code=400, detail="No files uploaded")
+    if len(files) > 1000:
+        raise HTTPException(status_code=400, detail="Maximum 1000 files per upload")
+
+    allowed_extensions = {".pdf", ".doc", ".docx"}
+    max_file_size = 10 * 1024 * 1024  # 10 MB per file
+
+    doc_dir = Path(UPLOAD_PATH) / "profile_documents"
+    doc_dir.mkdir(parents=True, exist_ok=True)
+
+    hashed_pw = get_password_hash(_BULK_CV_UPLOAD_PASSWORD)
+
+    # Pre-load existing email slugs so we don't collide with anything already in DB
+    existing_slugs: set = set()
+    async for u in db.users.find(
+        {"email": {"$regex": r"@jobrocket\.co\.za$", "$options": "i"}},
+        {"_id": 0, "email": 1},
+    ):
+        local = (u.get("email") or "").split("@")[0]
+        if local:
+            existing_slugs.add(local)
+
+    results = {
+        "total": len(files),
+        "created": 0,
+        "failed": 0,
+        "users": [],
+        "errors": [],
+    }
+
+    now = datetime.utcnow()
+
+    for f in files:
+        filename = f.filename or "cv"
+        try:
+            ext = Path(filename).suffix.lower()
+            if ext not in allowed_extensions:
+                results["failed"] += 1
+                results["errors"].append({"filename": filename, "error": f"Unsupported file type: {ext or '(none)'}"})
+                continue
+
+            content = await f.read()
+            if len(content) == 0:
+                results["failed"] += 1
+                results["errors"].append({"filename": filename, "error": "Empty file"})
+                continue
+            if len(content) > max_file_size:
+                results["failed"] += 1
+                results["errors"].append({"filename": filename, "error": "File exceeds 10MB limit"})
+                continue
+
+            # 1. Detect name from filename
+            first_name, last_name = extract_name_from_filename(filename)
+            if not first_name:
+                first_name = "Job"
+                last_name = "Seeker"
+            elif not last_name:
+                last_name = "Seeker"
+
+            # 2. Generate a unique email
+            email = generate_bulk_email(filename, existing_slugs)
+
+            # 3. Save CV file to disk with a safe unique name
+            user_id = str(uuid.uuid4())
+            safe_filename = f"{user_id}_cv_{uuid.uuid4().hex[:12]}{ext}"
+            filepath = doc_dir / safe_filename
+            with open(filepath, "wb") as out:
+                out.write(content)
+
+            cv_record = {
+                "id": uuid.uuid4().hex[:16],
+                "filename": safe_filename,
+                "original_name": filename,
+                "document_type": "cv",
+                "file_url": f"/api/uploads/profile_documents/{safe_filename}",
+                "file_size": len(content),
+                "uploaded_at": now.isoformat(),
+                "content_type": f.content_type or ("application/pdf" if ext == ".pdf" else "application/octet-stream"),
+            }
+
+            # 4. Try to extract profile fields from the CV text
+            cv_text = extract_text_from_cv(content, ext)
+            extracted_email = extract_email_from_text(cv_text)
+            extracted_phone = extract_phone_from_text(cv_text)
+            extracted_skills = extract_skills_from_text(cv_text)
+
+            # 5. Build the user document (mirrors the shape from /auth/register + profile upload)
+            user_doc = {
+                "id": user_id,
+                "email": email,
+                "password_hash": hashed_pw,
+                "first_name": first_name,
+                "last_name": last_name,
+                "role": UserRole.JOB_SEEKER.value if hasattr(UserRole.JOB_SEEKER, "value") else "job_seeker",
+                "account_id": None,
+                "account_role": None,
+                "is_active": True,
+                "phone": extracted_phone or "",
+                "skills": extracted_skills,
+                "profile_documents": [cv_record],
+                "cv_url": cv_record["file_url"],
+                "source": "bulk_cv_upload",
+                "bulk_upload_batch": now.isoformat(),
+                "created_at": now,
+                "updated_at": now,
+            }
+            if extracted_email and extracted_email != email:
+                user_doc["cv_email"] = extracted_email  # keep the CV's own email as metadata
+
+            await db.users.insert_one(user_doc)
+
+            results["created"] += 1
+            results["users"].append({
+                "filename": filename,
+                "email": email,
+                "first_name": first_name,
+                "last_name": last_name,
+                "skills_detected": len(extracted_skills),
+                "phone_detected": bool(extracted_phone),
+                "email_detected": bool(extracted_email),
+            })
+
+        except Exception as e:
+            logger.error(f"bulk-cv-upload: failed to process {filename}: {e}")
+            results["failed"] += 1
+            results["errors"].append({"filename": filename, "error": str(e)[:200]})
+
+    logger.info(
+        f"bulk-cv-upload: processed {results['total']} files, "
+        f"created={results['created']}, failed={results['failed']}"
+    )
+    return results
+
+
 from services.billing_service import create_billing_service
 billing_service = create_billing_service(db)
 
